@@ -426,6 +426,19 @@ export async function restockRewardCatalogItem(rewardId: string, addStock: numbe
   return rowToRewardItem(data as RewardCatalogRow);
 }
 
+export async function resetAllMonthlyRewardQuotas(): Promise<void> {
+  const { error } = await supabase.rpc('reset_monthly_reward_quota');
+  if (error) {
+    const { data: catalog, error: fetchErr } = await supabase.from('reward_catalog').select('*');
+    if (fetchErr || !catalog) throw new Error(`Gagal membaca katalog reward: ${fetchErr?.message}`);
+
+    for (const item of catalog) {
+      const limit = item.monthly_stock_limit || Math.max(item.available_stock, 25);
+      await supabase.from('reward_catalog').update({ available_stock: limit }).eq('id', item.id);
+    }
+  }
+}
+
 export async function deleteRewardCatalogItem(rewardId: string): Promise<void> {
   const { error } = await supabase.from('reward_catalog').delete().eq('id', rewardId);
   if (error) throw new Error(`Gagal menghapus reward: ${error.message}`);

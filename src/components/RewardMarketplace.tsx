@@ -22,6 +22,7 @@ import {
   X,
   AlertCircle,
   Loader2,
+  RefreshCw,
 } from 'lucide-react';
 
 interface RewardMarketplaceProps {
@@ -34,6 +35,7 @@ interface RewardMarketplaceProps {
   onUpdateReward?: (rewardId: string, updates: Partial<Omit<RewardItem, 'id'>>) => Promise<void> | void;
   onRestockReward?: (rewardId: string, addStock: number) => Promise<void> | void;
   onDeleteReward?: (rewardId: string) => Promise<void> | void;
+  onResetMonthlyQuota?: () => Promise<void> | void;
 }
 
 export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
@@ -46,9 +48,10 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
   onUpdateReward,
   onRestockReward,
   onDeleteReward,
+  onResetMonthlyQuota,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
-  const [activeTab, setActiveTab] = useState<'catalog' | 'history'>('catalog');
+  const [activeTab, setActiveTab] = useState<'catalog' | 'history' | 'hall-of-fame'>('catalog');
   const [selectedReward, setSelectedReward] = useState<RewardItem | null>(null);
   const [claimedCode, setClaimedCode] = useState<string | null>(null);
 
@@ -58,11 +61,10 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
 
   // ── Admin Modal States ──
   const [showAddEditModal, setShowAddEditModal] = useState(false);
-  const [editingItem, setEditingItem] = useState<RewardItem | null>(null);
   const [showRestockModal, setShowRestockModal] = useState(false);
+  const [editingItem, setEditingItem] = useState<RewardItem | null>(null);
   const [restockItem, setRestockItem] = useState<RewardItem | null>(null);
-  const [restockAmount, setRestockAmount] = useState<number>(10);
-
+  
   // Form states for Add/Edit
   const [formTitle, setFormTitle] = useState('');
   const [formCategory, setFormCategory] = useState<RewardItem['category']>('E-Wallet');
@@ -71,9 +73,27 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
   const [formDescription, setFormDescription] = useState('');
   const [formAvailableStock, setFormAvailableStock] = useState<number>(20);
   const [formBadgeTag, setFormBadgeTag] = useState('');
+  const [restockAmount, setRestockAmount] = useState<number>(10);
 
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [resettingQuota, setResettingQuota] = useState(false);
+
+  const handleResetQuota = async () => {
+    if (!window.confirm('Apakah Anda yakin ingin mereset kuota bulanan seluruh item reward kembali ke stok default?')) {
+      return;
+    }
+    setResettingQuota(true);
+    try {
+      if (onResetMonthlyQuota) {
+        await onResetMonthlyQuota();
+      }
+    } catch (err: any) {
+      alert(err.message || 'Gagal mereset kuota bulanan.');
+    } finally {
+      setResettingQuota(false);
+    }
+  };
 
   const categories = ['Semua', 'E-Wallet', 'Pulsa & Data', 'Safety Gear', 'Voucher & Perk'];
 
@@ -257,13 +277,26 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
         {/* Tab & User Points & Admin Button */}
         <div className="flex items-center gap-3 flex-wrap sm:flex-nowrap">
           {isAdmin && (
-            <button
-              onClick={handleOpenCreateModal}
-              className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-purple-900/30"
-            >
-              <Plus className="w-4 h-4" />
-              + Tambah Item Reward
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleOpenCreateModal}
+                className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-purple-900/30"
+              >
+                <Plus className="w-4 h-4" />
+                + Tambah Item
+              </button>
+              {onResetMonthlyQuota && (
+                <button
+                  onClick={handleResetQuota}
+                  disabled={resettingQuota}
+                  title="Reset Kuota Bulanan Seluruh Katalog (Tanggal 1)"
+                  className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${resettingQuota ? 'animate-spin' : ''}`} />
+                  <span>Reset Kuota Tgl 1</span>
+                </button>
+              )}
+            </div>
           )}
 
           <div className="bg-zinc-800 border border-zinc-700 p-0.5 rounded-xl flex">
@@ -283,6 +316,15 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
             >
               <History className="w-3.5 h-3.5" />
               <span>Riwayat</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('hall-of-fame')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold transition flex items-center gap-1.5 ${
+                activeTab === 'hall-of-fame' ? 'bg-emerald-600 text-white' : 'text-zinc-400 hover:text-white'
+              }`}
+            >
+              <Award className="w-3.5 h-3.5 text-amber-300" />
+              <span>Hall of Fame</span>
             </button>
           </div>
 
@@ -455,7 +497,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
             }}
           />
         </>
-      ) : (
+      ) : activeTab === 'history' ? (
         /* Redemption History Tab */
         <div className="space-y-2">
           {redemptionHistory.length === 0 ? (
@@ -487,6 +529,51 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
               />
             </>
           )}
+        </div>
+      ) : (
+        /* Hall of Fame & Real-time Feed Tab */
+        <div className="space-y-4">
+          <div className="bg-gradient-to-r from-purple-900/30 via-zinc-900 to-amber-900/30 border border-purple-500/30 rounded-2xl p-5 relative overflow-hidden">
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-10 h-10 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center">
+                <Award className="w-5 h-5 text-amber-400" />
+              </div>
+              <div>
+                <h3 className="font-bold text-white text-sm">Hall of Fame & Feed Penukaran Poin</h3>
+                <p className="text-xs text-zinc-400">Apresiasi Real-time Penukaran Reward Insan Operasional BIB Logistics</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-zinc-900/80 border border-zinc-800 rounded-2xl p-4 space-y-3">
+            <h4 className="text-xs font-bold text-zinc-300 flex items-center gap-2">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              Aktivitas Klaim Reward Terbaru
+            </h4>
+
+            {redemptionHistory.length === 0 ? (
+              <div className="text-center py-8 text-zinc-500 text-xs">
+                Belum ada klaim reward bulan ini. Jadilah pekerja pertama yang menukar poin!
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {redemptionHistory.slice(0, 10).map((h) => (
+                  <div key={h.id} className="bg-zinc-950/80 border border-zinc-800 p-3 rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center font-bold text-emerald-400 text-xs">
+                        🎁
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-white">{h.itemTitle}</div>
+                        <div className="text-[10px] text-zinc-500">Waktu Klaim: {h.redeemedAt} · Voucher <code className="bg-zinc-900 px-1 py-0.5 rounded text-emerald-400 font-mono">{h.redemptionCode}</code></div>
+                      </div>
+                    </div>
+                    <span className="text-xs font-black text-amber-400">-{h.pointsSpent} PTS</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       )}
 

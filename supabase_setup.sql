@@ -277,6 +277,28 @@ BEGIN
 END;
 $$;
 
+-- ─── RPC: Reset Monthly Reward Quota (Tanggal 1 Setiap Bulan) ─────
+CREATE OR REPLACE FUNCTION reset_monthly_reward_quota()
+RETURNS JSONB
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_updated_count INTEGER;
+BEGIN
+  UPDATE reward_catalog
+  SET available_stock = GREATEST(monthly_stock_limit, 1),
+      updated_at = now();
+
+  GET DIAGNOSTICS v_updated_count = ROW_COUNT;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'updated_items', v_updated_count,
+    'message', 'Kuota bulanan seluruh item reward berhasil di-reset!'
+  );
+END;
+$$;
+
 -- ─── 5. Seed Data ─────────────────────────────────────────────
 
 -- Seed: Workers (Clean Setup — Only System Administrator)

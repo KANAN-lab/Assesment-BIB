@@ -34,6 +34,7 @@ import {
   createRewardCatalogItem,
   updateRewardCatalogItem,
   restockRewardCatalogItem,
+  resetAllMonthlyRewardQuotas,
   deleteRewardCatalogItem,
   fetchRedemptionHistory,
   completeWorkerQuiz,
@@ -506,6 +507,17 @@ export const App: React.FC = () => {
     }
   };
 
+  const handleResetMonthlyQuota = async () => {
+    try {
+      await resetAllMonthlyRewardQuotas();
+      const updatedCatalog = await fetchRewardCatalog();
+      setRewardCatalog(updatedCatalog);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Gagal mereset kuota bulanan.';
+      setError(msg);
+    }
+  };
+
   // Supervisor score update
   const handleUpdateWorkerScore = async (auditData: AuditInput) => {
     try {
@@ -794,6 +806,7 @@ export const App: React.FC = () => {
               onUpdateReward={handleUpdateReward}
               onRestockReward={handleRestockReward}
               onDeleteReward={handleDeleteReward}
+              onResetMonthlyQuota={handleResetMonthlyQuota}
             />
 
             {/* Badge Showcase */}

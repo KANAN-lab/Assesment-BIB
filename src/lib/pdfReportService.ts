@@ -250,4 +250,62 @@ export class ExecutivePDFReportGenerator {
 
     doc.save(`Berita_Acara_Insiden_K3_${incident.id.slice(0, 6)}.pdf`);
   }
+
+  public static generateBulkIncidentSummaryPDF(
+    incidents: IncidentReport[],
+    supervisorName: string = 'Supervisor Logistik'
+  ): void {
+    const doc = new jsPDF('l', 'mm', 'a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const currentDate = new Date().toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+
+    doc.setFillColor(15, 23, 42);
+    doc.rect(0, 0, pageWidth, 26, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.text('PT DAM INDONESIA — REKAPITULASI LAPORAN INSIDEN K3 & AUDIT CAPA', 14, 11);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(254, 215, 170);
+    doc.text(`Total Laporan Recorded: ${incidents.length} Insiden | Tanggal Cetak: ${currentDate} | Pengawas: ${supervisorName}`, 14, 18);
+
+    const tableRows = incidents.map((inc, i) => [
+      (i + 1).toString(),
+      inc.workerName || inc.workerId,
+      inc.incidentType.toUpperCase().replace('_', ' '),
+      inc.severity.toUpperCase(),
+      inc.location,
+      inc.status.toUpperCase(),
+      inc.assignedPic || '-',
+      inc.dueDate || '-',
+      inc.description.slice(0, 45) + (inc.description.length > 45 ? '...' : ''),
+    ]);
+
+    autoTable(doc, {
+      startY: 32,
+      head: [['No', 'Pelapor', 'Jenis Insiden', 'Keparahan', 'Lokasi', 'Status', 'PIC', 'Target Selesai', 'Kronologi Singkat']],
+      body: tableRows,
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 7, cellPadding: 2 },
+      columnStyles: {
+        0: { cellWidth: 10 },
+        1: { fontStyle: 'bold', cellWidth: 35 },
+        2: { cellWidth: 35 },
+        3: { cellWidth: 25 },
+        4: { cellWidth: 35 },
+        5: { fontStyle: 'bold', cellWidth: 25 },
+        6: { cellWidth: 25 },
+        7: { cellWidth: 25 },
+      },
+    });
+
+    doc.save(`Rekapitulasi_Insiden_K3_${new Date().toISOString().slice(0, 10)}.pdf`);
+  }
 }

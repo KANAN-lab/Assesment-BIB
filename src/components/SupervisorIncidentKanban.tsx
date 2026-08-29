@@ -12,10 +12,12 @@ import {
   FileText,
   Search,
   LayoutGrid,
-  ListFilter
+  ListFilter,
+  Download
 } from 'lucide-react';
 import { IncidentReport } from '../types/assessment';
 import { NotificationEngine } from '../domain/NotificationEngine';
+import { ExecutivePDFReportGenerator } from '../lib/pdfReportService';
 
 interface SupervisorIncidentKanbanProps {
   incidents: IncidentReport[];
@@ -150,9 +152,20 @@ export const SupervisorIncidentKanban: React.FC<SupervisorIncidentKanbanProps> =
           </select>
         </div>
 
-        <div className="text-xs text-zinc-500 flex items-center gap-1.5 shrink-0">
-          <LayoutGrid className="w-4 h-4 text-emerald-400" />
-          <span className="font-bold text-zinc-300">Kanban Lifecycle Insiden ({incidents.length})</span>
+        <div className="flex items-center gap-3 shrink-0">
+          <button
+            onClick={() => ExecutivePDFReportGenerator.generateBulkIncidentSummaryPDF(filteredIncidents, 'Supervisor HSEQ')}
+            className="px-3 py-1.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 border border-zinc-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+            title="Unduh Rekap Laporan Insiden K3 dalam format PDF Executive Summary"
+          >
+            <Download className="w-3.5 h-3.5 text-emerald-400" />
+            <span>Cetak Rekap PDF ({filteredIncidents.length})</span>
+          </button>
+
+          <div className="text-xs text-zinc-500 flex items-center gap-1.5">
+            <LayoutGrid className="w-4 h-4 text-emerald-400" />
+            <span className="font-bold text-zinc-300">Kanban Insiden</span>
+          </div>
         </div>
       </div>
 
