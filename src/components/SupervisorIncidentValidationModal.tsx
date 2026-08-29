@@ -73,6 +73,7 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
         dueDate,
         resolutionNote: note,
         updatedBy: 'Supervisor HSEQ',
+        workerId: incident.workerId,
       });
 
       // Dispatch real-time OOP Notifications

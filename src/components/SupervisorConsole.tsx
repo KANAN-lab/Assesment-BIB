@@ -96,11 +96,13 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
 
   const handleUpdateIncidentStatus = async (incidentId: string, newStatus: IncidentReport['status']) => {
     setUpdatingIncidentId(incidentId);
+    const targetInc = incidents.find((i) => i.id === incidentId);
     try {
       await updateIncidentCapaAndStatus(incidentId, {
         status: newStatus,
         updatedBy: 'Supervisor',
         resolutionNote: newStatus === 'resolved' || newStatus === 'closed' ? 'Ditangani oleh Supervisor' : undefined,
+        workerId: targetInc?.workerId,
       });
       setIncidents(prev => prev.map(inc => inc.id === incidentId ? { ...inc, status: newStatus } : inc));
     } catch { /* silent */ } finally {

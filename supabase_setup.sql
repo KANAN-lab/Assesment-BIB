@@ -153,7 +153,7 @@ BEGIN
   UPDATE workers
   SET total_points = total_points + p_points,
       updated_at = now()
-  WHERE id = p_worker_id;
+  WHERE id = p_worker_id OR employee_id = p_worker_id;
 END;
 $$;
 

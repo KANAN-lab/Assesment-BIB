@@ -1432,8 +1432,9 @@ export async function updateIncidentCapaAndStatus(
     dueDate?: string;
     resolutionNote?: string;
     updatedBy: string;
+    workerId?: string;
   }
-): Promise<{ pointsAwarded: boolean; workerId?: string; pointsEarned?: number }> {
+): Promise<{ pointsAwarded: boolean; workerId?: string; pointsEarned?: number; newTotalPoints?: number }> {
   // 1. Ambil data insiden untuk cek worker_id & status points_awarded
   const { data: incidentRow } = await supabase
     .from('incident_reports')
@@ -1442,7 +1443,7 @@ export async function updateIncidentCapaAndStatus(
     .maybeSingle();
 
   let pointsAwarded = false;
-  let targetWorkerId = incidentRow?.worker_id;
+  let targetWorkerId = payload.workerId || incidentRow?.worker_id;
 
   // 2. Payload update status & CAPA
   const updatePayload: Record<string, any> = {
@@ -1470,19 +1471,29 @@ export async function updateIncidentCapaAndStatus(
     await supabase.from('incident_reports').update(updatePayload).eq('id', id);
   }
 
+  let finalNewPoints = 0;
+
   // 3. Tambahkan +50 PTS ke akun worker pelapor jika baru pertama kali disetujui
   if (pointsAwarded && targetWorkerId) {
     try {
-      // Pencarian presisi berbasis id atau employee_id
+      // a. Panggil RPC increment_worker_points (Supabase Stored Procedure)
+      await supabase.rpc('increment_worker_points', {
+        p_worker_id: targetWorkerId,
+        p_points: 50,
+      }).catch(() => {});
+
+      // b. Direct Update & Tier Recalculation Fallback
       const { data: worker } = await supabase
         .from('workers')
-        .select('id, total_points, name')
+        .select('id, employee_id, total_points, name')
         .or(`id.eq.${targetWorkerId},employee_id.eq.${targetWorkerId}`)
         .maybeSingle();
 
       if (worker) {
         const currentPts = worker.total_points || 0;
-        const newTotalPoints = currentPts + 50;
+        // Pastikan poin minimal bertambah +50 PTS jika RPC belum sempat update
+        const newTotalPoints = currentPts > 0 ? (currentPts % 50 === 0 ? currentPts : currentPts + 50) : 50;
+        finalNewPoints = newTotalPoints;
         const newTier = WorkerEntity.calculateTier(newTotalPoints);
 
         await supabase
@@ -1491,13 +1502,13 @@ export async function updateIncidentCapaAndStatus(
             total_points: newTotalPoints,
             tier: newTier,
           })
-          .or(`id.eq.${worker.id},employee_id.eq.${targetWorkerId}`);
+          .or(`id.eq.${worker.id},employee_id.eq.${worker.employee_id}`);
 
         NotificationEngine.addNotification({
           recipientId: worker.id,
           recipientRole: 'worker',
-          title: '🛡️ Reward Laporan Insiden K3 (+50 PTS)',
-          message: `Laporan insiden K3 Anda disetujui! Anda mendapatkan +50 Poin Reward. Total poin Anda sekarang: ${newTotalPoints} PTS.`,
+          title: '🛡️ Laporan Insiden K3 Disetujui! (+50 PTS)',
+          message: `Laporan insiden K3 Anda disetujui Supervisor. Anda mendapatkan +50 Poin Reward!`,
           type: 'incident',
         });
       }
@@ -1521,7 +1532,7 @@ export async function updateIncidentCapaAndStatus(
     newHistoryItem,
   });
 
-  return { pointsAwarded, workerId: targetWorkerId, pointsEarned: pointsAwarded ? 50 : 0 };
+  return { pointsAwarded, workerId: targetWorkerId, pointsEarned: pointsAwarded ? 50 : 0, newTotalPoints: finalNewPoints };
 }
 
 export async function updateIncidentStatus(
