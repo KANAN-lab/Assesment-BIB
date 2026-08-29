@@ -657,9 +657,20 @@ BEGIN
 END;
 $$;
 
--- ─── MIGRATION: Add photo_url & points_awarded columns to incident_reports table ───────────────
+-- ─── MIGRATION & PATCH INSTAN (JALANKAN INI DI SUPABASE SQL EDITOR) ───────────────
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS photo_url TEXT;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS points_awarded BOOLEAN DEFAULT FALSE;
+
+-- Stored Procedure: Auto-Increment Poin Worker berbasis ID atau NIP Employee ID
+CREATE OR REPLACE FUNCTION increment_worker_points(p_worker_id TEXT, p_points INTEGER)
+RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE workers
+  SET total_points = total_points + p_points,
+      updated_at = now()
+  WHERE id = p_worker_id OR employee_id = p_worker_id;
+END;
+$$;
 
 
 
