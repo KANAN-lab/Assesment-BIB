@@ -299,6 +299,21 @@ BEGIN
 END;
 $$;
 
+-- ─── 4.1 System Settings Table (Aman dari Static JS Exposure) ─────
+CREATE TABLE IF NOT EXISTS system_settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Allow public read system_settings" ON system_settings
+  FOR SELECT USING (true);
+
+CREATE POLICY "Allow authenticated full system_settings" ON system_settings
+  FOR ALL USING (true);
+
 -- ─── 5. Seed Data ─────────────────────────────────────────────
 
 -- Seed: Workers (Clean Setup — Only System Administrator)

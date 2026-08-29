@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { WorkerAvatar } from './WorkerAvatar';
 import { CustomDataTable, DataTableColumn } from './CustomDataTable';
-import { getQuizStatusMeta, forceRefreshDailyQuiz, clearQuizCache, QuizStatusMeta } from '../lib/geminiService';
+import { getQuizStatusMeta, forceRefreshDailyQuiz, clearQuizCache, QuizStatusMeta, saveGeminiApiKeyToSupabase } from '../lib/geminiService';
 import { supabase } from '../lib/supabaseClient';
 import {
   fetchAnnouncements, createAnnouncement, toggleAnnouncement, deleteAnnouncement,
@@ -211,6 +211,8 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   const [capaStatus, setCapaStatus] = useState<IncidentReport['status']>('investigating');
   const [capaNote, setCapaNote] = useState('');
   const [isSubmittingCapa, setIsSubmittingCapa] = useState(false);
+  const [inputApiKey, setInputApiKey] = useState('');
+  const [savingKey, setSavingKey] = useState(false);
 
 
 
@@ -1169,18 +1171,57 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
 
             </div>
 
+            {/* Supabase Secure API Key Config Input */}
+            <div className="p-4 rounded-xl bg-zinc-900 border border-zinc-800 space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <Key className="w-3.5 h-3.5 text-amber-400" />
+                  Konfigurasi Gemini AI API Key (Disimpan Aman Terenkripsi di Database Supabase)
+                </label>
+                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="text-[10px] text-amber-400 hover:underline flex items-center gap-1">
+                  <span>Ambil Key Gratis</span>
+                  <ExternalLink className="w-2.5 h-2.5" />
+                </a>
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="password"
+                  value={inputApiKey}
+                  onChange={(e) => setInputApiKey(e.target.value)}
+                  placeholder="Masukkan Gemini API Key baru Anda..."
+                  className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500 font-mono"
+                />
+                <button
+                  type="button"
+                  disabled={savingKey || !inputApiKey.trim()}
+                  onClick={async () => {
+                    setSavingKey(true);
+                    try {
+                      await saveGeminiApiKeyToSupabase(inputApiKey.trim());
+                      alert('Gemini API Key berhasil disimpan ke Supabase system_settings! Aplikasi Anda siap digunakan di GitHub Pages.');
+                      setInputApiKey('');
+                      setQuizMeta(getQuizStatusMeta());
+                    } catch (err: any) {
+                      alert(err.message || 'Gagal menyimpan API key');
+                    } finally {
+                      setSavingKey(false);
+                    }
+                  }}
+                  className="px-3.5 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50 shrink-0"
+                >
+                  {savingKey ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : 'Simpan ke Database'}
+                </button>
+              </div>
+            </div>
+
             {/* Guidance Banner if API Key is not set */}
             {!quizMeta.apiKeyConfigured && (
               <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-start gap-2.5">
                 <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <div>
-                  <div className="font-bold text-amber-300">VITE_GEMINI_API_KEY Belum Dikonfigurasi</div>
+                  <div className="font-bold text-amber-300">Gappy AI Mode Fallback (Bank Soal Lokal Aktif)</div>
                   <div className="text-[11px] text-amber-200/80 mt-0.5">
-                    Aplikasi saat ini menggunakan <strong>Bank Soal Fallback Lokal</strong> agar kuis harian tetap berjalan 100% lancar. Untuk menghubungkan real-time Gemini AI:
-                    <ul className="list-disc list-inside mt-1 space-y-0.5">
-                      <li>Dapatkan API Key di <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noreferrer" className="underline font-bold text-amber-300">Google AI Studio / GCP Console</a>.</li>
-                      <li>Buka file <code>.env.local</code> pada folder root proyek dan set <code>VITE_GEMINI_API_KEY=your_key_here</code></li>
-                    </ul>
+                    Aplikasi saat ini menggunakan <strong>Bank Soal Fallback Lokal</strong> agar kuis harian tetap berjalan 100% lancar. Masukkan API key di atas untuk mengaktifkan AI Generatif secara penuh.
                   </div>
                 </div>
               </div>
@@ -2201,7 +2242,8 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

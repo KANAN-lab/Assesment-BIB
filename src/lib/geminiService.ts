@@ -43,6 +43,42 @@ function setCachedQuiz(quizzes: QuizQuestion[], workerId?: string, role?: string
   }
 }
 
+let activeSupabaseApiKey: string | null = null;
+
+export async function resolveGeminiApiKey(): Promise<string | undefined> {
+  const envKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+  if (envKey && envKey.trim().length > 10) {
+    return envKey.trim();
+  }
+
+  if (activeSupabaseApiKey) {
+    return activeSupabaseApiKey;
+  }
+
+  try {
+    const { data } = await supabase.from('system_settings').select('value').eq('key', 'gemini_api_key').maybeSingle();
+    if (data && data.value && data.value.trim().length > 10) {
+      activeSupabaseApiKey = data.value.trim();
+      return activeSupabaseApiKey || undefined;
+    }
+  } catch (err) {
+    console.warn('Gagal membaca gemini_api_key dari Supabase system_settings:', err);
+  }
+
+  return undefined;
+}
+
+export async function saveGeminiApiKeyToSupabase(apiKey: string): Promise<void> {
+  const cleanKey = apiKey.trim();
+  const { error } = await supabase.from('system_settings').upsert({
+    key: 'gemini_api_key',
+    value: cleanKey,
+    updated_at: new Date().toISOString(),
+  });
+  if (error) throw new Error(`Gagal menyimpan API key ke Supabase: ${error.message}`);
+  activeSupabaseApiKey = cleanKey;
+}
+
 // ─── Dynamic Competency Matrix Extractor ─────────────────────────────────────
 
 export function getCompetencyMatrixForRole(roleName: string): { title: string; definition: string }[] {
@@ -272,10 +308,10 @@ export async function generateDailyQuiz(
   }
 
   // 3. Generate via Gappy AI API (100% Dynamic Engine)
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+  const apiKey = await resolveGeminiApiKey();
 
   if (!isValidGeminiApiKey(apiKey)) {
-    console.warn('⚠️ [GappyService] VITE_GEMINI_API_KEY belum dikonfigurasi di .env.local.');
+    console.warn('⚠️ [GappyService] VITE_GEMINI_API_KEY belum dikonfigurasi.');
     return [];
   }
 
@@ -400,11 +436,11 @@ export async function forceRefreshDailyQuiz(
 ): Promise<QuizStatusMeta> {
   clearQuizCache();
 
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
+  const apiKey = await resolveGeminiApiKey();
 
   if (!isValidGeminiApiKey(apiKey)) {
     throw new Error(
-      'VITE_GEMINI_API_KEY di .env.local belum dikonfigurasi. Masukkan API Key Gappy AI Anda.'
+      'Gemini API Key belum dikonfigurasi. Masukkan API Key di Admin Console atau Supabase system_settings.'
     );
   }
 
