@@ -1433,8 +1433,11 @@ export async function updateIncidentCapaAndStatus(
     resolutionNote?: string;
     updatedBy: string;
     workerId?: string;
+    forceAward?: boolean;
   }
 ): Promise<{ pointsAwarded: boolean; workerId?: string; pointsEarned?: number; newTotalPoints?: number }> {
+  console.log(`🛡️ [GappyIncidentService] Memulai validasi insiden: ID=${id}, Status=${payload.status}`);
+
   // 1. Ambil data insiden untuk cek worker_id & status points_awarded
   const { data: incidentRow } = await supabase
     .from('incident_reports')
@@ -1452,11 +1455,11 @@ export async function updateIncidentCapaAndStatus(
     resolved_at: ['resolved', 'closed'].includes(payload.status) ? new Date().toISOString() : null,
   };
 
-  // Cek apakah status berstatus disetujui/diselidiki & poin belum pernah ditambahkan
   const isValidatedStatus = ['investigating', 'resolved', 'closed'].includes(payload.status);
   const alreadyAwarded = Boolean(incidentRow?.points_awarded);
 
-  if (isValidatedStatus && !alreadyAwarded && targetWorkerId) {
+  // Jika status disetujui & belum pernah mendapat poin (atau force award), aktifkan penambahan poin +50 PTS
+  if (isValidatedStatus && (!alreadyAwarded || payload.forceAward || !incidentRow)) {
     updatePayload.points_awarded = true;
     pointsAwarded = true;
   }
@@ -1473,33 +1476,38 @@ export async function updateIncidentCapaAndStatus(
 
   let finalNewPoints = 0;
 
-  // 3. Tambahkan +50 PTS ke akun worker pelapor jika baru pertama kali disetujui
+  // 3. Tambahkan +50 PTS ke akun worker pelapor
   if (pointsAwarded && targetWorkerId) {
     try {
+      console.log(`⚡ [GappyIncidentService] Memproses penambahan +50 PTS untuk Worker ID/NIP: ${targetWorkerId}`);
+
       // a. Coba panggil RPC increment_worker_points
       try {
         await supabase.rpc('increment_worker_points', {
           p_worker_id: targetWorkerId,
           p_points: 50,
         });
-      } catch {
-        // RPC fallback handled below
+      } catch (err: any) {
+        console.warn('RPC increment_worker_points fallback:', err?.message);
       }
 
-      // b. Pencarian sequential yang 100% aman PostgREST
-      let { data: worker } = await supabase
-        .from('workers')
-        .select('id, employee_id, total_points, name')
-        .eq('id', targetWorkerId)
-        .maybeSingle();
+      // b. Pencarian worker sequential yang 100% aman PostgREST
+      let worker: any = null;
 
+      // Lookup 1: eq id
+      const res1 = await supabase.from('workers').select('*').eq('id', targetWorkerId).maybeSingle();
+      worker = res1.data;
+
+      // Lookup 2: eq employee_id (NIP)
       if (!worker) {
-        const fallbackRes = await supabase
-          .from('workers')
-          .select('id, employee_id, total_points, name')
-          .eq('employee_id', targetWorkerId)
-          .maybeSingle();
-        worker = fallbackRes.data;
+        const res2 = await supabase.from('workers').select('*').eq('employee_id', targetWorkerId).maybeSingle();
+        worker = res2.data;
+      }
+
+      // Lookup 3: eq name
+      if (!worker) {
+        const res3 = await supabase.from('workers').select('*').eq('name', targetWorkerId).maybeSingle();
+        worker = res3.data;
       }
 
       if (worker) {
@@ -1507,6 +1515,8 @@ export async function updateIncidentCapaAndStatus(
         const newTotalPoints = currentPts + 50;
         finalNewPoints = newTotalPoints;
         const newTier = WorkerEntity.calculateTier(newTotalPoints);
+
+        console.log(`✅ [GappyIncidentService] Worker ditemukan: ${worker.name} (NIP: ${worker.employee_id}). Poin di-update: ${currentPts} PTS ➔ ${newTotalPoints} PTS`);
 
         // Eksekusi update langsung ke tabel workers
         const { error: updErr } = await supabase
@@ -1541,6 +1551,8 @@ export async function updateIncidentCapaAndStatus(
         window.dispatchEvent(new CustomEvent('gappy_points_awarded', {
           detail: { workerId: worker.id, employeeId: worker.employee_id, newTotalPoints, pointsEarned: 50 }
         }));
+      } else {
+        console.warn(`⚠️ [GappyIncidentService] Worker dengan identifier "${targetWorkerId}" tidak ditemukan di database Supabase.`);
       }
     } catch (err: any) {
       console.warn('Gagal menambah poin reward pelapor insiden:', err?.message);
