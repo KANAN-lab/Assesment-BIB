@@ -4,11 +4,13 @@ import { NotificationEngine, AppNotification } from '../domain/NotificationEngin
 
 interface NotificationBellProps {
   currentUserId?: string;
+  currentEmployeeId?: string;
   currentRole?: string;
 }
 
 export const NotificationBell: React.FC<NotificationBellProps> = ({
   currentUserId,
+  currentEmployeeId,
   currentRole,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -17,9 +19,9 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   const ref = useRef<HTMLDivElement>(null);
 
   const reloadNotifications = () => {
-    const list = NotificationEngine.getNotificationsForUser(currentUserId, currentRole);
+    const list = NotificationEngine.getNotificationsForUser(currentUserId, currentRole, currentEmployeeId);
     setNotifications(list);
-    setUnreadCount(NotificationEngine.getUnreadCount(currentUserId, currentRole));
+    setUnreadCount(NotificationEngine.getUnreadCount(currentUserId, currentRole, currentEmployeeId));
   };
 
   useEffect(() => {
@@ -41,10 +43,10 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       window.removeEventListener('gappy_notification_updated', handleEvent);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [currentUserId, currentRole]);
+  }, [currentUserId, currentEmployeeId, currentRole]);
 
   const handleMarkAllRead = () => {
-    NotificationEngine.markAllAsRead(currentUserId, currentRole);
+    NotificationEngine.markAllAsRead(currentUserId, currentRole, currentEmployeeId);
     reloadNotifications();
   };
 

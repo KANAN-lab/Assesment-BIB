@@ -1473,11 +1473,12 @@ export async function updateIncidentCapaAndStatus(
   // 3. Tambahkan +50 PTS ke akun worker pelapor jika baru pertama kali disetujui
   if (pointsAwarded && targetWorkerId) {
     try {
+      // Pencarian presisi berbasis id atau employee_id
       const { data: worker } = await supabase
         .from('workers')
-        .select('total_points, name')
-        .eq('id', targetWorkerId)
-        .single();
+        .select('id, total_points, name')
+        .or(`id.eq.${targetWorkerId},employee_id.eq.${targetWorkerId}`)
+        .maybeSingle();
 
       if (worker) {
         const currentPts = worker.total_points || 0;
@@ -1490,10 +1491,10 @@ export async function updateIncidentCapaAndStatus(
             total_points: newTotalPoints,
             tier: newTier,
           })
-          .eq('id', targetWorkerId);
+          .or(`id.eq.${worker.id},employee_id.eq.${targetWorkerId}`);
 
         NotificationEngine.addNotification({
-          recipientId: targetWorkerId,
+          recipientId: worker.id,
           recipientRole: 'worker',
           title: '🛡️ Reward Laporan Insiden K3 (+50 PTS)',
           message: `Laporan insiden K3 Anda disetujui! Anda mendapatkan +50 Poin Reward. Total poin Anda sekarang: ${newTotalPoints} PTS.`,

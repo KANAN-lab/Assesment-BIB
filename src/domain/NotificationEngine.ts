@@ -67,13 +67,31 @@ export class NotificationEngine {
 
   /**
    * Get filtered notifications for a specific user or role
+  /**
+   * Get filtered notifications for a specific user or role
+   * Menjamin hanya pemilik laporan yang menerima notifikasi pribadinya
    */
-  public static getNotificationsForUser(userId?: string, role?: string): AppNotification[] {
+  public static getNotificationsForUser(userId?: string, role?: string, employeeId?: string): AppNotification[] {
     const all = this.getAll();
     return all.filter((n) => {
-      if (n.recipientRole === 'all') return true;
-      if (role && n.recipientRole === role) return true;
-      if (userId && n.recipientId === userId) return true;
+      // 1. Notifikasi Publik / Sistem
+      if (n.recipientRole === 'all' || n.recipientId === 'all') return true;
+
+      // 2. Jika user adalah Pengawas (Supervisor) atau System Admin
+      if (role === 'supervisor' || role === 'admin') {
+        if (n.recipientRole === 'supervisor' || n.recipientRole === 'admin') return true;
+        if (userId && n.recipientId === userId) return true;
+        return false;
+      }
+
+      // 3. Jika user adalah Staf Operasional Biasa (Worker)
+      // HANYA tampilkan jika notifikasi ditujukan khusus ke ID / NIP miliknya sendiri!
+      if (role === 'worker' || !role) {
+        if (n.recipientRole === 'supervisor' || n.recipientRole === 'admin') return false; // Blokir notif pengawas
+        if (userId && (n.recipientId === userId || n.recipientId === employeeId)) return true;
+        return false;
+      }
+
       return false;
     });
   }
@@ -81,8 +99,8 @@ export class NotificationEngine {
   /**
    * Get unread notifications count for a user or role
    */
-  public static getUnreadCount(userId?: string, role?: string): number {
-    const list = this.getNotificationsForUser(userId, role);
+  public static getUnreadCount(userId?: string, role?: string, employeeId?: string): number {
+    const list = this.getNotificationsForUser(userId, role, employeeId);
     return list.filter((n) => !n.isRead).length;
   }
 
@@ -99,11 +117,11 @@ export class NotificationEngine {
   /**
    * Mark all notifications for a user/role as read
    */
-  public static markAllAsRead(userId?: string, role?: string): void {
+  public static markAllAsRead(userId?: string, role?: string, employeeId?: string): void {
     const list = this.getAll();
+    const allowedIds = new Set(this.getNotificationsForUser(userId, role, employeeId).map(n => n.id));
     const updated = list.map((n) => {
-      const isMatch = n.recipientRole === 'all' || (role && n.recipientRole === role) || (userId && n.recipientId === userId);
-      return isMatch ? { ...n, isRead: true } : n;
+      return allowedIds.has(n.id) ? { ...n, isRead: true } : n;
     });
     this.saveAll(updated);
     window.dispatchEvent(new CustomEvent('gappy_notification_updated'));

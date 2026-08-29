@@ -139,6 +139,7 @@ export const Navbar: React.FC<NavbarProps> = ({
             {/* OOP Notification Bell */}
             <NotificationBell
               currentUserId={currentWorker?.id}
+              currentEmployeeId={currentWorker?.employeeId}
               currentRole={activeView}
             />
 
