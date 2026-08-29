@@ -1,0 +1,1057 @@
+{
+  "competencyMatrix": [
+    {
+      "id": "comp-1",
+      "kompetensi": "Technical Skill",
+      "type": "Basic Skill",
+      "category": "General",
+      "title": "5R",
+      "definition": "Kemampuan dalam menerapkan sistem untuk mengatur kondisi area kerja supaya menjadi lebih tertib dan teratur sehingga pekerjaan tetap dilakukan secara efisien, efektif, dan aman. 5R terdiri dari ringkas, rapi, resik, rawat, dan rajin",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 3,
+        "ADMIN EKSPEDISI": 3,
+        "ADMIN WRM": 3,
+        "ADMIN WFG": 3,
+        "ADMIN WSP": 3,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-2",
+      "kompetensi": "Technical Skill",
+      "type": "Basic Skill",
+      "category": "General",
+      "title": "Company Overview",
+      "definition": "Kemampuan dalam mengenal dan memahami gambaran perusahaan, terkait kebijakan, prosedur, lingkungan kerja, produk yang dihasilkan, peraturan yang berlaku di perusahaan, serta penerapan budaya perusahaan.",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 2,
+        "ADMIN EKSPEDISI": 2,
+        "ADMIN WRM": 2,
+        "ADMIN WFG": 2,
+        "ADMIN WSP": 2,
+        "PIC AREA": 2,
+        "CHECKER": 2,
+        "OPERATOR FORKLIFT": 2,
+        "OPERATOR REACHTRUCK": 2
+      }
+    },
+    {
+      "id": "comp-3",
+      "kompetensi": "Technical Skill",
+      "type": "Basic Skill",
+      "category": "General",
+      "title": "Sistem Jaminan Produk Halal",
+      "definition": "Kemampuan untuk menerapkan SJPH dalam pada setiap proses dalam pelaksanaan pekerjaan dalam mengatur bahan, proses produksi, produk, SDM dan prosedur dalam menjamin keberlangsungan proses implementasi SJPH",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 1,
+        "ADMIN EKSPEDISI": 1,
+        "ADMIN WRM": 3,
+        "ADMIN WFG": 3,
+        "ADMIN WSP": 2,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 2,
+        "OPERATOR REACHTRUCK": 2
+      }
+    },
+    {
+      "id": "comp-4",
+      "kompetensi": "Technical Skill",
+      "type": "Basic Skill",
+      "category": "General",
+      "title": "EHS Awareness",
+      "definition": "Kemampuan dan pemahaman mengenai Identifikasi dan Pengendalian Bahaya K3 Aspek Lingkungan pada setiap aktifitas kerja dan proses produksi sehingga tidak ada pencemaran lingkungan dan kecelakaan kerja di area kerja.",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 2,
+        "ADMIN EKSPEDISI": 2,
+        "ADMIN WRM": 3,
+        "ADMIN WFG": 3,
+        "ADMIN WSP": 2,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-5",
+      "kompetensi": "Technical Skill",
+      "type": "Basic Skill",
+      "category": "General",
+      "title": "Sistem dan Peraturan CPPKRTB & CPAKB",
+      "definition": "1.Kemampuan pemahaman mengenai Implementasi Manajemen Mutu untuk menjamin agar produk yang diproduksi memenuhi Peraturan Menteri Kesehatan Republik Indonesia no 20 tahun 2017.\n2. Kemampuan dalam menerapkan aspek-aspek CPKB dalam hal manajemen mutu (visi misi, kebijakan mutu), personalia, bangunan dan fasilitas , peralatan, sanitasi dan hygene, produksi, pengawasan mutu, dokumentasi, audit internal, penyimpanan, kontrak produksi dan pengujian, penanganan keluhan dan penarikan produk",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 1,
+        "ADMIN EKSPEDISI": 1,
+        "ADMIN WRM": 1,
+        "ADMIN WFG": 1,
+        "ADMIN WSP": 2,
+        "PIC AREA": 2,
+        "CHECKER": 2,
+        "OPERATOR FORKLIFT": 2,
+        "OPERATOR REACHTRUCK": 2
+      }
+    },
+    {
+      "id": "comp-6",
+      "kompetensi": "Technical Skill",
+      "type": "Basic Skill",
+      "category": "General",
+      "title": "Departement Overview",
+      "definition": "Kemampuan dalam mengenal dan memahami KPI dan Scorecard, WCO Introduction, penerapan 5R, sistem yang digunakan, layout plant, Business Process, Struktur Organisasi & Fungsi Section dan gambaran pekerjaan",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 2,
+        "ADMIN EKSPEDISI": 2,
+        "ADMIN WRM": 2,
+        "ADMIN WFG": 2,
+        "ADMIN WSP": 2,
+        "PIC AREA": 2,
+        "CHECKER": 2,
+        "OPERATOR FORKLIFT": 2,
+        "OPERATOR REACHTRUCK": 2
+      }
+    },
+    {
+      "id": "comp-7",
+      "kompetensi": "Technical Skill",
+      "type": "Basic Skill",
+      "category": "General",
+      "title": "Standart ISO 9001, 45001 &14001",
+      "definition": "Kemampuan dalam mengelola berbagai sistem manajemen yang diterapkan dalam satu sistem yang saling berhubungan dan tidak dikotak - kotakan sehingga pengelolaan berbagai sistem yang ada di perusahaan bisa terintegrasi dan terimplementasi secara konsisten.",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 2,
+        "ADMIN EKSPEDISI": 2,
+        "ADMIN WRM": 2,
+        "ADMIN WFG": 2,
+        "ADMIN WSP": 2,
+        "PIC AREA": 2,
+        "CHECKER": 2,
+        "OPERATOR FORKLIFT": 2,
+        "OPERATOR REACHTRUCK": 2
+      }
+    },
+    {
+      "id": "comp-8",
+      "kompetensi": "Technical Skill",
+      "type": "WCO Skill",
+      "category": "EHS",
+      "title": "EHS Pillar Overview",
+      "definition": "Kemampuan dalam memahami gambaran besar mengenai step-step pelaksanaan EHS Pillar",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 2,
+        "ADMIN EKSPEDISI": 2,
+        "ADMIN WRM": 2,
+        "ADMIN WFG": 2,
+        "ADMIN WSP": 2,
+        "PIC AREA": 2,
+        "CHECKER": 2,
+        "OPERATOR FORKLIFT": 2,
+        "OPERATOR REACHTRUCK": 2
+      }
+    },
+    {
+      "id": "comp-9",
+      "kompetensi": "Technical Skill",
+      "type": "WCO Skill",
+      "category": "AM",
+      "title": "Abnormality",
+      "definition": "Kemampuan dalam memahami dan mendeteksi terkait abnormality mesin, jenis abnormality mesin, dan penanganan abnormality mesin (EWO)",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 2,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-10",
+      "kompetensi": "Technical Skill",
+      "type": "WCO Skill",
+      "category": "FI",
+      "title": "FI Problem Solving Tools",
+      "definition": "Kemampuan dalam penerapan Tools dari pilar focus improvement yang dapat digunakan untuk memecahkan permasalahan yang terdiri dari :\na. WCO tools yaitu\n- prioritisasi\n- logis, sistematis, dan detail\n- deskripsi masalah dan sketsa\n- deskripsi masalah 5W+H dan 5G\n- analisis akar masalah\n- deskripsi fenomena\n- wawancara teknis\nb. Standard Kaizen\nc. 7 Quality Control (QC) Tools",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 2,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-11",
+      "kompetensi": "Technical Skill",
+      "type": "WCO Skill",
+      "category": "FI",
+      "title": "FI Pillar Overview",
+      "definition": "Kemampuan dalam memahami gambaran besar mengenai step-step pelaksanaan FI Pillar",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 2,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-12",
+      "kompetensi": "Technical Skill",
+      "type": "WCO Skill",
+      "category": "PD",
+      "title": "LUTI and Skill Gap Evaluation",
+      "definition": "Kemampuan dalam memahami konsep dan penerapan LUTI serta skill GAP Evaluation di lapangan.",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 0,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-13",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "WRH",
+      "title": "Returned hold & bad stock material / goods",
+      "definition": "Kemampuan untuk menganalisa barang yang akan diretur, di hold & bad stock pada area warehouse",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 2,
+        "ADMIN WFG": 2,
+        "ADMIN WSP": 3,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 2,
+        "OPERATOR REACHTRUCK": 2
+      }
+    },
+    {
+      "id": "comp-14",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "WRH",
+      "title": "Flow Process Material & Product",
+      "definition": "Kemampuan untuk memahami flow process keluar masuk barang dari Warehouse raw material ke Production, Production ke Warehouse raw material ataupun Production ke Warehouse finished good",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 3,
+        "ADMIN WFG": 3,
+        "ADMIN WSP": 0,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-15",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "WRH",
+      "title": "Stock Opname",
+      "definition": "kemampuan untuk melakukan stock opname dengan efektif dan efesien",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 3,
+        "ADMIN WFG": 3,
+        "ADMIN WSP": 3,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-16",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "WRH",
+      "title": "Warehouse Mapping Area",
+      "definition": "Kemampuan untuk mengetahui setiap denah area Warehouse raw material, Sparepart maupun finished goods",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 3,
+        "ADMIN WFG": 3,
+        "ADMIN WSP": 3,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-17",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "WRH",
+      "title": "Warehouse Operation",
+      "definition": "Kemampuan untuk memahami seluruh peraturan terkait operation yang ada digudang seperti jumlah maksimal tumpukan tier, atapun maksimal jumlah pallet yang dibawa dan penjelasan terkait operation yang lain",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 2,
+        "ADMIN WFG": 2,
+        "ADMIN WSP": 3,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-18",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "WRH",
+      "title": "Material handling",
+      "definition": "Kemampuan untuk memahami pengenalan barang, cara treatment, identifikasi produk good not good, standar penyimpanan, standar penerimaan dan potensi bahaya dari setiap material yang ada di warehouse",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 1,
+        "ADMIN EKSPEDISI": 1,
+        "ADMIN WRM": 3,
+        "ADMIN WFG": 3,
+        "ADMIN WSP": 3,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-19",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "WRH",
+      "title": "Product Knowledge for logistic",
+      "definition": "Kemampuan untuk mengetahui semua jenis product (MID) yang ada di Warehouse finished good, Raw Material maupun sparepart",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 1,
+        "ADMIN EKSPEDISI": 1,
+        "ADMIN WRM": 4,
+        "ADMIN WFG": 4,
+        "ADMIN WSP": 4,
+        "PIC AREA": 4,
+        "CHECKER": 4,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-20",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "LOG",
+      "title": "Manufactute Apps For LOG",
+      "definition": "Kemampuan untuk menggunakan aplikasi berbasis web maupun apk untuk penunjang pekerjaan",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 3,
+        "ADMIN EKSPEDISI": 3,
+        "ADMIN WRM": 3,
+        "ADMIN WFG": 3,
+        "ADMIN WSP": 3,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-21",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "WRH",
+      "title": "Forklift/Reachtruck Operation",
+      "definition": "Kemampuan untuk mengoprasikan. Forklift/Reachtruck",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 0,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 4,
+        "OPERATOR REACHTRUCK": 4
+      }
+    },
+    {
+      "id": "comp-22",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "WRH",
+      "title": "Pallet Mover",
+      "definition": "Kemampuan untuk mengoprasikan. dan tata cara perawatan pallet mover",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 3,
+        "ADMIN WFG": 3,
+        "ADMIN WSP": 0,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-23",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "LOG",
+      "title": "Flow Process Timbangan & Expedisi",
+      "definition": "Kemampuan memahami alur kegiatan proses timbangan dan expedisi serta mampu mengelola kegiatan proses timbangan dan expedisi dengan baik dan sesuai standar",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 3,
+        "ADMIN EKSPEDISI": 3,
+        "ADMIN WRM": 1,
+        "ADMIN WFG": 1,
+        "ADMIN WSP": 0,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-24",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "HRD",
+      "title": "Behavioral Event Interview",
+      "definition": "Kemampuan untuk melakukan teknik Interview yang terstruktur, terarah dan terpola berbasis behavior",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 0,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-25",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "QC",
+      "title": "Standar Quality",
+      "definition": "Kemampuan untuk memahami standar qualitas produk maupun kemasan",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 1,
+        "ADMIN EKSPEDISI": 1,
+        "ADMIN WRM": 1,
+        "ADMIN WFG": 1,
+        "ADMIN WSP": 1,
+        "PIC AREA": 2,
+        "CHECKER": 2,
+        "OPERATOR FORKLIFT": 2,
+        "OPERATOR REACHTRUCK": 2
+      }
+    },
+    {
+      "id": "comp-26",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "PRD",
+      "title": "Machine Knowledge",
+      "definition": "Kemampuan dalam memahami setiap bagian, equipment & parameter pada mesin secara spesifik, serta dapat mengindentifikasi permasalahan dan resiko kecelakaan yang dapat terjadi dari setiap bagian mesin",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 3,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-27",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "LOG",
+      "title": "Waste Management",
+      "definition": "Kemampuan untuk memilah, mengelola, dan membuang sampah dengan cara yang benar agar lingkungan kerja tetap bersih, aman, dan ramah lingkungan.",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 3,
+        "ADMIN WFG": 1,
+        "ADMIN WSP": 3,
+        "PIC AREA": 3,
+        "CHECKER": 1,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-28",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "ENG",
+      "title": "Flow Process WSP",
+      "definition": "kemampuan untuk memahami flow process pengeluaran barang masuk ataupun keluar di warehouse spare part",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 3,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-29",
+      "kompetensi": "Technical Skill",
+      "type": "Specific for Speciality Manufacturing",
+      "category": "ENG",
+      "title": "Flow Process procurement Sparepart",
+      "definition": "Kemampuan untuk memahami alur pengadaan sparepart mesin dari mulai PR (Purchase Requisition) hingga barang tiba",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 2,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-30",
+      "kompetensi": "Technical Skill",
+      "type": "General Technical Skill for Manufacturing",
+      "category": "EHS",
+      "title": "Basic Safety Standard 01 : Risk Assessment",
+      "definition": "Kemampuan untuk menganalisa dan mengidentifikasi potensi kecelakaan di area kerja",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 2,
+        "ADMIN EKSPEDISI": 2,
+        "ADMIN WRM": 2,
+        "ADMIN WFG": 2,
+        "ADMIN WSP": 2,
+        "PIC AREA": 2,
+        "CHECKER": 2,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-31",
+      "kompetensi": "Technical Skill",
+      "type": "General Technical Skill for Manufacturing",
+      "category": "EHS",
+      "title": "Basic Safety Standard 03 : LOTO",
+      "definition": "Kemampuan untuk memahami & mengimplementasikan LOTO",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 3,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-32",
+      "kompetensi": "Technical Skill",
+      "type": "General Technical Skill for Manufacturing",
+      "category": "EHS",
+      "title": "Basic Safety Standard 04 : Working at Height",
+      "definition": "Kemampuan untuk memahami dan mengimplementasikan standar keamanan bekerja di ketinggian",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 1,
+        "ADMIN EKSPEDISI": 1,
+        "ADMIN WRM": 1,
+        "ADMIN WFG": 1,
+        "ADMIN WSP": 1,
+        "PIC AREA": 1,
+        "CHECKER": 1,
+        "OPERATOR FORKLIFT": 1,
+        "OPERATOR REACHTRUCK": 1
+      }
+    },
+    {
+      "id": "comp-33",
+      "kompetensi": "Technical Skill",
+      "type": "General Technical Skill for Manufacturing",
+      "category": "EHS",
+      "title": "Basic Safety Standard 05 : Confined Space",
+      "definition": "Kemampuan untuk memahami dan mengimplementasikan standar keamanan area terbatas",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 3,
+        "PIC AREA": 2,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-34",
+      "kompetensi": "Technical Skill",
+      "type": "General Technical Skill for Manufacturing",
+      "category": "EHS",
+      "title": "Basic Safety Standard 06: Permit to Work (SIKA)",
+      "definition": "Kemampuan untuk memahami dan mengimplementasikan izin kerja aman",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 1,
+        "ADMIN EKSPEDISI": 1,
+        "ADMIN WRM": 1,
+        "ADMIN WFG": 1,
+        "ADMIN WSP": 1,
+        "PIC AREA": 1,
+        "CHECKER": 1,
+        "OPERATOR FORKLIFT": 1,
+        "OPERATOR REACHTRUCK": 1
+      }
+    },
+    {
+      "id": "comp-35",
+      "kompetensi": "Technical Skill",
+      "type": "General Technical Skill for Manufacturing",
+      "category": "EHS",
+      "title": "Basic Safety Standard 07 : Warehouse Loading/ Unloading",
+      "definition": "Kemampuan untuk memahami dan mengimplementasikan standar keamanan area warehouse khususnya proses loading / unloading",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 2,
+        "ADMIN WFG": 2,
+        "ADMIN WSP": 2,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-36",
+      "kompetensi": "Technical Skill",
+      "type": "General Technical Skill for Manufacturing",
+      "category": "EHS",
+      "title": "Basic Safety Standard 08 : Forklift Truck",
+      "definition": "Kemampuan untuk memahami dan mengimplementasikan standar keamanan meggunakan forklift",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 1,
+        "ADMIN WFG": 1,
+        "ADMIN WSP": 1,
+        "PIC AREA": 2,
+        "CHECKER": 2,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-37",
+      "kompetensi": "Technical Skill",
+      "type": "General Technical Skill for Manufacturing",
+      "category": "EHS",
+      "title": "Basic Safety Standard 09 : Vehicle & Pedestrian",
+      "definition": "Kemampuan untuk memahami dan mengimplementasikan standar kendaraan & jalur pendestrian",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 2,
+        "ADMIN EKSPEDISI": 2,
+        "ADMIN WRM": 2,
+        "ADMIN WFG": 2,
+        "ADMIN WSP": 2,
+        "PIC AREA": 2,
+        "CHECKER": 2,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-38",
+      "kompetensi": "Technical Skill",
+      "type": "General Technical Skill for Manufacturing",
+      "category": "EHS",
+      "title": "Basic Safety Standard 10 : Control of Contractor",
+      "definition": "Kemampuan untuk memahami dan mengimplementasikan standar keamanan pekerja kontraktor",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 0,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-39",
+      "kompetensi": "Technical Skill",
+      "type": "General Technical Skill for Manufacturing",
+      "category": "PRD",
+      "title": "Stock Accuracy Analysis",
+      "definition": "Kemampuan dalam memahami dan menganalisa stock akurasi dalam operations sehingga mendapatkan inventory yang lebih akurat dan kredibel",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 3,
+        "ADMIN WFG": 3,
+        "ADMIN WSP": 3,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-40",
+      "kompetensi": "Technical Skill",
+      "type": "General Technical Skill for Manufacturing",
+      "category": "WRH",
+      "title": "Warehouse Management",
+      "definition": "Kemampuan mengelola kegiatan penerimaan, penyimpanan, pengeluaran, pengendalian dan perawatan, di gudang secara tertib dan aman.",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 3,
+        "ADMIN WFG": 3,
+        "ADMIN WSP": 3,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-41",
+      "kompetensi": "Technical Skill",
+      "type": "General Technical Skill for Manufacturing",
+      "category": "ENG",
+      "title": "Forklift Maintenance",
+      "definition": "Kemampuan dalam:\n1. Memahami wawasan dasar tentang Forklift Nichiyu FB Series dan cara pemeliharaannya\n2. Memahami wawasan dasar tentang Forklift Mitsubishi Grendia Series dan cara pemeliharaannya",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 1,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-42",
+      "kompetensi": "Technical Skill",
+      "type": "General Technical Skill for Manufacturing",
+      "category": "ENG",
+      "title": "Elektronika Dasar",
+      "definition": "Kemampuan dalam:\n1. Mendesain PCB (Printed Circuit Board)\n3. Mencetak PCB dan memasangmelepas komponen elektronika pada PCB\n4. Menguji PCB\n5. Menganalisa, memperbaiki, menguji hasil perbaikan catu daya/voltage regulator series",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 1,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-43",
+      "kompetensi": "Technical Skill",
+      "type": "General Technical Skill for Manufacturing",
+      "category": "ENG",
+      "title": "Listrik Dasar 1",
+      "definition": "Kemampuan dalam memahami dasar instalasi listrik yang aman, yang mengacu kepada:\na. PHB (Perlengkapan Hubung Bagi)\nb. Penghantar\nc. Kabel\nd. Pemasangan Perlengkapan Instalasi listrik\ne. Cable Trays",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 1,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-44",
+      "kompetensi": "Technical Skill",
+      "type": "General Technical Skill for Manufacturing",
+      "category": "ENG",
+      "title": "Listrik Dasar 2",
+      "definition": "Kemampuan dalam memahami dasar instalasi listrik yang aman, yang mengacu kepada:\na. PHB (Perlengkapan Hubung Bagi)\nb. Penghantar\nc. Kabel\nd. Pemasangan Perlengkapan Instalasi listrik\ne. Uji resistansi Isolasi\nf. Cable Trays\ng. Instalasi Tenaga\nh. Instalasi Motor Listrik",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 1,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-45",
+      "kompetensi": "Technical Skill",
+      "type": "Administrasi",
+      "category": "Administrasi",
+      "title": "Counting",
+      "definition": "Kemampuan untuk menghitung dasar",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 3,
+        "ADMIN EKSPEDISI": 3,
+        "ADMIN WRM": 3,
+        "ADMIN WFG": 3,
+        "ADMIN WSP": 3,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 3,
+        "OPERATOR REACHTRUCK": 3
+      }
+    },
+    {
+      "id": "comp-46",
+      "kompetensi": "Technical Skill",
+      "type": "Administrasi",
+      "category": "Administrasi",
+      "title": "Document Management",
+      "definition": "Kemampuan dalam mengelola dan menyimpan dokumen agar rapi.",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 3,
+        "ADMIN EKSPEDISI": 3,
+        "ADMIN WRM": 3,
+        "ADMIN WFG": 3,
+        "ADMIN WSP": 3,
+        "PIC AREA": 1,
+        "CHECKER": 1,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-47",
+      "kompetensi": "Technical Skill",
+      "type": "Administrasi",
+      "category": "Administrasi",
+      "title": "Ms Office & Google Workspace",
+      "definition": "Kemampuan untuk mengoprasikan tools dari MS Office & Google Workspace",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 3,
+        "ADMIN EKSPEDISI": 3,
+        "ADMIN WRM": 3,
+        "ADMIN WFG": 3,
+        "ADMIN WSP": 3,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 2,
+        "OPERATOR REACHTRUCK": 2
+      }
+    },
+    {
+      "id": "comp-48",
+      "kompetensi": "Technical Skill",
+      "type": "Administrasi",
+      "category": "Administrasi",
+      "title": "Operasional Komputer",
+      "definition": "Kemampuan untuk mengoprasikan komputer",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 3,
+        "ADMIN EKSPEDISI": 3,
+        "ADMIN WRM": 3,
+        "ADMIN WFG": 3,
+        "ADMIN WSP": 3,
+        "PIC AREA": 3,
+        "CHECKER": 3,
+        "OPERATOR FORKLIFT": 2,
+        "OPERATOR REACHTRUCK": 2
+      }
+    },
+    {
+      "id": "comp-49",
+      "kompetensi": "Technical Skill",
+      "type": "Mutu",
+      "category": "Mutu",
+      "title": "Inspection",
+      "definition": "Kemampuan dalam mendeteksi kondisi yang tidak aman dan memastikan produk yang dihasilkan agar sesuai dengan standar.",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 2,
+        "ADMIN WFG": 2,
+        "ADMIN WSP": 2,
+        "PIC AREA": 2,
+        "CHECKER": 2,
+        "OPERATOR FORKLIFT": 2,
+        "OPERATOR REACHTRUCK": 2
+      }
+    },
+    {
+      "id": "comp-50",
+      "kompetensi": "Technical Skill",
+      "type": "Mutu",
+      "category": "Mutu",
+      "title": "Data Analysis",
+      "definition": "Proses sistematis penerapan statistik dan/atau logika untuk menjelaskan dan menggambarkan, mendalami dan merangkum, serta mengevaluasi data",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 2,
+        "ADMIN EKSPEDISI": 2,
+        "ADMIN WRM": 2,
+        "ADMIN WFG": 2,
+        "ADMIN WSP": 2,
+        "PIC AREA": 2,
+        "CHECKER": 2,
+        "OPERATOR FORKLIFT": 1,
+        "OPERATOR REACHTRUCK": 1
+      }
+    },
+    {
+      "id": "comp-51",
+      "kompetensi": "Technical Skill",
+      "type": "Sales & Service",
+      "category": "Sales & Service",
+      "title": "Presentation",
+      "definition": "Kemampuan menyampaikan suatu materi di depan publik dengan tujuan agar publik memahami materi yang disampaikan.",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 1,
+        "ADMIN EKSPEDISI": 1,
+        "ADMIN WRM": 1,
+        "ADMIN WFG": 1,
+        "ADMIN WSP": 1,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-52",
+      "kompetensi": "Technical Skill",
+      "type": "Managerial",
+      "category": "Managerial",
+      "title": "Mentoring",
+      "definition": "Kemampuan untuk melakukan pendampingan dalam bentuk bimbingan dan pengawasan mengenai perkembangan seseorang",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 0,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-53",
+      "kompetensi": "Technical Skill",
+      "type": "Managerial",
+      "category": "Managerial",
+      "title": "Coaching",
+      "definition": "Kemampuan yang berguna untuk mengembangkan ketrampilan dan kemampuan, dan meningkatkan kinerja Sumber Daya Manusia.",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 0,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    },
+    {
+      "id": "comp-54",
+      "kompetensi": "Technical Skill",
+      "type": "Managerial",
+      "category": "Managerial",
+      "title": "Project Management",
+      "definition": "Kemampuan dalam menggunakan metode perencanaan dan pengelolaan sumber daya yang bisa digunakan untuk mencapai tujuan sebuah proyek",
+      "maxScores": {
+        "ADMIN TIMBANGAN": 0,
+        "ADMIN EKSPEDISI": 0,
+        "ADMIN WRM": 0,
+        "ADMIN WFG": 0,
+        "ADMIN WSP": 0,
+        "PIC AREA": 0,
+        "CHECKER": 0,
+        "OPERATOR FORKLIFT": 0,
+        "OPERATOR REACHTRUCK": 0
+      }
+    }
+  ],
+  "scoringRules": [
+    {
+      "level": 1,
+      "name": "Pembelajaran",
+      "description": "1. Saya tidak tahu / tidak relevan untuk pekerjaan saya\\n2. Sebatas baru mampu mencoba / menirukan"
+    },
+    {
+      "level": 2,
+      "name": "Pelaksanaan",
+      "description": "Saya tahu dasar / teorinya\\n(tapi belum bisa melaksanakan)"
+    },
+    {
+      "level": 3,
+      "name": "Pengontrolan",
+      "description": "Saya bisa mengaplikasikan dengan adanya support"
+    },
+    {
+      "level": 4,
+      "name": "Evaluasi & Antisipasi",
+      "description": "Saya bisa mengaplikasikan dengan baik dan mandiri, serta mampu mengevaluasi hasil kinerja tim sebagai project leader"
+    },
+    {
+      "level": 5,
+      "name": "Penciptaan",
+      "description": "Saya dapat melatih orang lain dan/atau mengembangkan sistem"
+    }
+  ]
+}

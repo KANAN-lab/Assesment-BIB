@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Design tokens ────────────────────────────────────────── */
+:root {
+  --bg-base:     #09090b; /* zinc-950 */
+  --bg-surface:  #18181b; /* zinc-900 */
+  --bg-elevated: #27272a; /* zinc-800 */
+  --bg-input:    #27272a;
+  --border:      #3f3f46; /* zinc-700 */
+  --border-muted:#27272a; /* zinc-800 */
+  --brand:       #10b981; /* emerald-500 */
+  --brand-hover: #059669; /* emerald-600 */
+  --brand-muted: rgba(16, 185, 129, 0.12);
+  --brand-ring:  rgba(16, 185, 129, 0.25);
+  --text-primary: #fafafa;
+  --text-secondary: #a1a1aa; /* zinc-400 */
+  --text-muted:  #71717a;   /* zinc-500 */
+}
+
+/* ─── Card surface ─────────────────────────────────────────── */
+@layer utilities {
+  /* Solid surface card (primary) */
+  .card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-muted);
+    border-radius: 1rem; /* 16px */
+  }
+
+  /* Elevated card (modal, dropdown, overlay) */
+  .card-elevated {
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 1rem;
+  }
+
+  /* Legacy glass-card alias — keep for compatibility, no blur */
+  .glass-card {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-muted);
+  }
+
+  /* ─── Animate ─────────────────────────────────────────────── */
+  .animate-fade-in {
+    animation: fadeIn 0.18s ease-out forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  /* ─── Custom scrollbar ────────────────────────────────────── */
+  .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+  .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: var(--brand);
+  }
+
+  /* ─── Score badge colors ──────────────────────────────────── */
+  .score-excellent { color: #10b981; } /* emerald-500 */
+  .score-good      { color: #6366f1; } /* indigo-500 */
+  .score-fair      { color: #f59e0b; } /* amber-500 */
+  .score-poor      { color: #f43f5e; } /* rose-500 */
+
+  /* ─── Tier badge ──────────────────────────────────────────── */
+  .tier-legendary  { color: #fbbf24; background: rgba(251, 191, 36, 0.08);  border: 1px solid rgba(251, 191, 36, 0.2); }
+  .tier-elite      { color: #818cf8; background: rgba(129, 140, 248, 0.08); border: 1px solid rgba(129, 140, 248, 0.2); }
+  .tier-pro        { color: #34d399; background: rgba(52, 211, 153, 0.08);  border: 1px solid rgba(52, 211, 153, 0.2); }
+  .tier-novice     { color: #a1a1aa; background: rgba(161, 161, 170, 0.08); border: 1px solid rgba(63, 63, 70, 0.6); }
+}
+
+/* ─── Global scrollbar ──────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: #3f3f46;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover { background: #10b981; }
