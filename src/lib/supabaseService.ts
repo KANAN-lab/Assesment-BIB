@@ -1476,33 +1476,58 @@ export async function updateIncidentCapaAndStatus(
   // 3. Tambahkan +50 PTS ke akun worker pelapor jika baru pertama kali disetujui
   if (pointsAwarded && targetWorkerId) {
     try {
-      // a. Panggil RPC increment_worker_points (Supabase Stored Procedure)
-      await supabase.rpc('increment_worker_points', {
-        p_worker_id: targetWorkerId,
-        p_points: 50,
-      }).catch(() => {});
+      // a. Coba panggil RPC increment_worker_points
+      try {
+        await supabase.rpc('increment_worker_points', {
+          p_worker_id: targetWorkerId,
+          p_points: 50,
+        });
+      } catch {
+        // RPC fallback handled below
+      }
 
-      // b. Direct Update & Tier Recalculation Fallback
-      const { data: worker } = await supabase
+      // b. Pencarian sequential yang 100% aman PostgREST
+      let { data: worker } = await supabase
         .from('workers')
         .select('id, employee_id, total_points, name')
-        .or(`id.eq.${targetWorkerId},employee_id.eq.${targetWorkerId}`)
+        .eq('id', targetWorkerId)
         .maybeSingle();
 
+      if (!worker) {
+        const fallbackRes = await supabase
+          .from('workers')
+          .select('id, employee_id, total_points, name')
+          .eq('employee_id', targetWorkerId)
+          .maybeSingle();
+        worker = fallbackRes.data;
+      }
+
       if (worker) {
-        const currentPts = worker.total_points || 0;
-        // Pastikan poin minimal bertambah +50 PTS jika RPC belum sempat update
-        const newTotalPoints = currentPts > 0 ? (currentPts % 50 === 0 ? currentPts : currentPts + 50) : 50;
+        const currentPts = Number(worker.total_points || 0);
+        const newTotalPoints = currentPts + 50;
         finalNewPoints = newTotalPoints;
         const newTier = WorkerEntity.calculateTier(newTotalPoints);
 
-        await supabase
+        // Eksekusi update langsung ke tabel workers
+        const { error: updErr } = await supabase
           .from('workers')
           .update({
             total_points: newTotalPoints,
             tier: newTier,
+            updated_at: new Date().toISOString(),
           })
-          .or(`id.eq.${worker.id},employee_id.eq.${worker.employee_id}`);
+          .eq('id', worker.id);
+
+        if (updErr && worker.employee_id) {
+          await supabase
+            .from('workers')
+            .update({
+              total_points: newTotalPoints,
+              tier: newTier,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('employee_id', worker.employee_id);
+        }
 
         NotificationEngine.addNotification({
           recipientId: worker.id,
@@ -1511,6 +1536,11 @@ export async function updateIncidentCapaAndStatus(
           message: `Laporan insiden K3 Anda disetujui Supervisor. Anda mendapatkan +50 Poin Reward!`,
           type: 'incident',
         });
+
+        // Trigger real-time UI refresh pada React memory
+        window.dispatchEvent(new CustomEvent('gappy_points_awarded', {
+          detail: { workerId: worker.id, employeeId: worker.employee_id, newTotalPoints, pointsEarned: 50 }
+        }));
       }
     } catch (err: any) {
       console.warn('Gagal menambah poin reward pelapor insiden:', err?.message);

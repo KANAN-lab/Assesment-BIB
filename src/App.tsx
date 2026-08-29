@@ -248,6 +248,29 @@ export const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [currentWorker]);
 
+  // Listen for real-time points_awarded events to update local React state instantly
+  useEffect(() => {
+    const handlePointsAwarded = (e: Event) => {
+      const customEvt = e as CustomEvent;
+      const { workerId, employeeId, newTotalPoints } = customEvt.detail || {};
+
+      if (currentWorker && (currentWorker.id === workerId || currentWorker.employeeId === employeeId || currentWorker.id === employeeId)) {
+        setCurrentWorker((prev) => {
+          if (!prev) return null;
+          const updatedPts = newTotalPoints || (prev.totalPoints + 50);
+          return {
+            ...prev,
+            totalPoints: updatedPts,
+            tier: WorkerEntity.calculateTier(updatedPts),
+          };
+        });
+      }
+    };
+
+    window.addEventListener('gappy_points_awarded', handlePointsAwarded);
+    return () => window.removeEventListener('gappy_points_awarded', handlePointsAwarded);
+  }, [currentWorker]);
+
   // Initial load with session restoration
   useEffect(() => {
     const initApp = async () => {
