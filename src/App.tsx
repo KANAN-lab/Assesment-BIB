@@ -210,6 +210,44 @@ export const App: React.FC = () => {
     };
   }, [currentWorker]);
 
+  // ── Auto Sync Effect: Tarik poin & data worker terbaru dari Supabase setiap 8 detik ──
+  useEffect(() => {
+    if (!currentWorker) return;
+
+    const syncWorkerData = async () => {
+      try {
+        const [updatedWorker, updatedWorkers, updatedLb] = await Promise.all([
+          fetchWorkerById(currentWorker.id).catch(() => null),
+          fetchAllWorkers().catch(() => []),
+          fetchLeaderboard().catch(() => []),
+        ]);
+
+        if (updatedWorker) {
+          setCurrentWorker((prev) => {
+            if (!prev) return updatedWorker;
+            if (
+              prev.totalPoints !== updatedWorker.totalPoints ||
+              prev.tier !== updatedWorker.tier ||
+              prev.streakDays !== updatedWorker.streakDays ||
+              prev.dailyQuizCompleted !== updatedWorker.dailyQuizCompleted ||
+              prev.preShiftChecklistDone !== updatedWorker.preShiftChecklistDone
+            ) {
+              return updatedWorker;
+            }
+            return prev;
+          });
+        }
+        if (updatedWorkers.length > 0) setAllWorkers(updatedWorkers);
+        if (updatedLb.length > 0) setLeaderboard(updatedLb);
+      } catch {
+        // silent sync
+      }
+    };
+
+    const interval = setInterval(syncWorkerData, 8000);
+    return () => clearInterval(interval);
+  }, [currentWorker]);
+
   // Initial load with session restoration
   useEffect(() => {
     const initApp = async () => {
