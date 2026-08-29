@@ -475,6 +475,8 @@ CREATE TABLE IF NOT EXISTS incident_reports (
   description     TEXT NOT NULL,
   severity        TEXT NOT NULL DEFAULT 'low' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
   status          TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'investigating', 'resolved', 'closed')),
+  photo_url       TEXT,
+  points_awarded  BOOLEAN DEFAULT FALSE,
   occurred_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   resolved_at     TIMESTAMPTZ,
@@ -483,6 +485,40 @@ CREATE TABLE IF NOT EXISTS incident_reports (
 
 CREATE INDEX IF NOT EXISTS idx_incident_reports_worker ON incident_reports(worker_id);
 CREATE INDEX IF NOT EXISTS idx_incident_reports_status ON incident_reports(status, created_at DESC);
+
+-- Automatic Database Trigger: Auto-Award +50 PTS di level Server PostgreSQL saat status berubah jadi disetujui
+CREATE OR REPLACE FUNCTION trg_fn_award_incident_points()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_target_worker_id TEXT;
+BEGIN
+  IF (OLD.status = 'open' OR OLD.points_awarded = FALSE OR OLD.points_awarded IS NULL)
+     AND (NEW.status IN ('investigating', 'resolved', 'closed')) THEN
+     
+     v_target_worker_id := NEW.worker_id;
+
+     IF v_target_worker_id IS NOT NULL AND v_target_worker_id <> '' THEN
+       UPDATE workers
+       SET total_points = total_points + 50,
+           updated_at = now()
+       WHERE id = v_target_worker_id OR employee_id = v_target_worker_id;
+
+       NEW.points_awarded := TRUE;
+     END IF;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_incident_reports_award_points ON incident_reports;
+CREATE TRIGGER trg_incident_reports_award_points
+  BEFORE UPDATE ON incident_reports
+  FOR EACH ROW
+  EXECUTE FUNCTION trg_fn_award_incident_points();
 
 -- ─── 12. Login Attempts (Rate Limiting) ──────────────────────────────────────
 
