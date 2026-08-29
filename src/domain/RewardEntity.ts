@@ -8,6 +8,7 @@ export class RewardEntity implements RewardItem {
   public iconName: string;
   public description: string;
   public availableStock: number;
+  public monthlyStockLimit: number;
   public badgeTag?: string;
 
   constructor(item: RewardItem) {
@@ -18,6 +19,7 @@ export class RewardEntity implements RewardItem {
     this.iconName = item.iconName;
     this.description = item.description;
     this.availableStock = item.availableStock;
+    this.monthlyStockLimit = item.monthlyStockLimit ?? Math.max(item.availableStock, 25);
     this.badgeTag = item.badgeTag;
   }
 

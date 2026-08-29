@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X, CheckCircle, Camera, Image, Sparkles, Upload, Loader2, AlertCircle } from 'lucide-react';
 import { uploadWorkerAvatarFile } from '../lib/supabaseService';
 import { WorkerAvatar } from './WorkerAvatar';
@@ -67,9 +68,15 @@ export const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/85 backdrop-blur-sm animate-fade-in">
-      <div className="card-elevated w-full max-w-md p-6 relative">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-md max-h-[82vh] sm:max-h-[85vh] m-auto card-elevated p-6 overflow-y-auto custom-scrollbar"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Close Button */}
         <button
           onClick={onClose}
@@ -232,6 +239,7 @@ export const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

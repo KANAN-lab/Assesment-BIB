@@ -163,17 +163,26 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
   };
 
+  React.useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/85 backdrop-blur-sm animate-fade-in">
-      <div className="max-w-md w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-hidden">
+    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in">
+      <div className="max-w-md w-full max-h-[82vh] sm:max-h-[85vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl p-6 sm:p-8 shadow-2xl relative overflow-y-auto custom-scrollbar">
         
         {/* Header Logo */}
         <div className="text-center mb-5 relative z-10">
-          <div className="w-12 h-12 mx-auto mb-2.5 rounded-xl bg-emerald-600 flex items-center justify-center">
-            <ShieldCheck className="w-6 h-6 text-white" />
-          </div>
-          <h2 className="text-xl font-black text-white tracking-tight">BIB Logistics Assessment</h2>
-          <p className="text-xs text-zinc-400 mt-1">Masuk dengan NIK / Email untuk mengakses sistem</p>
+          <img
+            src="https://raw.githubusercontent.com/KANAN-lab/WFG-DAM/refs/heads/main/DAM%20LOGO.ico"
+            alt="Gappy Assessment Logo"
+            className="w-12 h-12 mx-auto mb-2.5 rounded-xl object-contain bg-zinc-950 border border-zinc-800 p-1"
+          />
+          <h2 className="text-xl font-black text-white tracking-tight">Gappy Assessment</h2>
+          <p className="text-xs text-zinc-400 mt-1">Enterprise Operational & K3 Logistics Intelligence Platform</p>
         </div>
 
         {/* Notifications */}

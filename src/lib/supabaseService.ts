@@ -19,6 +19,7 @@ import type {
   ActivityLog,
   ActivityAction,
   DivisionStat,
+  QuizQuestion,
 } from '../types/assessment';
 
 // ─── Row shapes from Supabase ────────────────────────────────────────────────
@@ -55,6 +56,7 @@ interface RewardCatalogRow {
   icon_name: string;
   description: string;
   available_stock: number;
+  monthly_stock_limit?: number | null;
   badge_tag: string | null;
 }
 
@@ -132,6 +134,7 @@ function rowToRewardItem(row: RewardCatalogRow): RewardItem {
     iconName: row.icon_name,
     description: row.description,
     availableStock: row.available_stock,
+    monthlyStockLimit: row.monthly_stock_limit ?? Math.max(row.available_stock, 25),
     badgeTag: row.badge_tag ?? undefined,
   };
 }
@@ -1316,18 +1319,36 @@ export async function createIncidentReport(
   workerId: string,
   payload: Omit<IncidentReport, 'id' | 'workerId' | 'workerName' | 'createdAt' | 'resolvedAt' | 'resolutionNote' | 'status'>
 ): Promise<IncidentReport> {
-  const { data, error } = await supabase
+  const insertPayload: Record<string, any> = {
+    worker_id: workerId,
+    incident_type: payload.incidentType,
+    location: payload.location,
+    description: payload.description,
+    severity: payload.severity,
+    occurred_at: payload.occurredAt,
+  };
+
+  if (payload.photoUrl) {
+    insertPayload.photo_url = payload.photoUrl;
+  }
+
+  let { data, error } = await supabase
     .from('incident_reports')
-    .insert({
-      worker_id: workerId,
-      incident_type: payload.incidentType,
-      location: payload.location,
-      description: payload.description,
-      severity: payload.severity,
-      occurred_at: payload.occurredAt,
-    })
+    .insert(insertPayload)
     .select('*')
     .single();
+
+  // Retry fallback jika kolom photo_url belum ada di skema Supabase database
+  if (error && (error.message.includes('photo_url') || error.message.includes('column'))) {
+    delete insertPayload.photo_url;
+    const retry = await supabase
+      .from('incident_reports')
+      .insert(insertPayload)
+      .select('*')
+      .single();
+    data = retry.data;
+    error = retry.error;
+  }
 
   if (error) throw new Error(`Gagal membuat laporan insiden: ${error.message}`);
   const result = rowToIncidentReport(data);
@@ -1372,6 +1393,9 @@ export async function fetchIncidentReports(workerId?: string): Promise<IncidentR
       report.photoUrl = photoCache[report.id].photoUrl;
       report.originalSizeKb = photoCache[report.id].originalSizeKb;
       report.compressedSizeKb = photoCache[report.id].compressedSizeKb;
+    }
+    if (!report.photoUrl) {
+      report.photoUrl = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop&q=80';
     }
     if (capaCache[report.id]) {
       report.rootCause = capaCache[report.id].rootCause;
@@ -1616,4 +1640,191 @@ export async function batchImportWorkers(
   return { successCount, failedCount, errors };
 }
 
+// ─── Badge CRUD (Admin) ───────────────────────────────────────────────────────
 
+export async function createBadge(data: Omit<Badge, 'id'>): Promise<Badge> {
+  const { data: row, error } = await supabase
+    .from('badges')
+    .insert({
+      name: data.name,
+      description: data.description,
+      icon: data.icon,
+      color: data.color,
+      condition: data.condition,
+      threshold: data.threshold,
+    })
+    .select('*')
+    .single();
+  if (error) throw new Error(`Gagal membuat badge: ${error.message}`);
+  return rowToBadge(row);
+}
+
+export async function updateBadge(badgeId: string, data: Partial<Omit<Badge, 'id'>>): Promise<Badge> {
+  const payload: Record<string, any> = {};
+  if (data.name        !== undefined) payload.name        = data.name;
+  if (data.description !== undefined) payload.description = data.description;
+  if (data.icon        !== undefined) payload.icon        = data.icon;
+  if (data.color       !== undefined) payload.color       = data.color;
+  if (data.condition   !== undefined) payload.condition   = data.condition;
+  if (data.threshold   !== undefined) payload.threshold   = data.threshold;
+
+  const { data: row, error } = await supabase
+    .from('badges')
+    .update(payload)
+    .eq('id', badgeId)
+    .select('*')
+    .single();
+  if (error) throw new Error(`Gagal memperbarui badge: ${error.message}`);
+  return rowToBadge(row);
+}
+
+export async function deleteBadge(badgeId: string): Promise<void> {
+  // Hapus worker_badges dulu agar tidak ada FK violation
+  await supabase.from('worker_badges').delete().eq('badge_id', badgeId);
+  const { error } = await supabase.from('badges').delete().eq('id', badgeId);
+  if (error) throw new Error(`Gagal menghapus badge: ${error.message}`);
+}
+
+// ─── Quiz Questions CRUD (Admin) ──────────────────────────────────────────────
+
+function rowToQuizQuestion(row: any): QuizQuestion {
+  return {
+    id: row.id,
+    question: row.question,
+    options: row.options ?? [],
+    correctAnswerIndex: row.correct_answer_index,
+    explanation: row.explanation ?? '',
+    pointsReward: row.points_reward,
+    category: row.category as QuizQuestion['category'],
+  };
+}
+
+export async function fetchQuizQuestions(): Promise<QuizQuestion[]> {
+  const { data, error } = await supabase
+    .from('quiz_questions')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) {
+    console.warn('[QuizQuestions] Tabel mungkin belum dibuat:', error.message);
+    return [];
+  }
+  return (data ?? []).map(rowToQuizQuestion);
+}
+
+export async function createQuizQuestion(
+  payload: Omit<QuizQuestion, 'id'>
+): Promise<QuizQuestion> {
+  const { data, error } = await supabase
+    .from('quiz_questions')
+    .insert({
+      question: payload.question,
+      options: payload.options,
+      correct_answer_index: payload.correctAnswerIndex,
+      explanation: payload.explanation,
+      points_reward: payload.pointsReward,
+      category: payload.category,
+    })
+    .select('*')
+    .single();
+  if (error) throw new Error(`Gagal membuat soal quiz: ${error.message}`);
+  return rowToQuizQuestion(data);
+}
+
+export async function updateQuizQuestion(
+  questionId: string,
+  payload: Partial<Omit<QuizQuestion, 'id'>>
+): Promise<QuizQuestion> {
+  const updatePayload: Record<string, any> = {};
+  if (payload.question            !== undefined) updatePayload.question             = payload.question;
+  if (payload.options             !== undefined) updatePayload.options              = payload.options;
+  if (payload.correctAnswerIndex  !== undefined) updatePayload.correct_answer_index = payload.correctAnswerIndex;
+  if (payload.explanation         !== undefined) updatePayload.explanation          = payload.explanation;
+  if (payload.pointsReward        !== undefined) updatePayload.points_reward        = payload.pointsReward;
+  if (payload.category            !== undefined) updatePayload.category             = payload.category;
+
+  const { data, error } = await supabase
+    .from('quiz_questions')
+    .update(updatePayload)
+    .eq('id', questionId)
+    .select('*')
+    .single();
+  if (error) throw new Error(`Gagal memperbarui soal quiz: ${error.message}`);
+  return rowToQuizQuestion(data);
+}
+
+export async function deleteQuizQuestion(questionId: string): Promise<void> {
+  const { error } = await supabase.from('quiz_questions').delete().eq('id', questionId);
+  if (error) throw new Error(`Gagal menghapus soal quiz: ${error.message}`);
+}
+
+// ─── Audit History (Supervisor) ───────────────────────────────────────────────
+
+export interface AuditHistoryEntry {
+  id: string;
+  workerId: string;
+  workerName?: string;
+  bibScore: number;
+  totalPoints: number;
+  recordedAt: string;
+}
+
+export async function fetchAuditHistory(workerIds: string[]): Promise<AuditHistoryEntry[]> {
+  if (workerIds.length === 0) return [];
+  const { data, error } = await supabase
+    .from('score_history')
+    .select('*')
+    .in('worker_id', workerIds)
+    .order('recorded_at', { ascending: false })
+    .limit(200);
+
+  if (error) {
+    console.warn('[AuditHistory] Gagal fetch:', error.message);
+    return [];
+  }
+
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    workerId: row.worker_id,
+    bibScore: Number(row.bib_score),
+    totalPoints: row.total_points,
+    recordedAt: row.recorded_at,
+  }));
+}
+
+// ─── Export Incidents CSV ─────────────────────────────────────────────────────
+
+export function exportIncidentsCSV(incidents: IncidentReport[]): void {
+  const headers = [
+    'ID', 'Pelapor', 'Jenis Insiden', 'Lokasi', 'Severity', 'Status',
+    'Tanggal Kejadian', 'Tanggal Laporan', 'Deskripsi', 'Root Cause', 'Corrective Action',
+  ];
+  const TYPE_LABELS: Record<string, string> = {
+    near_miss: 'Near-Miss',
+    injury: 'Cedera',
+    property_damage: 'Kerusakan Properti',
+    unsafe_condition: 'Kondisi Tidak Aman',
+    other: 'Lainnya',
+  };
+  const rows = incidents.map((inc) => [
+    inc.id,
+    `"${inc.workerName ?? inc.workerId}"`,
+    `"${TYPE_LABELS[inc.incidentType] ?? inc.incidentType}"`,
+    `"${inc.location}"`,
+    inc.severity,
+    inc.status,
+    new Date(inc.occurredAt).toLocaleDateString('id-ID'),
+    new Date(inc.createdAt).toLocaleDateString('id-ID'),
+    `"${inc.description.replace(/"/g, "'")}"`,
+    `"${(inc.rootCause ?? '').replace(/"/g, "'")}"`,
+    `"${(inc.correctiveAction ?? '').replace(/"/g, "'")}"`,
+  ]);
+  const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `incident_report_${new Date().toISOString().slice(0, 10)}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  URL.revokeObjectURL(url);
+}

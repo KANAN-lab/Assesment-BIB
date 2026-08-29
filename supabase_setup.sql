@@ -69,6 +69,7 @@ CREATE TABLE IF NOT EXISTS reward_catalog (
   icon_name       TEXT NOT NULL DEFAULT 'Gift',
   description     TEXT NOT NULL DEFAULT '',
   available_stock INTEGER NOT NULL DEFAULT 0,
+  monthly_stock_limit INTEGER NOT NULL DEFAULT 25,
   badge_tag       TEXT,
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -183,6 +184,96 @@ BEGIN
   UPDATE reward_catalog SET
     available_stock = GREATEST(0, available_stock - 1)
   WHERE id = p_reward_id;
+END;
+$$;
+
+-- ─── RPC: Redeem Reward FCFS Atomic ────────────────────────────
+CREATE OR REPLACE FUNCTION rpc_redeem_reward_fcfs(
+  p_worker_id TEXT,
+  p_reward_id TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_worker_points INTEGER;
+  v_reward_title TEXT;
+  v_reward_points INTEGER;
+  v_available_stock INTEGER;
+  v_claims_this_month INTEGER;
+  v_voucher_code TEXT;
+  v_now_str TEXT;
+BEGIN
+  -- 1. Lock & check worker points
+  SELECT total_points INTO v_worker_points
+  FROM workers
+  WHERE id = p_worker_id FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Worker dengan ID % tidak ditemukan.', p_worker_id;
+  END IF;
+
+  -- 2. Lock & check reward catalog (Atomic Lock)
+  SELECT title, points_required, available_stock INTO v_reward_title, v_reward_points, v_available_stock
+  FROM reward_catalog
+  WHERE id = p_reward_id FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Reward dengan ID % tidak ditemukan.', p_reward_id;
+  END IF;
+
+  -- 3. Check stock availability (FCFS Check)
+  IF v_available_stock <= 0 THEN
+    RAISE EXCEPTION 'KUOTA_HABIS: Kuota bulanan untuk reward "%" telah habis! Silakan tunggu reset kuota bulan depan.', v_reward_title;
+  END IF;
+
+  -- 4. Check worker point balance
+  IF v_worker_points < v_reward_points THEN
+    RAISE EXCEPTION 'POIN_KURANG: Poin Anda (% PTS) tidak mencukupi untuk menukar % (% PTS).', v_worker_points, v_reward_title, v_reward_points;
+  END IF;
+
+  -- 5. Check monthly claim limit per worker (Max 1 claim per item per month)
+  SELECT COUNT(*) INTO v_claims_this_month
+  FROM redemption_history
+  WHERE worker_id = p_worker_id
+    AND item_title = v_reward_title
+    AND DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE);
+
+  IF v_claims_this_month >= 1 THEN
+    RAISE EXCEPTION 'BATAS_KLAIM: Anda telah mencapai batas maksimal klaim (1x per bulan) untuk item "%".', v_reward_title;
+  END IF;
+
+  -- 6. Perform Atomic Deductions & Record Transaction
+  UPDATE workers
+  SET total_points = total_points - v_reward_points,
+      updated_at = now()
+  WHERE id = p_worker_id;
+
+  UPDATE reward_catalog
+  SET available_stock = available_stock - 1
+  WHERE id = p_reward_id;
+
+  v_voucher_code := 'BIB-' || UPPER(SUBSTRING(MD5(RANDOM()::TEXT), 1, 8));
+  v_now_str := TO_CHAR(now(), 'YYYY-MM-DD HH24:MI');
+
+  INSERT INTO redemption_history (id, worker_id, item_title, points_spent, redeemed_at, redemption_code)
+  VALUES (
+    'red-' || gen_random_uuid()::text,
+    p_worker_id,
+    v_reward_title,
+    v_reward_points,
+    v_now_str,
+    v_voucher_code
+  );
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'voucher_code', v_voucher_code,
+    'points_spent', v_reward_points,
+    'remaining_points', v_worker_points - v_reward_points,
+    'remaining_stock', v_available_stock - 1,
+    'message', 'Penukaran reward berhasil! Voucher siap digunakan.'
+  );
 END;
 $$;
 
@@ -528,6 +619,10 @@ BEGIN
   );
 END;
 $$;
+
+-- ─── MIGRATION: Add photo_url column to incident_reports table ───────────────
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS photo_url TEXT;
+
 
 
 

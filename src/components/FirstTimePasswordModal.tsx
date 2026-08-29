@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { KeyRound, Mail, ShieldCheck, AlertCircle, Loader2, Lock, CheckCircle2 } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { KeyRound, Mail, ShieldCheck, AlertCircle, Loader2, Lock } from 'lucide-react';
 import { WorkerProfile } from '../types/assessment';
 import { updateWorkerPasswordAndEmail } from '../lib/supabaseService';
 
@@ -54,9 +55,14 @@ export const FirstTimePasswordModal: React.FC<FirstTimePasswordModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-zinc-950/90 backdrop-blur-md animate-fade-in">
-      <div className="card-elevated w-full max-w-md p-6 sm:p-8 relative border-amber-500/30">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+    >
+      <div
+        className="relative w-full max-w-md max-h-[82vh] sm:max-h-[85vh] m-auto card-elevated p-6 sm:p-8 border border-amber-500/30 overflow-y-auto custom-scrollbar"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Header Icon */}
         <div className="text-center mb-6">
@@ -159,6 +165,7 @@ export const FirstTimePasswordModal: React.FC<FirstTimePasswordModalProps> = ({
         </form>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

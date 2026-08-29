@@ -24,8 +24,8 @@ export class AtomicTransactionManager {
     rewardId: string
   ): Promise<AtomicRedemptionResult> {
     try {
-      // 1. Attempt Supabase RPC Atomic Transaction if registered
-      const { data: rpcData, error: rpcError } = await supabase.rpc('rpc_redeem_reward', {
+      // 1. Attempt Supabase RPC Atomic Transaction FCFS
+      const { data: rpcData, error: rpcError } = await supabase.rpc('rpc_redeem_reward_fcfs', {
         p_worker_id: workerId,
         p_reward_id: rewardId,
       });
@@ -33,10 +33,28 @@ export class AtomicTransactionManager {
       if (!rpcError && rpcData) {
         redisCache.invalidatePattern('worker:*');
         redisCache.invalidatePattern('reward:*');
-        return rpcData as AtomicRedemptionResult;
+        return {
+          success: true,
+          voucherCode: rpcData.voucher_code,
+          pointsSpent: rpcData.points_spent,
+          remainingPoints: rpcData.remaining_points,
+          remainingStock: rpcData.remaining_stock,
+          message: rpcData.message,
+        };
       }
-    } catch {
-      // Fall through to Client-side Managed Atomic Sequence
+
+      if (rpcError) {
+        // If RPC explicitly threw an error (e.g. FCFS out of stock or monthly limit)
+        const msg = rpcError.message || '';
+        if (msg.includes('KUOTA_HABIS') || msg.includes('POIN_KURANG') || msg.includes('BATAS_KLAIM')) {
+          const cleanMsg = msg.replace(/^.*EXCEPTION:\s*/, '').replace(/^.*:\s*/, '');
+          throw new Error(cleanMsg);
+        }
+      }
+    } catch (err: any) {
+      if (err.message && (err.message.includes('kuota') || err.message.includes('Poin') || err.message.includes('maksimal') || err.message.includes('habis'))) {
+        throw err;
+      }
     }
 
     // 2. Client-side Managed Atomic Sequence with Validation Lock
@@ -51,7 +69,7 @@ export class AtomicTransactionManager {
     }
 
     const { data: reward, error: rewardErr } = await supabase
-      .from('rewards')
+      .from('reward_catalog')
       .select('id, title, category, points_required, available_stock')
       .eq('id', rewardId)
       .single();
@@ -61,7 +79,7 @@ export class AtomicTransactionManager {
     }
 
     if (reward.available_stock <= 0) {
-      throw new Error(`Stok reward "${reward.title}" telah habis.`);
+      throw new Error(`Kuota bulanan reward "${reward.title}" telah habis! Silakan tunggu reset kuota bulan depan.`);
     }
 
     if (worker.total_points < reward.points_required) {

@@ -20,6 +20,9 @@ import { BadgeShowcase } from './components/BadgeShowcase';
 import { IncidentReportModal } from './components/IncidentReportModal';
 import { SopLibraryModal } from './components/SopLibraryModal';
 import { OnboardingModal } from './components/OnboardingModal';
+import { PerformanceSummaryCard } from './components/PerformanceSummaryCard';
+import { WorkerCompetencyModal } from './components/WorkerCompetencyModal';
+import { WorkerIncidentHistory } from './components/WorkerIncidentHistory';
 
 import {
   fetchWorkerById,
@@ -78,6 +81,8 @@ export const App: React.FC = () => {
   const [workerBadges, setWorkerBadges] = useState<WorkerBadge[]>([]);
   const [allBadges, setAllBadges] = useState<Badge[]>([]);
   const [showIncidentModal, setShowIncidentModal] = useState(false);
+  const [showWorkerIncidentHistory, setShowWorkerIncidentHistory] = useState(false);
+  const [showCompetencyModal, setShowCompetencyModal] = useState(false);
   const [showSopModal, setShowSopModal] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const lastActiveRef = useRef<number>(Date.now());
@@ -747,12 +752,27 @@ export const App: React.FC = () => {
                     <ShieldAlert className="w-3.5 h-3.5 text-orange-400" />
                     Laporan Insiden K3
                   </button>
+
+                  <button
+                    onClick={() => setShowWorkerIncidentHistory(true)}
+                    className="px-3.5 py-2.5 rounded-xl font-bold text-xs bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 transition flex items-center gap-2"
+                    title="Lihat riwayat laporan insiden yang pernah dibuat"
+                  >
+                    <ShieldAlert className="w-3.5 h-3.5 text-zinc-400" />
+                    Riwayat Saya
+                  </button>
                 </div>
               </div>
             </div>
 
             {/* Announcement Banner */}
             {announcements.length > 0 && <AnnouncementBanner announcements={announcements} />}
+
+            {/* Target & Performance Summary Card */}
+            <PerformanceSummaryCard
+              worker={currentWorker}
+              onOpenCompetencyModal={() => setShowCompetencyModal(true)}
+            />
 
             {/* Grid: Radar BIB & Leaderboard */}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -811,7 +831,7 @@ export const App: React.FC = () => {
       {/* Footer */}
       <footer className="border-t border-zinc-900 py-5 text-center">
         <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-zinc-600">
-          <span>© 2026 BIB Logistics Assessment Platform</span>
+          <span>© 2026 Gappy Assessment — Enterprise Operational & K3 Platform</span>
           <div className="flex items-center gap-3">
             <span>ISO 45001</span>
             <span>·</span>
@@ -887,6 +907,22 @@ export const App: React.FC = () => {
             setShowIncidentModal(false);
             logActivity(currentWorker.id, currentWorker.name, 'incident_reported', `Jenis: ${report.incidentType} · Lokasi: ${report.location}`).catch(() => {});
           }}
+        />
+      )}
+
+      {showWorkerIncidentHistory && currentWorker && (
+        <WorkerIncidentHistory
+          workerId={currentWorker.id}
+          workerName={currentWorker.name}
+          onClose={() => setShowWorkerIncidentHistory(false)}
+        />
+      )}
+
+      {showCompetencyModal && currentWorker && (
+        <WorkerCompetencyModal
+          worker={currentWorker}
+          competencyScores={matrixInitialScores}
+          onClose={() => setShowCompetencyModal(false)}
         />
       )}
 

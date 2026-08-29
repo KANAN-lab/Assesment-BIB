@@ -50,6 +50,15 @@ export const DailyQuestModal: React.FC<DailyQuestModalProps> = ({
   const [isAnswerSubmitted, setIsAnswerSubmitted] = useState(false);
   const [totalPointsEarned, setTotalPointsEarned] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+
+  const handleAttemptClose = () => {
+    if (isStarted && !isFinished && !isAntiCheatViolated) {
+      setShowExitConfirm(true);
+    } else {
+      onClose();
+    }
+  };
 
   useEffect(() => {
     if (initialQuizzes && initialQuizzes.length > 0) {
@@ -211,15 +220,49 @@ export const DailyQuestModal: React.FC<DailyQuestModalProps> = ({
     timerBarColor = 'bg-amber-500';
   }
 
+  React.useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/85 backdrop-blur-sm animate-fade-in">
-      <div className="card-elevated w-full max-w-lg p-6 relative min-h-[400px] flex flex-col justify-between overflow-hidden">
+    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in">
+      <div className="card-elevated w-full max-w-xl p-6 relative max-h-[82vh] sm:max-h-[85vh] m-auto flex flex-col justify-between overflow-y-auto custom-scrollbar shadow-2xl">
         <button
-          onClick={isStarted && !isFinished && !isAntiCheatViolated ? handleFinishViolatedQuiz : onClose}
+          onClick={handleAttemptClose}
           className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition z-10"
         >
           <X className="w-5 h-5" />
         </button>
+
+        {/* Modal Konfirmasi Keluar Kuis */}
+        {showExitConfirm && (
+          <div className="absolute inset-0 bg-zinc-950/95 z-50 p-6 flex flex-col justify-center items-center text-center animate-fade-in">
+            <div className="w-12 h-12 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center mb-3">
+              <AlertCircle className="w-6 h-6 text-rose-400" />
+            </div>
+            <h3 className="text-sm font-bold text-white mb-1">Yakin Ingin Keluar dari Kuis?</h3>
+            <p className="text-xs text-zinc-400 max-w-xs mb-5 leading-relaxed">
+              Kuis sedang berlangsung. Jika Anda keluar sekarang, progres kuis hari ini tidak tersimpan dan poin tidak diperoleh.
+            </p>
+            <div className="flex gap-2 w-full max-w-xs">
+              <button
+                onClick={() => setShowExitConfirm(false)}
+                className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition"
+              >
+                Lanjutkan Kuis
+              </button>
+              <button
+                onClick={handleFinishViolatedQuiz}
+                className="flex-1 py-2 bg-zinc-800 hover:bg-zinc-700 text-rose-400 border border-rose-500/30 font-bold text-xs rounded-xl transition"
+              >
+                Keluar Kuis
+              </button>
+            </div>
+          </div>
+        )}
 
         {loadingAI ? (
           <div className="flex flex-col items-center justify-center my-auto py-12 text-center">

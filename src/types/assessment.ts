@@ -81,6 +81,7 @@ export interface RewardItem {
   iconName: string;
   description: string;
   availableStock: number;
+  monthlyStockLimit?: number;
   badgeTag?: string;
 }
 

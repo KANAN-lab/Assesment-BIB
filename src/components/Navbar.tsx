@@ -3,6 +3,7 @@ import { ShieldCheck, Flame, Coins, UserCheck, LayoutDashboard, LogOut, Settings
 import { WorkerProfile } from '../types/assessment';
 import { RoleEntity } from '../domain/RoleEntity';
 import { WorkerAvatar } from './WorkerAvatar';
+import { NotificationBell } from './NotificationBell';
 
 interface NavbarProps {
   currentWorker: WorkerProfile;
@@ -82,12 +83,14 @@ export const Navbar: React.FC<NavbarProps> = ({
 
           {/* Logo & Dynamic Mode Subtitle */}
           <div className="flex items-center gap-3 shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center">
-              <ShieldCheck className="w-4 h-4 text-white" />
-            </div>
+            <img
+              src="https://raw.githubusercontent.com/KANAN-lab/WFG-DAM/refs/heads/main/DAM%20LOGO.ico"
+              alt="Gappy Assessment Logo"
+              className="w-8 h-8 rounded-lg object-contain bg-zinc-900 border border-zinc-800 p-0.5"
+            />
             <div className="hidden sm:block">
               <div className="flex items-center gap-2">
-                <span className="font-black text-base text-white tracking-tight">BIB Logistics</span>
+                <span className="font-black text-base text-white tracking-tight">Gappy Assessment</span>
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${activeMode.badgeBg}`}>
                   {activeMode.label.split(' ')[0]}
                 </span>
@@ -130,9 +133,15 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           )}
 
-          {/* Right: Demo Role Mode Switcher + Profile */}
+          {/* Right: Demo Role Mode Switcher + Notifications + Profile */}
           <div className="flex items-center gap-2">
             
+            {/* OOP Notification Bell */}
+            <NotificationBell
+              currentUserId={currentWorker?.id}
+              currentRole={activeView}
+            />
+
             {/* Demo Role Switcher Dropdown */}
             <div className="relative" ref={dropdownRef}>
               <button

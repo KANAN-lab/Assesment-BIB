@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { WorkerProfile, CompetencyItem, ScoringRule } from '../types/assessment';
 import { matrixEngine } from '../domain/CompetencyMatrixEngine';
+import { SystemConfigService } from '../domain/SystemConfigService';
 import { X, Save, AlertCircle, CheckCircle2, Info, HelpCircle, TableProperties, Filter } from 'lucide-react';
 import { WorkerAvatar } from './WorkerAvatar';
 
@@ -102,9 +103,22 @@ export const CompetencyAuditModal: React.FC<CompetencyAuditModalProps> = ({
     }, 300);
   };
 
+  React.useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-zinc-950/85 backdrop-blur-sm animate-fade-in">
-      <div className="max-w-5xl w-full max-h-[92vh] bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden relative">
+    <div
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-5xl max-h-[82vh] sm:max-h-[85vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
 
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/80 relative z-10">
@@ -143,6 +157,19 @@ export const CompetencyAuditModal: React.FC<CompetencyAuditModalProps> = ({
               <X className="w-4 h-4" />
             </button>
           </div>
+        </div>
+
+        {/* Audit Cooldown & Governance Policy Banner */}
+        <div className="bg-indigo-950/40 border-b border-indigo-500/20 px-6 py-2.5 flex items-center justify-between text-xs">
+          <div className="flex items-center gap-2 text-indigo-300">
+            <Info className="w-4 h-4 text-indigo-400 shrink-0" />
+            <span>
+              <strong className="text-white font-bold">Kebijakan Frekuensi Penilaian Admin:</strong> Audit rutin disarankan <strong className="text-emerald-400">{SystemConfigService.getConfig().auditFrequencyLabel}</strong> per staf (Dikonfigurasi Administrator).
+            </span>
+          </div>
+          <span className="text-[10px] font-mono text-indigo-300 font-bold bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 shrink-0">
+            {SystemConfigService.getConfig().auditFrequencyLabel}
+          </span>
         </div>
 
         {/* Score Summary Banner */}
@@ -264,7 +291,7 @@ export const CompetencyAuditModal: React.FC<CompetencyAuditModalProps> = ({
         </div>
 
         {/* Item List Form */}
-        <div className="p-6 overflow-y-auto space-y-3 flex-1 custom-scrollbar bg-zinc-950/40">
+        <div className="p-6 overflow-y-auto space-y-3 flex-1 min-h-0 custom-scrollbar bg-zinc-950/40">
           {filteredItems.map((item, idx) => {
             const maxForRole = item.maxScores[roleColumnKey] ?? 0;
             const currentScore = scores[item.id] ?? 0;

@@ -1,12 +1,13 @@
-import React, { useState, useMemo } from 'react';
-import { WorkerProfile } from '../types/assessment';
+import React, { useState, useMemo, useEffect } from 'react';
+import { WorkerProfile, IncidentReport } from '../types/assessment';
 import { matrixEngine } from '../domain/CompetencyMatrixEngine';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import {
-  UserCheck, TrendingUp, Users, TableProperties,
+  UserCheck, TrendingUp, TableProperties,
   Search, Flame, ShieldCheck, Award, ChevronRight,
-  BarChart3, CheckCircle, AlertTriangle, Download
+  BarChart3, CheckCircle, AlertTriangle, Download,
+  ShieldAlert, Clock, CheckCircle2, History, Loader2, AlertCircle,
 } from 'lucide-react';
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, Tooltip as RechartsTooltip
@@ -15,6 +16,13 @@ import { WorkerAvatar } from './WorkerAvatar';
 import { RoleEntity } from '../domain/RoleEntity';
 import { ExecutivePDFReportGenerator } from '../lib/pdfReportService';
 import { CompetencyGapAnalysisModal } from './CompetencyGapAnalysisModal';
+import { SupervisorIncidentKanban } from './SupervisorIncidentKanban';
+import { SupervisorIncidentValidationModal } from './SupervisorIncidentValidationModal';
+import { SystemConfigService } from '../domain/SystemConfigService';
+import {
+  fetchIncidentReports, updateIncidentCapaAndStatus,
+  fetchAuditHistory, AuditHistoryEntry,
+} from '../lib/supabaseService';
 
 interface SupervisorConsoleProps {
   workers: WorkerProfile[];
@@ -31,13 +39,75 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
     return workers.filter((w) => RoleEntity.isOperationalWorker(w.role) && w.division.toUpperCase() !== 'SYSTEM');
   }, [workers]);
 
+  const [activeTab, setActiveTab] = useState<'team' | 'incidents' | 'audit-history'>('team');
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>(operationalWorkers[0]?.id || '');
   const [search, setSearch] = useState('');
   const [isGapModalOpen, setIsGapModalOpen] = useState(false);
 
-  const handleExportPDF = () => {
-    ExecutivePDFReportGenerator.generateExecutiveReport(operationalWorkers, 'Supervisor Logistik');
+  // Incidents tab state
+  const [incidents, setIncidents] = useState<IncidentReport[]>([]);
+  const [incidentsLoading, setIncidentsLoading] = useState(false);
+  const [incidentStatusFilter, setIncidentStatusFilter] = useState('all');
+  const [incidentSearch, setIncidentSearch] = useState('');
+  const [updatingIncidentId, setUpdatingIncidentId] = useState<string | null>(null);
+  const [validatingIncident, setValidatingIncident] = useState<IncidentReport | null>(null);
+
+  // Audit history tab state
+  const [auditHistory, setAuditHistory] = useState<AuditHistoryEntry[]>([]);
+  const [auditHistoryLoading, setAuditHistoryLoading] = useState(false);
+
+  const openIncidentsCount = useMemo(() => {
+    return incidents.filter((i) => i.status === 'open').length;
+  }, [incidents]);
+
+  useEffect(() => {
+    setIncidentsLoading(true);
+    fetchIncidentReports()
+      .then(setIncidents)
+      .catch(() => {})
+      .finally(() => setIncidentsLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const handleOpenIncidentTab = () => {
+      setActiveTab('incidents');
+    };
+    window.addEventListener('gappy_open_incident_tab', handleOpenIncidentTab);
+    return () => window.removeEventListener('gappy_open_incident_tab', handleOpenIncidentTab);
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'audit-history' && auditHistory.length === 0) {
+      const ids = operationalWorkers.map(w => w.id);
+      setAuditHistoryLoading(true);
+      fetchAuditHistory(ids)
+        .then((entries) => {
+          // Enrich with worker name
+          const enriched = entries.map(e => ({
+            ...e,
+            workerName: operationalWorkers.find(w => w.id === e.workerId)?.name ?? e.workerId,
+          }));
+          setAuditHistory(enriched);
+        })
+        .catch(() => {})
+        .finally(() => setAuditHistoryLoading(false));
+    }
+  }, [activeTab, operationalWorkers]);
+
+  const handleUpdateIncidentStatus = async (incidentId: string, newStatus: IncidentReport['status']) => {
+    setUpdatingIncidentId(incidentId);
+    try {
+      await updateIncidentCapaAndStatus(incidentId, {
+        status: newStatus,
+        updatedBy: 'Supervisor',
+        resolutionNote: newStatus === 'resolved' || newStatus === 'closed' ? 'Ditangani oleh Supervisor' : undefined,
+      });
+      setIncidents(prev => prev.map(inc => inc.id === incidentId ? { ...inc, status: newStatus } : inc));
+    } catch { /* silent */ } finally {
+      setUpdatingIncidentId(null);
+    }
   };
+
 
   const activeWorker = operationalWorkers.find((w) => w.id === selectedWorkerId) || operationalWorkers[0];
 
@@ -73,6 +143,42 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
     );
   }, [activeWorker]);
 
+  const handleExportPDF = () => {
+    ExecutivePDFReportGenerator.generateExecutiveReport(operationalWorkers, 'Supervisor Logistik');
+  };
+
+  // Filtered incidents
+  const filteredIncidents = useMemo(() => {
+    return incidents.filter(inc => {
+      if (incidentStatusFilter !== 'all' && inc.status !== incidentStatusFilter) return false;
+      if (incidentSearch) {
+        const q = incidentSearch.toLowerCase();
+        return inc.location.toLowerCase().includes(q) || inc.description.toLowerCase().includes(q) || (inc.workerName ?? '').toLowerCase().includes(q);
+      }
+      return true;
+    });
+  }, [incidents, incidentStatusFilter, incidentSearch]);
+
+  const SEVERITY_META: Record<string, { label: string; cls: string }> = {
+    low:      { label: 'Rendah',  cls: 'bg-zinc-800 text-zinc-400 border-zinc-700' },
+    medium:   { label: 'Sedang',  cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+    high:     { label: 'Tinggi',  cls: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
+    critical: { label: 'Kritis',  cls: 'bg-rose-500/10 text-rose-400 border-rose-500/20' },
+  };
+
+  const STATUS_META: Record<string, { label: string; next: IncidentReport['status'] | null; cls: string }> = {
+    open:          { label: 'Terbuka',    next: 'investigating', cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+    investigating: { label: 'Investigasi', next: 'resolved',    cls: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20' },
+    resolved:      { label: 'Resolved',   next: 'closed',      cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+    closed:        { label: 'Ditutup',    next: null,           cls: 'bg-zinc-700/50 text-zinc-400 border-zinc-700' },
+  };
+
+  const TYPE_LABELS: Record<string, string> = {
+    near_miss: 'Near-Miss', injury: 'Cedera', property_damage: 'Kerusakan Properti',
+    unsafe_condition: 'Kondisi Tidak Aman', other: 'Lainnya',
+  };
+
+
   const activeItems = useMemo(() => {
     if (!activeWorker) return [];
     const rKey = matrixEngine.resolveRoleColumnKey(activeWorker.role);
@@ -106,6 +212,120 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
 
   return (
     <div className="space-y-5 animate-fade-in">
+
+      {/* ─ Tab Navigation ─ */}
+      <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1 w-fit">
+        {[
+          { key: 'team',          label: 'Tim & Audit',     Icon: UserCheck,   count: 0, alert: false },
+          { key: 'incidents',     label: 'Kelola Insiden',  Icon: ShieldAlert, count: openIncidentsCount, alert: openIncidentsCount > 0 },
+          { key: 'audit-history', label: 'Riwayat Audit',   Icon: History,     count: 0, alert: false },
+        ].map(({ key, label, Icon, count, alert }) => (
+          <button
+            key={key}
+            onClick={() => setActiveTab(key as any)}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition relative ${
+              activeTab === key
+                ? 'bg-emerald-600 text-white shadow-md'
+                : alert
+                ? 'bg-rose-950/60 text-rose-300 border border-rose-500/50 hover:bg-rose-900/60 animate-pulse'
+                : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
+            }`}
+          >
+            <Icon className={`w-3.5 h-3.5 ${alert && activeTab !== key ? 'text-rose-400' : ''}`} />
+            <span>{label}</span>
+            {count > 0 && (
+              <span className="px-1.5 py-0.2 text-[9px] font-black rounded-full bg-rose-500 text-white shadow-sm shadow-rose-950 ml-0.5 font-mono">
+                {count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ─ INCIDENTS KANBAN TAB ─ */}
+      {activeTab === 'incidents' && (
+        <SupervisorIncidentKanban
+          incidents={incidents}
+          loading={incidentsLoading}
+          onUpdateStatus={async (incId, newStatus) => {
+            handleUpdateIncidentStatus(incId, newStatus);
+          }}
+          updatingIncidentId={updatingIncidentId}
+          onSelectIncident={(inc) => setValidatingIncident(inc)}
+        />
+      )}
+
+      {/* ─ MODAL VALIDASI INSIDEN SUPERVISOR ─ */}
+      {validatingIncident && (
+        <SupervisorIncidentValidationModal
+          incident={validatingIncident}
+          workers={workers}
+          onClose={() => setValidatingIncident(null)}
+          onSuccess={() => {
+            setIncidentsLoading(true);
+            fetchIncidentReports()
+              .then(setIncidents)
+              .catch(() => {})
+              .finally(() => setIncidentsLoading(false));
+          }}
+        />
+      )}
+
+      {/* ─ AUDIT HISTORY TAB ─ */}
+      {activeTab === 'audit-history' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <History className="w-4 h-4 text-indigo-400" /> Riwayat Skor Audit
+              </h3>
+              <p className="text-[11px] text-zinc-500 mt-0.5">{auditHistory.length} entri · 200 terbaru</p>
+            </div>
+          </div>
+
+          {auditHistoryLoading ? (
+            <div className="flex justify-center py-12"><Loader2 className="w-6 h-6 text-zinc-500 animate-spin" /></div>
+          ) : auditHistory.length === 0 ? (
+            <div className="text-center py-12 text-zinc-500">
+              <History className="w-8 h-8 mx-auto mb-2 text-zinc-700" />
+              Belum ada riwayat skor audit tersimpan.
+            </div>
+          ) : (
+            <div className="card overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-zinc-800 bg-zinc-950">
+                      <th className="text-left px-4 py-3 text-zinc-500 font-bold uppercase text-[10px] tracking-wider">Nama Worker</th>
+                      <th className="text-left px-4 py-3 text-zinc-500 font-bold uppercase text-[10px] tracking-wider">BIB Score</th>
+                      <th className="text-left px-4 py-3 text-zinc-500 font-bold uppercase text-[10px] tracking-wider">Total Poin</th>
+                      <th className="text-left px-4 py-3 text-zinc-500 font-bold uppercase text-[10px] tracking-wider">Tanggal Audit</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {auditHistory.map((entry, idx) => {
+                      const scoreColor = entry.bibScore >= 90 ? 'text-emerald-400' : entry.bibScore >= 80 ? 'text-indigo-400' : entry.bibScore >= 70 ? 'text-amber-400' : 'text-rose-400';
+                      return (
+                        <tr key={entry.id} className={`border-b border-zinc-800/50 hover:bg-zinc-900/50 transition ${idx % 2 === 0 ? '' : 'bg-zinc-950/40'}`}>
+                          <td className="px-4 py-2.5 font-semibold text-white">{entry.workerName ?? entry.workerId}</td>
+                          <td className={`px-4 py-2.5 font-black font-mono ${scoreColor}`}>{entry.bibScore.toFixed(1)}</td>
+                          <td className="px-4 py-2.5 text-amber-300 font-bold">{entry.totalPoints.toLocaleString()}</td>
+                          <td className="px-4 py-2.5 text-zinc-400">
+                            {new Date(entry.recordedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─ TEAM TAB ─ */}
+      {activeTab === 'team' && (<>
 
       {/* ─ Header stats: 4 metric tiles ─ */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -348,13 +568,19 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
                 </div>
 
                 {onOpenMatrixAudit && (
-                  <button
-                    onClick={() => onOpenMatrixAudit(activeWorker)}
-                    className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition shrink-0 shadow-md shadow-emerald-950"
-                  >
-                    <TableProperties className="w-4 h-4" />
-                    Buka Audit Matrix
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <span className="hidden md:flex items-center gap-1 text-[10px] text-indigo-300 font-bold bg-indigo-950/60 border border-indigo-500/30 px-2.5 py-1 rounded-lg">
+                      <Clock className="w-3 h-3 text-indigo-400" />
+                      Frekuensi: {SystemConfigService.getConfig().auditFrequencyLabel}
+                    </span>
+                    <button
+                      onClick={() => onOpenMatrixAudit(activeWorker)}
+                      className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition shrink-0 shadow-md shadow-emerald-950"
+                    >
+                      <TableProperties className="w-4 h-4" />
+                      Buka Audit Matrix
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -503,6 +729,8 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
         onClose={() => setIsGapModalOpen(false)}
         workers={operationalWorkers}
       />
+      </>)}
+
     </div>
   );
 };

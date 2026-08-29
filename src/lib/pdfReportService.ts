@@ -34,7 +34,7 @@ export class ExecutivePDFReportGenerator {
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
-    doc.text('PT DAM INDONESIA — LOGISTICS ASSESSMENT PLATFORM', 14, 12);
+    doc.text('PT DAM INDONESIA — GAPPY ASSESSMENT PLATFORM', 14, 12);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
@@ -162,7 +162,7 @@ export class ExecutivePDFReportGenerator {
     doc.setFontSize(7.5);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      `Dokumen Rahasia Internal — BIB Logistics Assessment System v3.3.0 | Halaman 1 dari 1`,
+      `Dokumen Rahasia Internal — Gappy Assessment System v3.3.0 | Halaman 1 dari 1`,
       pageWidth / 2,
       doc.internal.pageSize.getHeight() - 8,
       { align: 'center' }

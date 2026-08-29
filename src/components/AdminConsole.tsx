@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { WorkerProfile, CompetencyItem, Announcement, IncidentReport, ActivityLog, RewardItem } from '../types/assessment';
 import { DivisionEntity } from '../domain/DivisionEntity';
 import { RoleEntity } from '../domain/RoleEntity';
@@ -20,10 +21,13 @@ import { supabase } from '../lib/supabaseClient';
 import {
   fetchAnnouncements, createAnnouncement, toggleAnnouncement, deleteAnnouncement,
   fetchIncidentReports, updateIncidentStatus, updateIncidentCapaAndStatus,
-  fetchActivityLog, exportWorkersCSV,
+  fetchActivityLog, exportWorkersCSV, exportIncidentsCSV,
   fetchAllRedemptionHistory, AdminRedemptionRecord,
   batchImportWorkers, mutateWorkerRoleAndDivision
 } from '../lib/supabaseService';
+import { BadgeManagementPanel } from './BadgeManagementPanel';
+import { QuizManagementPanel } from './QuizManagementPanel';
+import { SystemConfigService, FREQUENCY_OPTIONS } from '../domain/SystemConfigService';
 import { ExecutivePDFReportGenerator } from '../lib/pdfReportService';
 
 export const SAMPLE_EMPLOYEE_IMPORT_DATA = `328000257\tAGUNG BAGASKARA\tOperator Forklift (WFG)\tWFG
@@ -163,7 +167,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   onRestockReward,
   onDeleteReward,
 }) => {
-  const [activeTab, setActiveTab] = useState<'workers' | 'approvals' | 'divisions' | 'roles' | 'matrix' | 'ai-quiz' | 'analytics' | 'announcements' | 'incidents' | 'activity' | 'rewards'>('workers');
+  const [activeTab, setActiveTab] = useState<'workers' | 'approvals' | 'divisions' | 'roles' | 'matrix' | 'ai-quiz' | 'analytics' | 'announcements' | 'incidents' | 'activity' | 'rewards' | 'badges' | 'quiz' | 'config'>('workers');
   const [quizMeta, setQuizMeta] = useState<QuizStatusMeta>(() => getQuizStatusMeta());
   const [refreshingQuiz, setRefreshingQuiz] = useState(false);
 
@@ -622,6 +626,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
       groupLabel: 'PERFORMANSI & REWARD',
       tabs: [
         { key: 'rewards', label: 'Katalog Reward', icon: ShoppingBag, badge: rewardCatalog.length },
+        { key: 'badges', label: 'Manajemen Badge', icon: Award },
         { key: 'analytics', label: 'Executive Analytics', icon: BarChart2 },
         { key: 'incidents', label: 'Laporan Insiden', icon: ShieldAlert, badge: incidents.filter(i => i.status === 'open').length, alert: incidents.filter(i => i.status === 'open').length > 0 },
       ]
@@ -632,12 +637,14 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
         { key: 'divisions', label: 'Master Divisi', icon: Building2, badge: divisions.length },
         { key: 'roles', label: 'Master Role', icon: UserPlus, badge: roles.length },
         { key: 'matrix', label: 'Matriks Kompetensi', icon: TableProperties, badge: competencyItems.length },
+        { key: 'config', label: 'Aturan & Config System', icon: Settings },
       ]
     },
     {
       groupLabel: 'AI ENGINE & INFORMASI',
       tabs: [
         { key: 'ai-quiz', label: 'Gappy AI Engine', icon: Zap },
+        { key: 'quiz', label: 'Bank Soal Quiz', icon: HelpCircle },
         { key: 'announcements', label: 'Pengumuman Tim', icon: Megaphone, badge: announcements.filter(a => a.isActive).length },
       ]
     }
@@ -765,6 +772,16 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500"
                 />
               </div>
+
+              {/* Export CSV Button */}
+              <button
+                onClick={() => exportWorkersCSV(filteredWorkers)}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-xl text-xs font-bold transition"
+                title="Ekspor daftar pekerja ke file CSV"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                Export CSV Staf
+              </button>
 
               {/* Import Massal Button */}
               <button
@@ -1373,6 +1390,15 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                 <option value="resolved">Resolved</option>
                 <option value="closed">Closed</option>
               </select>
+
+              <button
+                onClick={() => exportIncidentsCSV(filteredIncidents)}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-xl text-xs font-bold transition"
+                title="Ekspor seluruh laporan insiden ke CSV"
+              >
+                <Download className="w-3.5 h-3.5 text-orange-400" />
+                Export CSV Insiden
+              </button>
             </div>
           </div>
 
@@ -1578,10 +1604,154 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
         />
       )}
 
+      {/* ─── TAB: MANAJEMEN BADGE ─── */}
+      {activeTab === 'badges' && (
+        <div className="card p-5">
+          <BadgeManagementPanel />
+        </div>
+      )}
+
+      {/* ─── TAB: BANK SOAL QUIZ ─── */}
+      {activeTab === 'quiz' && (
+        <div className="card p-5">
+          <QuizManagementPanel />
+        </div>
+      )}
+
+      {/* ─── TAB: ATURAN & CONFIG SYSTEM ─── */}
+      {activeTab === 'config' && (
+        <div className="card p-5 space-y-5">
+          <div className="border-b border-zinc-800 pb-3">
+            <h3 className="text-sm font-bold text-white flex items-center gap-2">
+              <Settings className="w-4 h-4 text-purple-400" />
+              Aturan & Pengaturan Tata Kelola System (Governance Config)
+            </h3>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Konfigurasi kebijakan frekuensi audit supervisor, poin reward aktivitas, dan aturan sistem platform.
+            </p>
+          </div>
+
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              showToast('Pengaturan tata kelola sistem berhasil diperbarui & disimpan!');
+            }}
+            className="space-y-5 max-w-2xl"
+          >
+            {/* Config 1: Frekuensi Audit Matrix */}
+            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="text-xs font-bold text-white block">
+                    1. Kebijakan Frekuensi Penilaian Matrix Supervisor
+                  </label>
+                  <p className="text-[11px] text-zinc-500 mt-0.5">
+                    Menentukan batas cooldown interval waktu audit rutin pekerja oleh Supervisor.
+                  </p>
+                </div>
+                <span className="text-[10px] font-mono font-bold bg-purple-500/10 text-purple-300 border border-purple-500/20 px-2 py-0.5 rounded">
+                  {SystemConfigService.getConfig().auditFrequencyLabel}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 pt-1">
+                {FREQUENCY_OPTIONS.map((opt) => {
+                  const currentConfig = SystemConfigService.getConfig();
+                  const isSelected = currentConfig.auditFrequencyDays === opt.days;
+
+                  return (
+                    <button
+                      key={opt.days}
+                      type="button"
+                      onClick={() => {
+                        SystemConfigService.updateConfig({ auditFrequencyDays: opt.days });
+                        showToast(`Frekuensi audit diset ke ${opt.label}`);
+                      }}
+                      className={`p-3 rounded-xl border text-left text-xs transition flex items-center justify-between ${
+                        isSelected
+                          ? 'bg-purple-600/20 border-purple-500 text-white font-bold ring-1 ring-purple-500/30'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-850'
+                      }`}
+                    >
+                      <span>{opt.label}</span>
+                      {isSelected && <CheckCircle2 className="w-4 h-4 text-purple-400 shrink-0" />}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Config 2: Points Rewards Configuration */}
+            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 space-y-3">
+              <label className="text-xs font-bold text-white block">
+                2. Skema Poin Reward Aktivitas Pekerja (PTS)
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] text-zinc-400 mb-1">Insiden Valid (Supervisor Approved)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={SystemConfigService.getConfig().incidentValidRewardPoints}
+                    onChange={(e) => {
+                      SystemConfigService.updateConfig({ incidentValidRewardPoints: Number(e.target.value) });
+                    }}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs font-bold text-amber-400 font-mono focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-zinc-400 mb-1">Kuis Safety Harian</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={SystemConfigService.getConfig().dailyQuizRewardPoints}
+                    onChange={(e) => {
+                      SystemConfigService.updateConfig({ dailyQuizRewardPoints: Number(e.target.value) });
+                    }}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs font-bold text-emerald-400 font-mono focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] text-zinc-400 mb-1">Pre-Shift Inspection</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={SystemConfigService.getConfig().preShiftRewardPoints}
+                    onChange={(e) => {
+                      SystemConfigService.updateConfig({ preShiftRewardPoints: Number(e.target.value) });
+                    }}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs font-bold text-cyan-400 font-mono focus:outline-none focus:border-purple-500"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="submit"
+                className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-950 transition flex items-center gap-2"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                Simpan Konfigurasi Tata Kelola System
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {/* ─── MODAL: IMPORT MASSAL PEKERJA ─── */}
-      {isImportModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/85 backdrop-blur-sm animate-fade-in">
-          <div className="card-elevated w-full max-w-3xl p-6 relative max-h-[90vh] flex flex-col justify-between overflow-hidden">
+      {isImportModalOpen && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+          onClick={() => setIsImportModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-3xl max-h-[82vh] sm:max-h-[85vh] m-auto card-elevated p-6 flex flex-col justify-between overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               onClick={() => setIsImportModalOpen(false)}
               className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition"
@@ -1725,13 +1895,20 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ─── MODAL MUTASI ROLE & DIVISI PEKERJA (CLEAN SLATE BASELINE) ─── */}
-      {isMutationModalOpen && selectedMutationWorker && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm animate-fade-in">
-          <div className="card-elevated w-full max-w-lg p-6 space-y-4 relative border border-purple-500/30">
+      {isMutationModalOpen && selectedMutationWorker && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+          onClick={() => setIsMutationModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-lg max-h-[82vh] sm:max-h-[85vh] m-auto card-elevated p-6 space-y-4 border border-purple-500/30 overflow-y-auto custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
             <button
               onClick={() => setIsMutationModalOpen(false)}
               className="absolute top-4 right-4 text-zinc-400 hover:text-white"
@@ -1838,12 +2015,19 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
       {/* ─── MODAL FOLLOW-UP CAPA (CORRECTIVE & PREVENTIVE ACTION) ─── */}
-      {selectedCapaIncident && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-zinc-950/90 backdrop-blur-md animate-fade-in">
-          <div className="card-elevated w-full max-w-lg p-5 border-amber-500/30 relative space-y-4 max-h-[90vh] overflow-y-auto">
+      {selectedCapaIncident && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+          onClick={() => setSelectedCapaIncident(null)}
+        >
+          <div
+            className="relative w-full max-w-lg max-h-[82vh] sm:max-h-[85vh] m-auto card-elevated p-5 border border-amber-500/30 space-y-4 overflow-y-auto custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <div className="flex items-center gap-2.5">
                 <Edit3 className="w-5 h-5 text-amber-400" />
@@ -1951,13 +2135,20 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ─── MODAL LIGHTBOX FOTO BUKTI INSIDEN K3 ─── */}
-      {viewingIncidentPhoto && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-zinc-950/90 backdrop-blur-md animate-fade-in">
-          <div className="card-elevated w-full max-w-2xl p-5 border-orange-500/30 relative space-y-4 max-h-[90vh] overflow-y-auto">
+      {viewingIncidentPhoto && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+          onClick={() => setViewingIncidentPhoto(null)}
+        >
+          <div
+            className="relative w-full max-w-2xl max-h-[82vh] sm:max-h-[85vh] m-auto card-elevated p-5 border border-orange-500/30 space-y-4 overflow-y-auto custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
               <div className="flex items-center gap-2.5">
                 <ShieldAlert className="w-5 h-5 text-orange-400" />
@@ -2657,7 +2848,6 @@ export const AdminRewardManagerSection: React.FC<AdminRewardManagerSectionProps>
           </div>
         </div>
       )}
-
 
     </div>
   );

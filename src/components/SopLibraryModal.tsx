@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { BookOpen, X, Search, FileText, ExternalLink, ShieldCheck, Download, ChevronRight, CheckCircle2 } from 'lucide-react';
 
 interface SopItem {
@@ -88,9 +89,15 @@ export const SopLibraryModal: React.FC<SopLibraryModalProps> = ({ onClose }) => 
     return matchCat && matchSearch;
   });
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-zinc-950/85 backdrop-blur-md animate-fade-in">
-      <div className="card-elevated w-full max-w-4xl h-[85vh] p-6 flex flex-col relative border-cyan-500/20">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-5xl max-h-[82vh] sm:max-h-[85vh] m-auto card-elevated p-6 flex flex-col border-cyan-500/20 overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-zinc-800 shrink-0">
@@ -216,6 +223,7 @@ export const SopLibraryModal: React.FC<SopLibraryModalProps> = ({ onClose }) => 
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

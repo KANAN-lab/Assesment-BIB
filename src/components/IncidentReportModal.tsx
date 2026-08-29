@@ -1,9 +1,27 @@
 import React, { useState } from 'react';
-import { AlertTriangle, MapPin, FileText, Clock, ShieldAlert, Loader2, CheckCircle2, X, Upload, ExternalLink, Image as ImageIcon, Sparkles, FolderUp, Check } from 'lucide-react';
+import {
+  AlertTriangle,
+  MapPin,
+  FileText,
+  Clock,
+  ShieldAlert,
+  Loader2,
+  CheckCircle2,
+  X,
+  Upload,
+  ExternalLink,
+  Image as ImageIcon,
+  Sparkles,
+  FolderUp,
+  Check,
+  Award,
+  User
+} from 'lucide-react';
 import imageCompression from 'browser-image-compression';
 import type { IncidentReport } from '../types/assessment';
 import { createIncidentReport } from '../lib/supabaseService';
 import { uploadFileToGoogleDrive, GDRIVE_TARGET_FOLDER_ID, GDRIVE_FOLDER_URL } from '../lib/googleDriveService';
+import { NotificationEngine } from '../domain/NotificationEngine';
 
 interface IncidentReportModalProps {
   workerId: string;
@@ -118,8 +136,15 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
 
       setUploadStep('Menyimpan laporan insiden ke Supabase Database...');
 
-      if (photoFile && photoPreview) {
-        photoUrlData = photoPreview;
+      if (photoFile) {
+        photoUrlData = await new Promise<string>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.onerror = () => resolve('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop&q=80');
+          reader.readAsDataURL(photoFile);
+        });
+      } else {
+        photoUrlData = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop&q=80';
       }
 
       const report = await createIncidentReport(workerId, {
@@ -134,6 +159,23 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
         compressedSizeKb,
       });
 
+      // Kirim Notifikasi ke Supervisor & Worker via OOP NotificationEngine
+      NotificationEngine.addNotification({
+        recipientId: 'supervisor',
+        recipientRole: 'supervisor',
+        title: `⚠️ Laporan Insiden K3 Baru: ${workerName}`,
+        message: `Jenis: ${incidentType.toUpperCase()} di ${location.trim()}. Membutuhkan validasi Supervisor.`,
+        type: 'incident',
+      });
+
+      NotificationEngine.addNotification({
+        recipientId: workerId,
+        recipientRole: 'worker',
+        title: '⏳ Laporan Insiden Dikirim (+50 PTS Pending)',
+        message: `Laporan insiden di ${location.trim()} berhasil dikirim. Poin +50 PTS akan diberikan setelah verifikasi Supervisor.`,
+        type: 'incident',
+      });
+
       setDone(true);
       setTimeout(() => onSuccess(report), 2500);
     } catch (err: any) {
@@ -144,47 +186,60 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
     }
   };
 
+  React.useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-zinc-950/85 backdrop-blur-md animate-fade-in">
-      <div className="card-elevated w-full max-w-lg p-6 border-orange-500/20 relative space-y-4 max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-          <div className="flex items-center gap-2.5">
-            <ShieldAlert className="w-5 h-5 text-orange-400" />
+    <div
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-5xl max-h-[82vh] sm:max-h-[85vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden border-orange-500/30"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Modal Header */}
+        <div className="px-6 py-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/80 relative z-10 shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-500/30 flex items-center justify-center shrink-0">
+              <ShieldAlert className="w-5 h-5 text-orange-400" />
+            </div>
             <div>
-              <h2 className="text-sm font-black text-white">Laporan Insiden K3</h2>
-              <p className="text-[10px] text-zinc-400">Dilaporkan oleh: <strong className="text-white">{workerName}</strong></p>
+              <h2 className="text-base font-bold text-white">Form Laporan Insiden K3 Pelapor</h2>
+              <p className="text-xs text-zinc-400 mt-0.5 flex items-center gap-2">
+                <span>Dilaporkan oleh: <strong className="text-white">{workerName}</strong></span>
+                <span>·</span>
+                <span className="text-emerald-400 font-mono font-bold">+50 PTS Reward Ready</span>
+              </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-zinc-500 hover:text-white transition">
-            <X className="w-4 h-4" />
+          <button onClick={onClose} className="text-zinc-400 hover:text-white p-2 rounded-xl hover:bg-zinc-800 transition">
+            <X className="w-5 h-5" />
           </button>
         </div>
 
         {done ? (
-          <div className="flex flex-col items-center gap-3 py-6 text-center space-y-2">
-            <CheckCircle2 className="w-12 h-12 text-emerald-400" />
-            <p className="text-sm font-bold text-emerald-300">Laporan Insiden K3 Berhasil Dikirim!</p>
+          <div className="p-8 flex flex-col items-center justify-center text-center space-y-4 my-auto">
+            <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center">
+              <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+            </div>
+            <h3 className="text-lg font-bold text-white">Laporan Insiden K3 Berhasil Terkirim!</h3>
+            <p className="text-xs text-zinc-400 max-w-md leading-relaxed">
+              Laporan Anda telah berhasil masuk ke antrean validasi Supervisor HSEQ. Poin reward <strong className="text-emerald-400">+50 PTS</strong> berstatus Pending dan akan aktif begitu diverifikasi.
+            </p>
 
-            <div className="bg-zinc-900/90 border border-zinc-800 p-4 rounded-xl space-y-2.5 text-xs text-left w-full max-w-md">
-              <div className="font-bold text-white flex items-center gap-1.5 text-emerald-400">
+            <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl space-y-2 text-xs text-left w-full max-w-md">
+              <div className="font-bold text-emerald-400 flex items-center gap-1.5">
                 <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                Upload Otomatis Ke Google Drive Berhasil!
+                Upload Otomatis Ke Google Drive Server Berhasil!
               </div>
-
-              <div className="space-y-1.5 text-zinc-300 text-[11px]">
-                <div className="flex justify-between items-center bg-zinc-950 p-2 rounded border border-zinc-800">
-                  <span className="text-zinc-400">Status Google Drive:</span>
-                  <span className="text-emerald-400 font-bold font-mono">✅ TERKIRIM OTOMATIS</span>
-                </div>
-                {compressionRatio && (
-                  <div className="flex justify-between items-center bg-zinc-950 p-2 rounded border border-zinc-800">
-                    <span className="text-zinc-400">Kompresi HD Library:</span>
-                    <span className="text-emerald-300 font-semibold">{compressionRatio}</span>
-                  </div>
-                )}
-              </div>
-
+              {compressionRatio && (
+                <p className="text-[11px] text-zinc-300">Kompresi HD Library: {compressionRatio}</p>
+              )}
               <a
                 href={gdriveFileUrl || GDRIVE_FOLDER_URL}
                 target="_blank"
@@ -198,181 +253,220 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
             </div>
           </div>
         ) : (
-          <form onSubmit={handleSubmit} className="space-y-3.5">
-            {/* Jenis Insiden */}
-            <div>
-              <label className="block text-xs font-bold text-zinc-300 mb-1">
-                <AlertTriangle className="w-3 h-3 inline mr-1 text-orange-400" />
-                Jenis Insiden K3
-              </label>
-              <select
-                value={incidentType}
-                onChange={(e) => setIncidentType(e.target.value as IncidentReport['incidentType'])}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500 font-semibold"
-              >
-                {INCIDENT_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
-                ))}
-              </select>
-            </div>
+          <form onSubmit={handleSubmit} className="flex flex-col flex-1 overflow-hidden">
+            {/* 2-Column Responsive Form Body (min-h-0 prevents flex overflow) */}
+            <div className="p-6 overflow-y-auto flex-1 min-h-0 custom-scrollbar grid grid-cols-1 lg:grid-cols-12 gap-6 bg-zinc-900/60">
+              
+              {/* LEFT COLUMN: Incident Metadata (6 cols) */}
+              <div className="lg:col-span-6 space-y-4">
+                {error && (
+                  <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+                    <span>{error}</span>
+                  </div>
+                )}
 
-            {/* Severity */}
-            <div>
-              <label className="block text-xs font-bold text-zinc-300 mb-1">Tingkat Keparahan</label>
-              <div className="grid grid-cols-4 gap-2">
-                {SEVERITY_OPTIONS.map((s) => (
-                  <button
-                    key={s.value}
-                    type="button"
-                    onClick={() => setSeverity(s.value)}
-                    className={`py-1.5 rounded-xl border text-[11px] font-bold transition ${
-                      severity === s.value ? s.color : 'border-zinc-800 text-zinc-500 hover:text-zinc-300'
-                    }`}
+                {/* Jenis Insiden */}
+                <div>
+                  <label className="block text-xs font-bold text-zinc-300 mb-1">
+                    <AlertTriangle className="w-3.5 h-3.5 inline mr-1 text-orange-400" />
+                    Jenis Insiden K3
+                  </label>
+                  <select
+                    value={incidentType}
+                    onChange={(e) => setIncidentType(e.target.value as IncidentReport['incidentType'])}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-orange-500 font-semibold"
                   >
-                    {s.label}
-                  </button>
-                ))}
+                    {INCIDENT_TYPES.map((t) => (
+                      <option key={t.value} value={t.value}>{t.label}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Severity */}
+                <div>
+                  <label className="block text-xs font-bold text-zinc-300 mb-1">Tingkat Keparahan Insiden</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {SEVERITY_OPTIONS.map((s) => (
+                      <button
+                        key={s.value}
+                        type="button"
+                        onClick={() => setSeverity(s.value)}
+                        className={`py-2 rounded-xl border text-xs font-bold transition ${
+                          severity === s.value ? s.color : 'border-zinc-800 text-zinc-500 hover:text-zinc-300 bg-zinc-950'
+                        }`}
+                      >
+                        {s.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Lokasi & Waktu */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-300 mb-1">
+                      <MapPin className="w-3.5 h-3.5 inline mr-1 text-zinc-400" />
+                      Lokasi Kejadian
+                    </label>
+                    <input
+                      type="text"
+                      value={location}
+                      onChange={(e) => setLocation(e.target.value)}
+                      placeholder="Contoh: Loading Dock B, WFG Lt.2"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-zinc-300 mb-1">
+                      <Clock className="w-3.5 h-3.5 inline mr-1 text-zinc-400" />
+                      Waktu Kejadian
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={occurredAt}
+                      onChange={(e) => setOccurredAt(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500 font-medium"
+                    />
+                  </div>
+                </div>
+
+                {/* Deskripsi */}
+                <div>
+                  <label className="block text-xs font-bold text-zinc-300 mb-1">
+                    <FileText className="w-3.5 h-3.5 inline mr-1 text-zinc-400" />
+                    Deskripsi Kronologi Kejadian
+                  </label>
+                  <textarea
+                    value={description}
+                    onChange={(e) => setDescription(e.target.value)}
+                    rows={3}
+                    placeholder="Jelaskan secara singkat kronologi kejadian, potensi bahaya, dan dampaknya..."
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500 resize-none"
+                  />
+                </div>
               </div>
-            </div>
 
-            {/* Lokasi & Waktu (2 Kolom) */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-zinc-300 mb-1">
-                  <MapPin className="w-3 h-3 inline mr-1 text-zinc-400" />
-                  Lokasi Kejadian
-                </label>
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  placeholder="Contoh: Loading Dock B, WFG Lt.2"
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500"
-                />
-              </div>
+              {/* RIGHT COLUMN: Photo Upload & Reward Alert (6 cols) */}
+              <div className="lg:col-span-6 space-y-4 flex flex-col justify-between">
+                {/* Photo Upload Card */}
+                <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl space-y-3 flex-1 flex flex-col justify-between">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-bold text-zinc-200 flex items-center gap-1.5">
+                      <ImageIcon className="w-4 h-4 text-emerald-400" />
+                      Upload Bukti Foto Lapangan (Compression HD)
+                    </label>
+                    <span className="text-[10px] font-mono text-purple-400 font-bold bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded">
+                      Auto GDrive Sync
+                    </span>
+                  </div>
 
-              <div>
-                <label className="block text-xs font-bold text-zinc-300 mb-1">
-                  <Clock className="w-3 h-3 inline mr-1 text-zinc-400" />
-                  Waktu Kejadian
-                </label>
-                <input
-                  type="datetime-local"
-                  value={occurredAt}
-                  onChange={(e) => setOccurredAt(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500"
-                />
-              </div>
-            </div>
-
-            {/* Deskripsi */}
-            <div>
-              <label className="block text-xs font-bold text-zinc-300 mb-1">
-                <FileText className="w-3 h-3 inline mr-1 text-zinc-400" />
-                Deskripsi Kejadian
-              </label>
-              <textarea
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                rows={2}
-                placeholder="Jelaskan kronologi singkat, penyebab, dan dampaknya..."
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-orange-500 resize-none"
-              />
-            </div>
-
-            {/* Upload Bukti Foto & Automatic GDrive Server Integration */}
-            <div className="space-y-2 border border-zinc-800/80 bg-zinc-950/60 p-3 rounded-xl">
-              <div className="flex items-center justify-between">
-                <label className="text-xs font-bold text-zinc-200 flex items-center gap-1.5">
-                  <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
-                  Upload Bukti Foto (Library Compression)
-                </label>
-                <span className="text-[9px] font-mono text-purple-400 font-bold bg-purple-500/10 border border-purple-500/20 px-2 py-0.5 rounded">
-                  Auto GDrive Sync
-                </span>
-              </div>
-
-              {/* File Input & Compression Drop Area */}
-              <div className="relative">
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoSelect}
-                  className="hidden"
-                  id="incident-photo-upload"
-                />
-                <label
-                  htmlFor="incident-photo-upload"
-                  className="flex flex-col items-center justify-center border-2 border-dashed border-zinc-800 hover:border-emerald-500/50 bg-zinc-900/50 hover:bg-zinc-900 p-3.5 rounded-xl cursor-pointer transition text-center group"
-                >
-                  {compressing ? (
-                    <div className="flex flex-col items-center gap-1.5 text-xs text-emerald-400 py-1">
-                      <Loader2 className="w-6 h-6 animate-spin text-emerald-400" />
-                      <span className="font-bold">Mengompresi Foto (Library browser-image-compression)...</span>
-                      <span className="text-[10px] text-zinc-500">Mempertahankan Resolusi 2560px & Kualitas Tajam 90% HD</span>
-                    </div>
-                  ) : photoPreview ? (
-                    <div className="flex items-center gap-3 w-full">
-                      <img src={photoPreview} alt="Bukti Insiden" className="w-14 h-14 object-cover rounded-lg border border-zinc-700 shrink-0" />
-                      <div className="text-left flex-1 min-w-0">
-                        <div className="text-xs font-bold text-white truncate">{photoFile?.name}</div>
-                        {compressionRatio && (
-                          <div className="text-[10px] text-emerald-400 font-semibold flex items-center gap-1 mt-0.5">
-                            <Sparkles className="w-3 h-3 shrink-0" /> Tersimpan: {compressionRatio}
+                  {/* Drop area / File Picker */}
+                  <div className="relative flex-1 min-h-[140px]">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoSelect}
+                      className="hidden"
+                      id="incident-photo-upload"
+                    />
+                    <label
+                      htmlFor="incident-photo-upload"
+                      className="h-full flex flex-col items-center justify-center border-2 border-dashed border-zinc-800 hover:border-emerald-500/50 bg-zinc-900/60 hover:bg-zinc-900/90 p-4 rounded-xl cursor-pointer transition text-center group"
+                    >
+                      {compressing ? (
+                        <div className="flex flex-col items-center gap-2 text-xs text-emerald-400 py-2">
+                          <Loader2 className="w-7 h-7 animate-spin text-emerald-400" />
+                          <span className="font-bold">Mengompresi Foto (HD 2560px Sharpness)...</span>
+                        </div>
+                      ) : photoPreview ? (
+                        <div className="flex flex-col sm:flex-row items-center gap-3 w-full">
+                          <img
+                            src={photoPreview}
+                            alt="Bukti Insiden"
+                            className="w-20 h-20 object-cover rounded-xl border border-zinc-700 shrink-0"
+                            onError={(e) => {
+                              e.currentTarget.src =
+                                'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop&q=80';
+                            }}
+                          />
+                          <div className="text-left flex-1 min-w-0 space-y-1">
+                            <div className="text-xs font-bold text-white truncate">{photoFile?.name}</div>
+                            {compressionRatio && (
+                              <div className="text-[10px] text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 w-fit">
+                                {compressionRatio}
+                              </div>
+                            )}
+                            <span className="text-[10px] text-zinc-500 block">Klik untuk mengganti foto</span>
                           </div>
-                        )}
-                        <span className="inline-block mt-1 text-[9px] text-purple-300 bg-purple-950/60 border border-purple-500/30 px-2 py-0.5 rounded font-bold">
-                          Klik untuk ganti foto
-                        </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-1">
-                      <Upload className="w-5 h-5 text-zinc-500 group-hover:text-emerald-400 transition" />
-                      <span className="text-xs font-bold text-zinc-300">Pilih Foto Bukti Kejadian</span>
-                      <span className="text-[10px] text-zinc-500">Dikompresi via library & di-upload otomatis ke Google Drive</span>
-                    </div>
-                  )}
-                </label>
-              </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-col items-center gap-2 text-zinc-400 group-hover:text-white py-3">
+                          <Upload className="w-8 h-8 text-zinc-500 group-hover:text-emerald-400 transition" />
+                          <span className="text-xs font-bold">Pilih Foto Bukti Kejadian</span>
+                          <span className="text-[10px] text-zinc-500">Dikompresi via library & di-upload otomatis ke Google Drive</span>
+                        </div>
+                      )}
+                    </label>
+                  </div>
+                </div>
 
-              {/* Direct GDrive Link */}
-              <div className="flex items-center justify-end pt-1 text-[10px] text-zinc-400">
-                <a
-                  href={GDRIVE_FOLDER_URL}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-purple-400 hover:text-purple-300 font-bold flex items-center gap-1 transition underline"
-                  title="Buka Folder Google Drive Target"
-                >
-                  <ExternalLink className="w-3 h-3" />
-                  Buka Folder Google Drive
-                </a>
+                {/* Reward Alert Card */}
+                <div className="bg-amber-500/10 border border-amber-500/30 p-3.5 rounded-xl flex items-start gap-3 text-xs">
+                  <Award className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <strong className="block text-amber-300 font-bold text-xs mb-0.5">
+                      Poin Reward Pelaporan K3 (+50 PTS):
+                    </strong>
+                    <p className="text-amber-200/90 text-[11px] leading-relaxed">
+                      Laporan yang Anda kirim akan divalidasi Supervisor. Saat disetujui, <strong className="text-emerald-400">+50 PTS Reward</strong> langsung masuk ke dompet poin Anda.
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
 
-            {uploadStep && (
-              <div className="flex items-center gap-2 text-xs text-purple-300 bg-purple-950/60 border border-purple-500/30 rounded-xl px-3 py-2 animate-pulse">
-                <Loader2 className="w-4 h-4 animate-spin text-purple-400 shrink-0" />
-                <span>{uploadStep}</span>
-              </div>
-            )}
+            {/* Fixed Footer */}
+            <div className="flex items-center justify-between gap-3 px-6 py-4 border-t border-zinc-800 bg-zinc-950 shrink-0">
+              <a
+                href={GDRIVE_FOLDER_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1.5 transition"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Buka Folder Google Drive
+              </a>
 
-            {error && (
-              <div className="flex items-center gap-2 text-xs text-rose-400 bg-rose-950/40 border border-rose-500/30 rounded-xl px-3 py-2">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                {error}
-              </div>
-            )}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs rounded-xl transition"
+                >
+                  Batal
+                </button>
 
-            <button
-              type="submit"
-              disabled={loading || compressing}
-              className="w-full py-2.5 bg-orange-600 hover:bg-orange-500 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-orange-950"
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <ShieldAlert className="w-4 h-4" />}
-              {loading ? 'Mengunggah Berkas Otomatis ke Google Drive...' : 'Kirim Laporan Insiden K3'}
-            </button>
+                <button
+                  type="submit"
+                  disabled={loading || compressing}
+                  className="px-6 py-2 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs rounded-xl transition flex items-center gap-2 shadow-lg shadow-orange-950 disabled:opacity-50"
+                >
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      <span>{uploadStep || 'Mengirim...'}</span>
+                    </>
+                  ) : (
+                    <>
+                      <ShieldAlert className="w-4 h-4" />
+                      <span>Kirim Laporan Insiden K3 (+50 PTS)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           </form>
         )}
       </div>

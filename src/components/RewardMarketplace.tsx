@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import confetti from 'canvas-confetti';
 import { RewardItem, RewardHistory } from '../types/assessment';
 import { RewardEntity } from '../domain/RewardEntity';
@@ -297,6 +298,15 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
 
       {activeTab === 'catalog' ? (
         <>
+          {/* FCFS Fair-Play Info Banner */}
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-200/90">
+            <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <span className="font-bold text-amber-300">Penukaran Adil & Transparan (FCFS): </span>
+              Kuota bulanan di-reset tanggal 1. Penukaran diproses secara *real-time* (Siapa Cepat Dia Dapat) dengan batas <strong>maksimal 1x klaim/item per bulan</strong> per pekerja.
+            </div>
+          </div>
+
           {/* Category Filter Pills */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
             {categories.map((cat) => (
@@ -322,6 +332,15 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
             {paginatedCatalog.map((item) => {
               const rewardEntity = new RewardEntity(item);
               const canAfford = rewardEntity.canBeRedeemedBy(userPoints);
+              const monthlyLimit = item.monthlyStockLimit || Math.max(item.availableStock, 25);
+              const quotaPercentage = Math.min(100, Math.max(0, (item.availableStock / monthlyLimit) * 100));
+
+              const hasRedeemedThisMonth = (redemptionHistory || []).some((h: RewardHistory) => {
+                if (h.itemTitle.toLowerCase() !== item.title.toLowerCase()) return false;
+                const d = new Date(h.redeemedAt);
+                const now = new Date();
+                return !isNaN(d.getTime()) && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+              });
 
               return (
                 <div
@@ -374,12 +393,22 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                     <h4 className="font-bold text-white text-xs mb-1 leading-snug">{item.title}</h4>
                     <p className="text-[11px] text-zinc-400 leading-relaxed mb-2">{item.description}</p>
                     
-                    {/* Stock Indicator */}
-                    <div className="flex items-center gap-1.5 text-[10px] text-zinc-400 mb-3">
-                      <span>Stok Tersedia:</span>
-                      <span className={`font-mono font-bold ${item.availableStock > 5 ? 'text-emerald-400' : item.availableStock > 0 ? 'text-amber-400' : 'text-rose-400'}`}>
-                        {item.availableStock} pcs
-                      </span>
+                    {/* Kuota Bulanan FCFS Progress Bar */}
+                    <div className="bg-zinc-900/90 border border-zinc-800 p-2 rounded-lg mb-3 space-y-1">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="text-zinc-400">Kuota Bulan Ini (FCFS):</span>
+                        <span className={`font-mono font-bold ${item.availableStock > 5 ? 'text-emerald-400' : item.availableStock > 0 ? 'text-amber-400' : 'text-rose-400'}`}>
+                          {item.availableStock} / {monthlyLimit} pcs
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                        <div
+                          className={`h-full transition-all duration-500 ${
+                            quotaPercentage > 50 ? 'bg-emerald-500' : quotaPercentage > 15 ? 'bg-amber-500' : 'bg-rose-500'
+                          }`}
+                          style={{ width: `${quotaPercentage}%` }}
+                        />
+                      </div>
                     </div>
                   </div>
 
@@ -390,17 +419,25 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                         <span className="font-black text-amber-300">{item.pointsRequired.toLocaleString()} PTS</span>
                       </div>
 
-                      <button
-                        onClick={() => setSelectedReward(item)}
-                        disabled={!canAfford}
-                        className={`px-3 py-1 rounded-lg font-bold text-xs transition ${
-                          canAfford
-                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white'
-                            : 'bg-zinc-800 text-zinc-600 cursor-not-allowed border border-zinc-700'
-                        }`}
-                      >
-                        {item.availableStock <= 0 ? 'Stok Habis' : canAfford ? 'Tukar Poin' : 'Poin Kurang'}
-                      </button>
+                      {hasRedeemedThisMonth ? (
+                        <span className="px-2.5 py-1 bg-purple-500/10 border border-purple-500/30 text-purple-300 font-bold text-[10px] rounded-lg">
+                          Sudah Klaim Bulan Ini
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setSelectedReward(item)}
+                          disabled={!canAfford || item.availableStock <= 0}
+                          className={`px-3 py-1 rounded-lg font-bold text-xs transition ${
+                            item.availableStock <= 0
+                              ? 'bg-rose-950/40 text-rose-400 border border-rose-800/40 cursor-not-allowed'
+                              : canAfford
+                              ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md'
+                              : 'bg-zinc-800 text-zinc-500 cursor-not-allowed border border-zinc-700'
+                          }`}
+                        >
+                          {item.availableStock <= 0 ? 'Kuota Habis' : canAfford ? 'Tukar Poin' : 'Poin Kurang'}
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -454,9 +491,15 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
       )}
 
       {/* Confirmation & Celebration Modal */}
-      {selectedReward && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm animate-fade-in">
-          <div className="card-elevated w-full max-w-md p-6 relative text-center">
+      {selectedReward && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+          onClick={handleCloseModal}
+        >
+          <div
+            className="relative w-full max-w-md max-h-[82vh] sm:max-h-[85vh] m-auto card-elevated p-6 text-center"
+            onClick={e => e.stopPropagation()}
+          >
             {!claimedCode ? (
               <>
                 <div className="w-12 h-12 bg-emerald-500/10 rounded-xl border border-emerald-500/20 flex items-center justify-center mx-auto mb-3">
@@ -515,13 +558,20 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
               </>
             )}
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── Admin: Add / Edit Reward Modal ── */}
-      {showAddEditModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm animate-fade-in">
-          <div className="card-elevated w-full max-w-lg p-6 relative">
+      {showAddEditModal && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+          onClick={() => setShowAddEditModal(false)}
+        >
+          <div
+            className="relative w-full max-w-lg max-h-[82vh] sm:max-h-[85vh] m-auto card-elevated p-6 overflow-y-auto custom-scrollbar"
+            onClick={e => e.stopPropagation()}
+          >
             <button
               onClick={() => setShowAddEditModal(false)}
               className="absolute top-4 right-4 text-zinc-400 hover:text-white transition"
@@ -656,13 +706,20 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── Admin: Restock Modal ── */}
-      {showRestockModal && restockItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm animate-fade-in">
-          <div className="card-elevated w-full max-w-sm p-6 relative">
+      {showRestockModal && restockItem && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+          onClick={() => setShowRestockModal(false)}
+        >
+          <div
+            className="relative w-full max-w-sm max-h-[82vh] sm:max-h-[85vh] m-auto card-elevated p-6 overflow-y-auto custom-scrollbar"
+            onClick={e => e.stopPropagation()}
+          >
             <button
               onClick={() => setShowRestockModal(false)}
               className="absolute top-4 right-4 text-zinc-400 hover:text-white transition"
@@ -719,7 +776,8 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
