@@ -1,35 +1,46 @@
-# BIB Logistics Assessment Platform (Komar)
+# Gappy Assessment — Platform Logistik & K3 Enterprise (PT DAM Indonesia)
 
-> **Platform Penilaian Kinerja, K3, dan Gamifikasi Logistik Terintegrasi**  
-> *Versi 3.1 — Production-Ready dengan Security Architecture & Gappy AI Engine*
+> **Platform Penilaian Kinerja Berimbang, K3, dan Gamifikasi Operasional Logistik Terintegrasi**  
+> *Versi 3.5 — Enterprise Edition dengan Security Architecture, React Portal Modals, FCFS Fair-Play Rewards, & Gappy AI Engine*
 
 ---
 
-## 🚀 Fitur Utama (Feature Overview)
+## 🚀 Ringkasan Sistem & Fitur Utama
 
-### 👷 Worker Dashboard (Staf Logistik)
-- **⚡ Kuis Safety Harian (+50 Poin)**: Kuis K3 dinamis yang dihasilkan oleh **Gappy AI (Gemini Engine)** disesuaikan dengan divisi & role pekerja. Dilengkapi bank soal Supabase fallback (0 token AI jika soal sudah ada).
-- **🛡️ Pre-Shift Checklist (+30 Poin)**: Verifikasi kelayakan peralatan & APD harian untuk keselamatan kerja.
+### 👷 Worker Dashboard (Staf Operasional Logistik)
+- **⚡ Kuis Safety Harian (+50 Poin)**: Kuis K3 dinamis yang dihasilkan oleh **Gappy AI (Gemini Engine)** disesuaikan dengan divisi & role pekerja. Dilengkapi bank soal Supabase fallback (0 token AI jika soal sudah ada di database).
+- **🛡️ Pre-Shift Checklist (+30 Poin)**: Verifikasi kelayakan peralatan operasional & APD harian untuk keselamatan kerja.
 - **📊 Radar BIB & Trend 30 Hari**: Visualisasi skor 3 pilar kuis/kinerja (*Behavior 40%*, *Integrity 40%*, *Benchmark 20%*) dan grafik tren performa.
 - **🏆 Tier & Streak Multiplier**: Kenaikan tier otomatis (*Novice Operational* → *Pro Specialist* → *Elite Logistician* → *Legendary Champion*) serta bonus multiplier streak 7, 14, dan 30 hari.
-- **🎁 Reward Marketplace**: Penukaran poin terintegrasi dengan persediaan katalog hadiah real-time.
+- **🎁 Reward Marketplace (Fair-Play FCFS)**: Penukaran poin terintegrasi dengan kuota bulanan (*First-Come, First-Served*), reset otomatis tanggal 1, dan batas klaim 1x/item/bulan per pekerja.
+- **🏆 Hall of Fame & Feed Real-Time**: Feed aktivitas penukaran reward real-time dari seluruh rekan kerja operasional.
 - **🥇 Klasemen Individu & Tim Divisi**: Peringkat performa pekerja dan persaingan tim antar divisi.
 - **📢 Papan Pengumuman Admin**: Banner pengumuman penting dari manajemen dengan prioritas visual (`urgent`, `normal`, `info`).
-- **🚨 Pelaporan Insiden K3**: Form pelaporan langsung insiden / kondisi tidak aman ke Supervisor.
+- **🚨 Pelaporan Insiden K3**: Form pelaporan langsung insiden / kondisi tidak aman ke Supervisor dengan kompresi foto bukti HD & unggah ke Google Drive.
 - **📚 Perpustakaan SOP K3**: Repositori dokumen panduan keselamatan kerja dan poin kunci kepatuhan (*Compliance Points*).
 - **✨ Interactive Onboarding Tour**: Panduan interaktif 4 langkah bagi pekerja baru.
 
-### 👔 Supervisor Console (Pengawas)
+### 👔 Supervisor Console (Pengawas Operasional & HSEQ)
 - **📋 Audit Kompetensi Matriks**: Form penilaian langsung 3 pilar BIB pekerja bawahan.
+- **🚨 Kanban Lifecycle Insiden & Form CAPA**: Modul penanganan insiden K3 (Root Cause 5-Why, Action Plan, PIC, Target Selesai, & Penutupan Kasus).
+- **📄 Executive PDF Report Generator**: Cetak Berita Acara Insiden K3 resmi dan Rekapitulasi Laporan Insiden Massal dalam format PDF corporate PT DAM Indonesia.
 - **👥 Monitoring Tim**: Pantau keaktifan kuis, checklist, dan status performa anggota divisi.
 
-### ⚙️ Administrator Console (System Admin)
+### ⚙️ Administrator Console (System Administrator)
 - **📊 Analytics Dashboard**: Grafik Recharts distribusi tier pekerja, rata-rata BIB per divisi, completion rate kuis, dan top 5 pekerja.
 - **👥 Approval Supervisor**: Antrean permohonan akses supervisor baru (`pending_approval`) dengan opsi Approve/Reject.
 - **📢 Manajemen Pengumuman**: CRUD pengumuman perusahaan dengan batas kadaluarsa.
-- **🚨 Tracking Insiden K3**: Pelacakan status penanganan insiden (`open` → `investigating` → `resolved` → `closed`).
+- **🔑 Safe Gemini AI Key Configuration**: Input dan simpan Gemini API Key secara aman terenkripsi di tabel database Supabase (`system_settings`) tanpa pernah mengekspos rahasia di kode bundel JavaScript publik.
+- **🔄 Reset Kuota Bulanan Tgl 1**: Tombol eksekusi manual/otomatis reset kuota katalog reward bulanan.
 - **🕐 Activity Log & Rate Limit**: Catatan audit log aktivitas login/logout real-time & proteksi percobaan login gagal (5x dalam 15 mnt).
-- **📥 Export Data CSV**: Fitur ekspor data pekerja utuh ke file `.csv` untuk keperluan HR.
+- **📥 Export Data CSV**: Fitur ekspor data pekerja utuh dan data insiden K3 ke file `.csv` untuk HR & HSE.
+
+---
+
+## 🎨 Arsitektur UI/UX & Isolation Standard
+
+- **React Portal Modals (`createPortal`)**: Seluruh 18 popup modal di aplikasi diisolasi di luar DOM tree utama (`document.body`) dengan backdrop `z-[9999] bg-black/90 backdrop-blur-xl`, menjamin 100% penutupan layar penuh dan terpusat presisi di tengah layar tanpa kebocoran fokus.
+- **Responsive Layout**: Desain adaptif penuh untuk perangkat Smartphone, Tablet, Laptop, dan Industrial Console Display.
 
 ---
 
@@ -47,51 +58,55 @@
 
 ## 🛠️ Teknologi & Stack
 
-- **Frontend**: React 18, TypeScript, TailwindCSS (Custom Dark Theme), Lucide Icons, Recharts, Canvas Confetti.
+- **Frontend**: React 18, TypeScript, Vanilla CSS & TailwindCSS (Custom Sleek Dark Theme), Lucide Icons, Recharts, Canvas Confetti.
 - **Build Tool**: Vite 6, Progressive Web App (PWA via `vite-plugin-pwa`).
-- **Backend / Database**: Supabase (PostgreSQL, Supabase Auth, Realtime Subscriptions, RLS Policies).
-- **AI Engine**: Gappy AI (Google Gemini 1.5/2.0 API via `@google/generative-ai`).
+- **Backend / Database**: Supabase (PostgreSQL, Supabase Auth, Realtime Subscriptions, RLS Policies, Stored Procedures / RPC).
+- **PDF Engine**: jsPDF & jsPDF-AutoTable.
+- **AI Engine**: Gappy AI (Google Gemini 1.5/2.0 API via `@google/generative-ai` dengan fallback Supabase Question Bank).
 
 ---
 
-## 📦 Panduan Instalasi & Pengoperasian
+## 📦 Panduan Instalasi & Pengoperasian Lokal
 
 ### 1. Prasyarat Environment (`.env.local`)
-Pastikan file `.env.local` berada di akar direktori dengan variabel berikut:
+Buat file `.env.local` pada folder root proyek:
 ```env
 VITE_SUPABASE_URL=https://sekmjwrbohjmlxpgydqx.supabase.co
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
-VITE_GEMINI_API_KEY=your_gemini_api_key
+VITE_GDRIVE_UPLOAD_WEBHOOK=https://script.google.com/macros/s/your_gas_script_id/exec
 ```
 
-### 2. Jalankan Database Setup (Supabase)
-Jalankan file [supabase_setup.sql](file:///d:/Coding%20Session/Komar/supabase_setup.sql) di **Supabase Dashboard > SQL Editor** untuk menginisialisasi tabel, indeks, RPC functions, seed data lencana, dan RLS policies.
+### 2. Inisialisasi Database (Supabase)
+Jalankan file [supabase_setup.sql](file:///d:/Coding%20Session/Komar/supabase_setup.sql) di **Supabase Dashboard > SQL Editor** untuk menginisialisasi tabel, RLS Policies, Stored Procedure Atomic (`rpc_redeem_reward_fcfs`, `reset_monthly_reward_quota`), dan seed data awal.
 
-### 3. Install & Jalankan Lokal
+### 3. Perintah Pengembangan & Build Lokal
 ```bash
-# Install dependencies
+# 1. Install dependencies
 npm install
 
-# Jalankan server pengembangan
+# 2. Jalankan server pengembangan lokal (http://localhost:3000)
 npm run dev
 
-# Jalankan typecheck TypeScript
+# 3. Jalankan typecheck TypeScript
 npx tsc --noEmit
 
-# Build bundle produksi
+# 4. Build bundle produksi
 npm run build
+
+# 5. Pratinjau build produksi
+npm run preview
 ```
 
 ---
 
-## 🛡️ Kebijakan Keamanan (Security Rules)
+## 🛡️ Kebijakan Keamanan & System Rules
 
-1. **Email Policy**: Bebas domain untuk pekerja (Gmail, Outlook, Yahoo, dll). Admin wajib `irnando.arkadiantika@pt-dam-id.com`.
-2. **Pendaftaran Akun**: Dilarang mode `UPSERT/UPDATE`. Pendaftaran NIK/Email yang sudah terdaftar akan ditolak.
-3. **Approval Supervisor**: Supervisor baru berada di status `pending_approval` dan dilarang login sebelum disetujui Admin.
+1. **Email Policy**: Pendaftaran pekerja mendukung semua domain email valid (Gmail, Outlook, Yahoo, dll). Akses Admin khusus `irnando.arkadiantika@pt-dam-id.com`.
+2. **Pendaftaran Akun Unique**: NIK / Employee ID dan Email terikat unik di database Supabase.
+3. **Approval Supervisor**: Akun Supervisor baru berada di status `pending_approval` dan wajib disetujui Admin sebelum dapat mengakses fitur pengawas.
 4. **Rate Limiting**: Maksimal 5x percobaan login gagal dalam 15 menit.
 5. **Session Expiry**: Logout otomatis setelah 8 jam tidak aktif.
 
 ---
 
-© 2026 BIB Logistics Assessment Platform. All Rights Reserved.
+© 2026 Gappy Assessment Platform — PT DAM Indonesia. All Rights Reserved.
