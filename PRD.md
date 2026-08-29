@@ -497,3 +497,12 @@ CREATE TABLE IF NOT EXISTS redemption_history (
    - **Ekspor Berita Acara Insiden K3 Resmi (PDF Exporter)**: Cetak otomatis PDF resmi berita acara kecelakaan kerja terlampir foto bukti dan tanda tangan elektronik.
 5. **Fitur E: Engine Kalkulasi Otomatis Konversi Insentif Poin ke Bonus Bulanan**
    - Rule engine otomatis yang mengonversi perolehan Poin Reward & Safety Streak pekerja menjadi rekomendasi bonus insentif bulanan yang terintegrasi dengan laporan penggajian (*payroll*).
+
+---
+
+### 11.4 Automatic Database Trigger & Idempotent Schema Migration (v3.5.1)
+- **PostgreSQL Automatic Trigger Engine (`trg_fn_award_incident_points`)**:
+  - Penambahan **+50 PTS** pada saat validasi insiden K3 dialihkan 100% ke level **Server Database PostgreSQL** melalui Stored Trigger Procedure.
+  - Setiap perubahan status laporan dari `open` menjadi `investigating`, `resolved`, atau `closed`, trigger database secara otomatis menambahkan +50 PTS ke tabel `workers` berbasis `id` maupun NIP (`employee_id`) secara **100% Atomic & Self-Healing (ACID)**.
+- **Idempotent SQL Policies & Schema Setup**:
+  - Pustaka skrip `supabase_setup.sql` dilengkapi sintaks `DROP POLICY IF EXISTS` pada seluruh tabel (termasuk `system_settings`), menggaransi file setup dapat dieksekusi berulang kali (*100% Re-runnable*) tanpa risiko `ERROR: 42710`.
