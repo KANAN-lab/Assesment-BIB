@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { WorkerEntity } from '../domain/WorkerEntity';
+import { NotificationEngine } from '../domain/NotificationEngine';
 import { RewardEntity } from '../domain/RewardEntity';
 import { RoleEntity } from '../domain/RoleEntity';
 import type {
@@ -1432,17 +1433,77 @@ export async function updateIncidentCapaAndStatus(
     resolutionNote?: string;
     updatedBy: string;
   }
-): Promise<void> {
+): Promise<{ pointsAwarded: boolean; workerId?: string; pointsEarned?: number }> {
+  // 1. Ambil data insiden untuk cek worker_id & status points_awarded
+  const { data: incidentRow } = await supabase
+    .from('incident_reports')
+    .select('worker_id, points_awarded, status')
+    .eq('id', id)
+    .maybeSingle();
+
+  let pointsAwarded = false;
+  let targetWorkerId = incidentRow?.worker_id;
+
+  // 2. Payload update status & CAPA
+  const updatePayload: Record<string, any> = {
+    status: payload.status,
+    resolution_note: payload.resolutionNote ?? null,
+    resolved_at: ['resolved', 'closed'].includes(payload.status) ? new Date().toISOString() : null,
+  };
+
+  // Cek apakah status berstatus disetujui/diselidiki & poin belum pernah ditambahkan
+  const isValidatedStatus = ['investigating', 'resolved', 'closed'].includes(payload.status);
+  const alreadyAwarded = Boolean(incidentRow?.points_awarded);
+
+  if (isValidatedStatus && !alreadyAwarded && targetWorkerId) {
+    updatePayload.points_awarded = true;
+    pointsAwarded = true;
+  }
+
   const { error } = await supabase
     .from('incident_reports')
-    .update({
-      status: payload.status,
-      resolution_note: payload.resolutionNote ?? null,
-      resolved_at: ['resolved', 'closed'].includes(payload.status) ? new Date().toISOString() : null,
-    })
+    .update(updatePayload)
     .eq('id', id);
 
-  if (error) console.warn('Supabase status update fallback:', error.message);
+  if (error && error.message.includes('points_awarded')) {
+    delete updatePayload.points_awarded;
+    await supabase.from('incident_reports').update(updatePayload).eq('id', id);
+  }
+
+  // 3. Tambahkan +50 PTS ke akun worker pelapor jika baru pertama kali disetujui
+  if (pointsAwarded && targetWorkerId) {
+    try {
+      const { data: worker } = await supabase
+        .from('workers')
+        .select('total_points, name')
+        .eq('id', targetWorkerId)
+        .single();
+
+      if (worker) {
+        const currentPts = worker.total_points || 0;
+        const newTotalPoints = currentPts + 50;
+        const newTier = WorkerEntity.calculateTier(newTotalPoints);
+
+        await supabase
+          .from('workers')
+          .update({
+            total_points: newTotalPoints,
+            tier: newTier,
+          })
+          .eq('id', targetWorkerId);
+
+        NotificationEngine.addNotification({
+          recipientId: targetWorkerId,
+          recipientRole: 'worker',
+          title: '🛡️ Reward Laporan Insiden K3 (+50 PTS)',
+          message: `Laporan insiden K3 Anda disetujui! Anda mendapatkan +50 Poin Reward. Total poin Anda sekarang: ${newTotalPoints} PTS.`,
+          type: 'incident',
+        });
+      }
+    } catch (err: any) {
+      console.warn('Gagal menambah poin reward pelapor insiden:', err?.message);
+    }
+  }
 
   const newHistoryItem: IncidentReportHistory = {
     status: payload.status,
@@ -1458,6 +1519,8 @@ export async function updateIncidentCapaAndStatus(
     dueDate: payload.dueDate,
     newHistoryItem,
   });
+
+  return { pointsAwarded, workerId: targetWorkerId, pointsEarned: pointsAwarded ? 50 : 0 };
 }
 
 export async function updateIncidentStatus(

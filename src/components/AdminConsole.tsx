@@ -529,7 +529,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     if (!selectedCapaIncident) return;
     setIsSubmittingCapa(true);
     try {
-      await updateIncidentCapaAndStatus(selectedCapaIncident.id, {
+      const res = await updateIncidentCapaAndStatus(selectedCapaIncident.id, {
         status: capaStatus,
         rootCause: capaRootCause.trim(),
         correctiveAction: capaCorrectiveAction.trim(),
@@ -538,7 +538,11 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
         resolutionNote: capaNote.trim(),
         updatedBy: 'System Administrator',
       });
-      showToast('Tindakan Korektif CAPA & Status Insiden K3 Berhasil Diperbarui!');
+      if (res.pointsAwarded) {
+        showToast('Tindakan Korektif CAPA Berhasil Diperbarui! +50 Poin Reward ditambahkan ke akun pelapor.');
+      } else {
+        showToast('Tindakan Korektif CAPA & Status Insiden K3 Berhasil Diperbarui!');
+      }
       setSelectedCapaIncident(null);
       await loadIncidents();
     } catch (err: any) {

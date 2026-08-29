@@ -657,8 +657,9 @@ BEGIN
 END;
 $$;
 
--- ─── MIGRATION: Add photo_url column to incident_reports table ───────────────
+-- ─── MIGRATION: Add photo_url & points_awarded columns to incident_reports table ───────────────
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS points_awarded BOOLEAN DEFAULT FALSE;
 
 
 
