@@ -657,20 +657,44 @@ BEGIN
 END;
 $$;
 
--- ─── MIGRATION & PATCH INSTAN (JALANKAN INI DI SUPABASE SQL EDITOR) ───────────────
-ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS photo_url TEXT;
-ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS points_awarded BOOLEAN DEFAULT FALSE;
-
--- Stored Procedure: Auto-Increment Poin Worker berbasis ID atau NIP Employee ID
-CREATE OR REPLACE FUNCTION increment_worker_points(p_worker_id TEXT, p_points INTEGER)
-RETURNS void LANGUAGE plpgsql AS $$
+-- ─── AUTOMATIC DATABASE TRIGGER: AUTO-AWARD +50 PTS ON INCIDENT VALIDATION ───
+-- Trigger ini menjamin penambahan +50 PTS 100% atomik di level server database PostgreSQL
+CREATE OR REPLACE FUNCTION trg_fn_award_incident_points()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_target_worker_id TEXT;
 BEGIN
-  UPDATE workers
-  SET total_points = total_points + p_points,
-      updated_at = now()
-  WHERE id = p_worker_id OR employee_id = p_worker_id;
+  -- Cek apakah status berubah dari 'open' ke status validasi ('investigating', 'resolved', 'closed')
+  IF (OLD.status = 'open' OR OLD.points_awarded = FALSE OR OLD.points_awarded IS NULL)
+     AND (NEW.status IN ('investigating', 'resolved', 'closed')) THEN
+     
+     v_target_worker_id := NEW.worker_id;
+
+     IF v_target_worker_id IS NOT NULL AND v_target_worker_id <> '' THEN
+       -- Update poin worker secara atomik di database berbasis ID atau NIP Employee ID
+       UPDATE workers
+       SET total_points = total_points + 50,
+           updated_at = now()
+       WHERE id = v_target_worker_id OR employee_id = v_target_worker_id;
+
+       -- Tandai points_awarded = TRUE pada baris insiden ini
+       NEW.points_awarded := TRUE;
+     END IF;
+  END IF;
+
+  RETURN NEW;
 END;
 $$;
+
+-- Pasang Trigger pada tabel incident_reports
+DROP TRIGGER IF EXISTS trg_incident_reports_award_points ON incident_reports;
+CREATE TRIGGER trg_incident_reports_award_points
+  BEFORE UPDATE ON incident_reports
+  FOR EACH ROW
+  EXECUTE FUNCTION trg_fn_award_incident_points();
 
 
 
