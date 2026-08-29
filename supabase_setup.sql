@@ -308,6 +308,11 @@ CREATE TABLE IF NOT EXISTS system_settings (
 
 ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
 
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "Allow public read system_settings" ON system_settings;
+  DROP POLICY IF EXISTS "Allow authenticated full system_settings" ON system_settings;
+END $$;
+
 CREATE POLICY "Allow public read system_settings" ON system_settings
   FOR SELECT USING (true);
 
