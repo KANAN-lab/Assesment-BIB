@@ -116,10 +116,52 @@
 
 ---
 
+## Phase 7: Robust Reward System Upgrade (v3.2)
+
+- [x] **Database Schema & Columns**: Penambahan `min_tier` & `max_claims_per_month` di `reward_catalog` serta `status`, `expiry_date`, `fulfilled_at`, `fulfilled_by` di `redemption_history`
+- [x] **Atomic FCFS RPC**: Peningkatan RPC `rpc_redeem_reward_fcfs` dengan `FOR UPDATE` lock, validasi minimal tier, dan kuota klaim bulanan dinamis
+- [x] **Fulfillment RPC**: Penambahan RPC `rpc_fulfill_redemption` untuk pencatatan penyerahan voucher reward oleh Admin/Supervisor
+- [x] **OOP Domain Entity**: Integrasi `minTier`, `maxClaimsPerMonth`, dan `isTierEligible` di `RewardEntity.ts`
+- [x] **Atomic Transaction Manager**: Sinkronisasi penuh penukaran di `atomicService.ts` dan `App.tsx`
+- [x] **Pure SVG QR Code**: Komponen `VoucherQRCode.tsx` untuk visualisasi QR Code digital instan tanpa library eksternal
+- [x] **UI Marketplace & History**: Tampilan syarat tier, hitung mundur masa berlaku 30 hari, tombol fulfillment admin, dan ekspor CSV riwayat penukaran
+
+---
+
+## Phase 8: Interactive SOP Micro-Deck & Learning Academy (v3.5)
+
+- [x] **Data Layer & Types (`src/types/sop.ts`)**: Definisi model `SopModule`, `SopSlide` (9 format slide dinamis), `WorkerSopProgress`, dan `SopComplianceOverview`
+- [x] **Master Seed Catalog (`src/data/sopDeckData.json`)**: 6 modul SOP komprehensif (Forklift MHE, Stacking Palet, APAR PASS K3, Timbangan Inbound, 5S Loading Dock, Segel Kontainer Outbound)
+- [x] **Database SQL Setup (`supabase_setup.sql`)**: Tabel `sop_modules`, `worker_sop_progress`, RLS policies, dan Stored Procedure `rpc_complete_sop_module`
+- [x] **Service & Data Store (`src/lib/sopService.ts`)**: Integrasi fetch modul SOP, filter role/divisi, local caching fallback, dan atomic completion RPC
+- [x] **Slideshow Reader Engine (`src/components/SopSlideshowModal.tsx`)**:
+  - [x] Story progress bar segmented header
+  - [x] Render 9 tipe format slide (Step, DOs/DONTs, Safety Alert, Interactive Hotspot, Decision Tree, Video/GIF, FAQ Accordion, Glossary, Quiz Checkpoint)
+  - [x] Web Speech API Text-to-Speech (TTS) narasi suara Bahasa Indonesia
+  - [x] Anti-Speedrun timer (3 detik)
+  - [x] In-Slide Gappy AI Assistant popup
+  - [x] Multi-device keyboard & touch navigation
+  - [x] Modal isolation `createPortal(..., document.body)` full-bleed
+- [x] **SOP Gallery & Library Modal (`src/components/SopLibraryModal.tsx`)**:
+  - [x] Katalog kartu modul SOP dengan filter kategori & search bar
+  - [x] Indikator badge status (`Belum Dibaca`, `✓ Selesai (+50 PTS)`)
+  - [x] Ringkasan statistik kepatuhan membaca staf
+- [x] **Integrasi Navigasi & App Integration (`App.tsx` & `Navbar.tsx`)**:
+  - [x] Tombol akses tunggal `📖 SOP Micro-Deck` di Worker Dashboard (membersihkan tombol duplikat di Navbar)
+  - [x] Handler auto-award +50 PTS dan peningkatan nilai BIB Benchmark secara atomik
+- [x] **Admin SOP Management Panel (`src/components/SopManagementPanel.tsx` & `AdminConsole.tsx`)**:
+  - [x] Tab khusus "Modul SOP Micro-Deck" di Administrator Console
+  - [x] Form modal pembuatan modul SOP baru lengkap dengan 3-slide builder (Instruksi Langkah, DOs & DON'Ts, Kuis Checkpoint)
+  - [x] Fitur Preview Deck, Filter Kategori, Hapus Modul, dan Ekspor CSV Katalog SOP
+
+---
+
 ## Open Issues (Perlu Verifikasi Runtime)
 
 - [ ] Verifikasi OTP email benar-benar terkirim (perlu test di environment nyata)
 - [ ] Verifikasi `findWorkerByIdentifier` tidak menghasilkan false positive email lagi
 - [ ] Verifikasi Approval Console menampilkan antrean setelah signup supervisor baru
 - [ ] Verifikasi supervisor tidak bisa login sebelum di-approve
+
+
 

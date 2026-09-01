@@ -62,17 +62,23 @@ ALTER TABLE workers DROP CONSTRAINT IF EXISTS workers_user_id_fkey;
 
 -- Table: reward_catalog
 CREATE TABLE IF NOT EXISTS reward_catalog (
-  id              TEXT PRIMARY KEY,
-  title           TEXT NOT NULL,
-  category        TEXT NOT NULL CHECK (category IN ('E-Wallet', 'Pulsa & Data', 'Safety Gear', 'Voucher & Perk')),
-  points_required INTEGER NOT NULL,
-  icon_name       TEXT NOT NULL DEFAULT 'Gift',
-  description     TEXT NOT NULL DEFAULT '',
-  available_stock INTEGER NOT NULL DEFAULT 0,
+  id                  TEXT PRIMARY KEY,
+  title               TEXT NOT NULL,
+  category            TEXT NOT NULL CHECK (category IN ('E-Wallet', 'Pulsa & Data', 'Safety Gear', 'Voucher & Perk')),
+  points_required     INTEGER NOT NULL,
+  icon_name           TEXT NOT NULL DEFAULT 'Gift',
+  description         TEXT NOT NULL DEFAULT '',
+  available_stock     INTEGER NOT NULL DEFAULT 0,
   monthly_stock_limit INTEGER NOT NULL DEFAULT 25,
-  badge_tag       TEXT,
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+  badge_tag           TEXT,
+  min_tier            TEXT NOT NULL DEFAULT 'Novice Operational'
+                        CHECK (min_tier IN ('Novice Operational', 'Pro Specialist', 'Elite Logistician', 'Legendary Champion')),
+  max_claims_per_month INTEGER NOT NULL DEFAULT 1,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE reward_catalog ADD COLUMN IF NOT EXISTS min_tier TEXT DEFAULT 'Novice Operational';
+ALTER TABLE reward_catalog ADD COLUMN IF NOT EXISTS max_claims_per_month INTEGER DEFAULT 1;
 
 -- Table: redemption_history
 CREATE TABLE IF NOT EXISTS redemption_history (
@@ -82,8 +88,18 @@ CREATE TABLE IF NOT EXISTS redemption_history (
   points_spent     INTEGER NOT NULL,
   redeemed_at      TEXT NOT NULL,
   redemption_code  TEXT NOT NULL,
+  status           TEXT NOT NULL DEFAULT 'pending'
+                     CHECK (status IN ('pending', 'completed', 'cancelled')),
+  expiry_date      TIMESTAMPTZ DEFAULT (now() + INTERVAL '30 days'),
+  fulfilled_at     TIMESTAMPTZ,
+  fulfilled_by     TEXT REFERENCES workers(id) ON DELETE SET NULL,
   created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE redemption_history ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE redemption_history ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMPTZ DEFAULT (now() + INTERVAL '30 days');
+ALTER TABLE redemption_history ADD COLUMN IF NOT EXISTS fulfilled_at TIMESTAMPTZ;
+ALTER TABLE redemption_history ADD COLUMN IF NOT EXISTS fulfilled_by TEXT REFERENCES workers(id) ON DELETE SET NULL;
 
 -- Table: worker_competency_scores
 CREATE TABLE IF NOT EXISTS worker_competency_scores (
@@ -187,6 +203,18 @@ BEGIN
 END;
 $$;
 
+-- ─── Helper: Get Tier Numeric Level ───────────────────────────
+CREATE OR REPLACE FUNCTION get_tier_level(p_tier TEXT)
+RETURNS INTEGER IMMUTABLE LANGUAGE sql AS $$
+  SELECT CASE p_tier
+    WHEN 'Novice Operational' THEN 1
+    WHEN 'Pro Specialist' THEN 2
+    WHEN 'Elite Logistician' THEN 3
+    WHEN 'Legendary Champion' THEN 4
+    ELSE 1
+  END;
+$$;
+
 -- ─── RPC: Redeem Reward FCFS Atomic ────────────────────────────
 CREATE OR REPLACE FUNCTION rpc_redeem_reward_fcfs(
   p_worker_id TEXT,
@@ -197,15 +225,20 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
   v_worker_points INTEGER;
+  v_worker_tier TEXT;
   v_reward_title TEXT;
   v_reward_points INTEGER;
   v_available_stock INTEGER;
+  v_min_tier TEXT;
+  v_max_claims INTEGER;
   v_claims_this_month INTEGER;
   v_voucher_code TEXT;
   v_now_str TEXT;
+  v_expiry_date TIMESTAMPTZ;
+  v_redemption_id TEXT;
 BEGIN
-  -- 1. Lock & check worker points
-  SELECT total_points INTO v_worker_points
+  -- 1. Lock & check worker points and tier
+  SELECT total_points, tier INTO v_worker_points, v_worker_tier
   FROM workers
   WHERE id = p_worker_id FOR UPDATE;
 
@@ -214,7 +247,8 @@ BEGIN
   END IF;
 
   -- 2. Lock & check reward catalog (Atomic Lock)
-  SELECT title, points_required, available_stock INTO v_reward_title, v_reward_points, v_available_stock
+  SELECT title, points_required, available_stock, COALESCE(min_tier, 'Novice Operational'), COALESCE(max_claims_per_month, 1)
+  INTO v_reward_title, v_reward_points, v_available_stock, v_min_tier, v_max_claims
   FROM reward_catalog
   WHERE id = p_reward_id FOR UPDATE;
 
@@ -222,28 +256,33 @@ BEGIN
     RAISE EXCEPTION 'Reward dengan ID % tidak ditemukan.', p_reward_id;
   END IF;
 
-  -- 3. Check stock availability (FCFS Check)
+  -- 3. Check Tier Requirement
+  IF get_tier_level(v_worker_tier) < get_tier_level(v_min_tier) THEN
+    RAISE EXCEPTION 'TIER_KURANG: Reward ini membutuhkan tier minimal "%". Tier Anda saat ini adalah "%".', v_min_tier, v_worker_tier;
+  END IF;
+
+  -- 4. Check stock availability (FCFS Check)
   IF v_available_stock <= 0 THEN
     RAISE EXCEPTION 'KUOTA_HABIS: Kuota bulanan untuk reward "%" telah habis! Silakan tunggu reset kuota bulan depan.', v_reward_title;
   END IF;
 
-  -- 4. Check worker point balance
+  -- 5. Check worker point balance
   IF v_worker_points < v_reward_points THEN
     RAISE EXCEPTION 'POIN_KURANG: Poin Anda (% PTS) tidak mencukupi untuk menukar % (% PTS).', v_worker_points, v_reward_title, v_reward_points;
   END IF;
 
-  -- 5. Check monthly claim limit per worker (Max 1 claim per item per month)
+  -- 6. Check monthly claim limit per worker
   SELECT COUNT(*) INTO v_claims_this_month
   FROM redemption_history
   WHERE worker_id = p_worker_id
     AND item_title = v_reward_title
     AND DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE);
 
-  IF v_claims_this_month >= 1 THEN
-    RAISE EXCEPTION 'BATAS_KLAIM: Anda telah mencapai batas maksimal klaim (1x per bulan) untuk item "%".', v_reward_title;
+  IF v_claims_this_month >= v_max_claims THEN
+    RAISE EXCEPTION 'BATAS_KLAIM: Anda telah mencapai batas maksimal klaim (%x per bulan) untuk item "%".', v_max_claims, v_reward_title;
   END IF;
 
-  -- 6. Perform Atomic Deductions & Record Transaction
+  -- 7. Perform Atomic Deductions & Record Transaction
   UPDATE workers
   SET total_points = total_points - v_reward_points,
       updated_at = now()
@@ -255,24 +294,72 @@ BEGIN
 
   v_voucher_code := 'BIB-' || UPPER(SUBSTRING(MD5(RANDOM()::TEXT), 1, 8));
   v_now_str := TO_CHAR(now(), 'YYYY-MM-DD HH24:MI');
+  v_expiry_date := now() + INTERVAL '30 days';
+  v_redemption_id := 'red-' || gen_random_uuid()::text;
 
-  INSERT INTO redemption_history (id, worker_id, item_title, points_spent, redeemed_at, redemption_code)
+  INSERT INTO redemption_history (
+    id, worker_id, item_title, points_spent, redeemed_at, redemption_code, status, expiry_date
+  )
   VALUES (
-    'red-' || gen_random_uuid()::text,
+    v_redemption_id,
     p_worker_id,
     v_reward_title,
     v_reward_points,
     v_now_str,
-    v_voucher_code
+    v_voucher_code,
+    'pending',
+    v_expiry_date
   );
 
   RETURN jsonb_build_object(
     'success', true,
+    'id', v_redemption_id,
     'voucher_code', v_voucher_code,
+    'redemption_code', v_voucher_code,
     'points_spent', v_reward_points,
     'remaining_points', v_worker_points - v_reward_points,
     'remaining_stock', v_available_stock - 1,
+    'status', 'pending',
+    'expiry_date', v_expiry_date,
     'message', 'Penukaran reward berhasil! Voucher siap digunakan.'
+  );
+END;
+$$;
+
+-- ─── RPC: Fulfill Redemption (Admin / Supervisor) ─────────────
+CREATE OR REPLACE FUNCTION rpc_fulfill_redemption(
+  p_redemption_id TEXT,
+  p_admin_worker_id TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_curr_status TEXT;
+BEGIN
+  SELECT status INTO v_curr_status
+  FROM redemption_history
+  WHERE id = p_redemption_id FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Data penukaran tidak ditemukan.';
+  END IF;
+
+  IF v_curr_status = 'completed' THEN
+    RETURN jsonb_build_object('success', true, 'message', 'Voucher ini sudah diserahkan sebelumnya.');
+  END IF;
+
+  UPDATE redemption_history
+  SET status = 'completed',
+      fulfilled_at = now(),
+      fulfilled_by = p_admin_worker_id
+  WHERE id = p_redemption_id;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'redemption_id', p_redemption_id,
+    'status', 'completed',
+    'message', 'Voucher berhasil ditandai sebagai telah diserahkan.'
   );
 END;
 $$;
@@ -470,26 +557,67 @@ INSERT INTO badges (id, name, description, icon, color, condition, threshold) VA
   ('badge-checklist-7', 'Safety Champion',     'Menyelesaikan pre-shift checklist 7 hari berturut', 'check-circle', 'green', 'checklist_streak', 7)
 ON CONFLICT (id) DO NOTHING;
 
--- ─── 11. Incident Reports ────────────────────────────────────────────────────
+-- ─── 11. Incident Reports & CAPA ─────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS incident_reports (
-  id              TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  worker_id       TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
-  incident_type   TEXT NOT NULL CHECK (incident_type IN ('near_miss', 'injury', 'property_damage', 'unsafe_condition', 'other')),
-  location        TEXT NOT NULL,
-  description     TEXT NOT NULL,
-  severity        TEXT NOT NULL DEFAULT 'low' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
-  status          TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'investigating', 'resolved', 'closed')),
-  photo_url       TEXT,
-  points_awarded  BOOLEAN DEFAULT FALSE,
-  occurred_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
-  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
-  resolved_at     TIMESTAMPTZ,
-  resolution_note TEXT
+  id                  TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  worker_id           TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  incident_type       TEXT NOT NULL CHECK (incident_type IN ('near_miss', 'injury', 'property_damage', 'unsafe_condition', 'other')),
+  location            TEXT NOT NULL,
+  description         TEXT NOT NULL,
+  severity            TEXT NOT NULL DEFAULT 'low' CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+  status              TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'investigating', 'resolved', 'closed')),
+  photo_url           TEXT,
+  gdrive_folder_id    TEXT,
+  original_size_kb    INTEGER,
+  compressed_size_kb  INTEGER,
+  points_awarded      BOOLEAN DEFAULT FALSE,
+  occurred_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  resolved_at         TIMESTAMPTZ,
+  resolution_note     TEXT,
+  root_cause          TEXT,
+  corrective_action   TEXT,
+  assigned_pic        TEXT,
+  due_date            DATE
 );
+
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS photo_url TEXT;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS gdrive_folder_id TEXT;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS original_size_kb INTEGER;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS compressed_size_kb INTEGER;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS points_awarded BOOLEAN DEFAULT FALSE;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS root_cause TEXT;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS corrective_action TEXT;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS assigned_pic TEXT;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS due_date DATE;
 
 CREATE INDEX IF NOT EXISTS idx_incident_reports_worker ON incident_reports(worker_id);
 CREATE INDEX IF NOT EXISTS idx_incident_reports_status ON incident_reports(status, created_at DESC);
+
+-- ─── 11.1 Worker Role Mutations Archive (Audit Trail) ─────────────────────────
+
+CREATE TABLE IF NOT EXISTS worker_role_mutations (
+  id                     TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  worker_id              TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  previous_role          TEXT NOT NULL,
+  previous_division      TEXT NOT NULL,
+  new_role               TEXT NOT NULL,
+  new_division           TEXT NOT NULL,
+  archived_bib_behavior  NUMERIC(5,2) DEFAULT 0,
+  archived_bib_integrity NUMERIC(5,2) DEFAULT 0,
+  archived_bib_benchmark NUMERIC(5,2) DEFAULT 0,
+  archived_bib_total     NUMERIC(5,2) DEFAULT 0,
+  mutated_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
+  mutated_by             TEXT DEFAULT 'System Admin',
+  reason                 TEXT DEFAULT 'Mutasi Role & Divisi Operasional'
+);
+
+CREATE INDEX IF NOT EXISTS idx_worker_role_mutations_worker ON worker_role_mutations(worker_id, mutated_at DESC);
+
+ALTER TABLE worker_role_mutations ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all for worker_role_mutations" ON worker_role_mutations;
+CREATE POLICY "Allow all for worker_role_mutations" ON worker_role_mutations FOR ALL TO public USING (true) WITH CHECK (true);
 
 -- Automatic Database Trigger: Auto-Award +50 PTS di level Server PostgreSQL saat status berubah jadi disetujui
 CREATE OR REPLACE FUNCTION trg_fn_award_incident_points()
@@ -580,7 +708,11 @@ ALTER TABLE activity_log ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all for activity_log" ON activity_log;
 CREATE POLICY "Allow all for activity_log" ON activity_log FOR ALL TO public USING (true) WITH CHECK (true);
 
--- ─── 15. Rewards & Redemption System ─────────────────────────────────────────────
+-- ─── 15. Rewards & Redemption — LEGACY TABLE DEPRECATION ─────────────────────
+-- NOTE: Tabel `rewards` dan `reward_redemptions` di section ini adalah LEGACY.
+-- Sistem aktif menggunakan `reward_catalog` (section 1) dan `redemption_history` (section 1).
+-- Tabel di bawah ini dipertahankan hanya untuk backward-compatibility dengan data lama.
+-- JANGAN gunakan tabel `rewards` untuk fitur baru. Gunakan `reward_catalog`.
 
 CREATE TABLE IF NOT EXISTS rewards (
   id TEXT PRIMARY KEY,
@@ -615,20 +747,9 @@ ALTER TABLE reward_redemptions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all for reward_redemptions" ON reward_redemptions;
 CREATE POLICY "Allow all for reward_redemptions" ON reward_redemptions FOR ALL TO public USING (true) WITH CHECK (true);
 
--- Seed Default Reward Catalog
-INSERT INTO rewards (id, title, category, points_required, icon_name, description, available_stock, badge_tag)
-VALUES 
-  ('r-1', 'Voucher Saldo GoPay Rp 50.000', 'E-Wallet', 500, 'Wallet', 'Voucher digital GoPay Rp 50.000 untuk transaksi harian.', 25, 'Popular'),
-  ('r-2', 'Voucher Saldo OVO Rp 100.000', 'E-Wallet', 950, 'Wallet', 'Voucher digital OVO Rp 100.000.', 15, 'Best Value'),
-  ('r-3', 'Paket Data Telkomsel 10 GB', 'Pulsa & Data', 600, 'Smartphone', 'Paket kuota internet Telkomsel 10 GB berlaku 30 hari.', 30, NULL),
-  ('r-4', 'Rompi Safety K3 High-Vis Premium', 'Safety Gear', 1200, 'ShieldCheck', 'Rompi keselamatan kerja fosfor berstandar K3 nasional.', 10, 'Exclusive'),
-  ('r-5', 'Sarung Tangan Safety Anti-Slip Cut 5', 'Safety Gear', 750, 'Hand', 'Sarung pelindung tangan anti-potong tingkat 5 untuk penanganan kargo.', 20, NULL),
-  ('r-6', 'Voucher Belanja Indomaret Rp 100.000', 'Voucher & Perk', 950, 'Ticket', 'Voucher belanja fisik/digital Indomaret Rp 100.000.', 12, 'VIP Perk')
-ON CONFLICT (id) DO NOTHING;
-
 -- ─── 16. Database Level Rules: System Administrator & Operational Leaderboard View ─
 
-UPDATE workers 
+UPDATE workers
 SET total_points = 0, bib_total_score = 0, bib_behavior = 0, bib_integrity = 0, bib_benchmark = 0, tier = 'Novice Operational'
 WHERE employee_id = 'SYS-ADMIN' OR LOWER(role) LIKE '%administrator%';
 
@@ -640,7 +761,7 @@ WHERE LOWER(role) NOT IN ('system administrator', 'administrator', 'sysadmin', '
   AND status = 'active'
 ORDER BY bib_total_score DESC, total_points DESC;
 
--- ─── 17. Atomic Database RPC Functions ─────────────────────────────────────────────
+-- ─── 17. Atomic Database RPC Functions (LEGACY — superseded by rpc_redeem_reward_fcfs) ───
 
 CREATE OR REPLACE FUNCTION rpc_redeem_reward(p_worker_id TEXT, p_reward_id TEXT)
 RETURNS JSONB
@@ -657,14 +778,12 @@ DECLARE
   v_new_points INT;
   v_new_stock INT;
 BEGIN
-  -- Select worker points with row lock
   SELECT total_points INTO v_points FROM workers WHERE id = p_worker_id FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('success', false, 'message', 'Data pekerja tidak ditemukan.');
   END IF;
 
-  -- Select reward details with row lock
-  SELECT title, category, points_required, available_stock INTO v_title, v_category, v_cost, v_stock 
+  SELECT title, category, points_required, available_stock INTO v_title, v_category, v_cost, v_stock
   FROM rewards WHERE id = p_reward_id FOR UPDATE;
   IF NOT FOUND THEN
     RETURN jsonb_build_object('success', false, 'message', 'Data reward tidak ditemukan.');
@@ -698,44 +817,207 @@ BEGIN
 END;
 $$;
 
--- ─── AUTOMATIC DATABASE TRIGGER: AUTO-AWARD +50 PTS ON INCIDENT VALIDATION ───
--- Trigger ini menjamin penambahan +50 PTS 100% atomik di level server database PostgreSQL
-CREATE OR REPLACE FUNCTION trg_fn_award_incident_points()
-RETURNS TRIGGER
+-- ─── 18. Additional Indexes untuk Reward System ──────────────────────────────
+
+-- Index untuk query status pending penukaran (Fulfillment Queue Admin)
+CREATE INDEX IF NOT EXISTS idx_redemption_history_status ON redemption_history(status, created_at DESC);
+
+-- Index untuk batas klaim bulanan per worker (dipakai di rpc_redeem_reward_fcfs)
+CREATE INDEX IF NOT EXISTS idx_redemption_history_worker_month ON redemption_history(worker_id, item_title, created_at DESC);
+
+-- Index untuk leaderboard point queries
+CREATE INDEX IF NOT EXISTS idx_workers_points_tier ON workers(total_points DESC, tier);
+
+-- ─── 19. Sempurnakan Seed Reward Catalog dengan Kolom Baru ───────────────────
+-- Update existing seed data yang mungkin belum punya min_tier dan max_claims_per_month
+
+UPDATE reward_catalog SET
+  min_tier = 'Novice Operational',
+  max_claims_per_month = 2,
+  monthly_stock_limit = 25
+WHERE id = 'r-1';   -- GoPay Rp 50.000 — terbuka untuk semua tier
+
+UPDATE reward_catalog SET
+  min_tier = 'Pro Specialist',
+  max_claims_per_month = 1,
+  monthly_stock_limit = 15
+WHERE id = 'r-2';   -- OVO/ShopeePay Rp 100.000 — butuh Pro Specialist
+
+UPDATE reward_catalog SET
+  min_tier = 'Novice Operational',
+  max_claims_per_month = 2,
+  monthly_stock_limit = 40
+WHERE id = 'r-3';   -- Paket Data Telkomsel — terbuka semua
+
+UPDATE reward_catalog SET
+  min_tier = 'Elite Logistician',
+  max_claims_per_month = 1,
+  monthly_stock_limit = 8
+WHERE id = 'r-4';   -- Rompi Safety Premium — hanya Elite ke atas
+
+UPDATE reward_catalog SET
+  min_tier = 'Novice Operational',
+  max_claims_per_month = 1,
+  monthly_stock_limit = 20
+WHERE id = 'r-5';   -- Voucher Minimarket — terbuka semua
+
+UPDATE reward_catalog SET
+  min_tier = 'Legendary Champion',
+  max_claims_per_month = 1,
+  monthly_stock_limit = 5
+WHERE id = 'r-6';   -- Prioritas Rute VIP — hanya Legendary Champion
+
+-- ─── 20. Scheduled Monthly Quota Reset Note ──────────────────────────────────
+-- Panggil fungsi ini di awal setiap bulan (tanggal 1) via:
+--   a) Supabase Edge Function + pg_cron (rekomendasi production):
+--      SELECT cron.schedule('monthly-reward-reset', '0 0 1 * *', $$SELECT reset_monthly_reward_quota()$$);
+--   b) Manual melalui Supabase SQL Editor pada awal bulan
+
+-- ─── 21. Interactive SOP Micro-Deck & Learning Academy ───────────────────────
+
+CREATE TABLE IF NOT EXISTS sop_modules (
+  id                TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  code              TEXT UNIQUE NOT NULL,
+  title             TEXT NOT NULL,
+  description       TEXT NOT NULL DEFAULT '',
+  category          TEXT NOT NULL CHECK (category IN (
+                      'K3 & Safety', 
+                      'Operasional MHE', 
+                      'Warehouse & Staging', 
+                      'Inbound & Timbangan', 
+                      'Outbound & Ekspedisi',
+                      '5S & Continuous Improvement',
+                      'Tanggap Darurat & Lingkungan'
+                    )),
+  difficulty        TEXT NOT NULL DEFAULT 'Beginner' CHECK (difficulty IN ('Beginner', 'Intermediate', 'Advanced', 'Mandatory Compliance')),
+  target_divisions  JSONB NOT NULL DEFAULT '["ALL"]'::jsonb,
+  target_roles      JSONB NOT NULL DEFAULT '["ALL"]'::jsonb,
+  estimated_minutes INTEGER NOT NULL DEFAULT 3,
+  points_reward     INTEGER NOT NULL DEFAULT 50,
+  badge_icon        TEXT NOT NULL DEFAULT 'BookOpen',
+  slides_data       JSONB NOT NULL DEFAULT '[]'::jsonb,
+  is_mandatory      BOOLEAN NOT NULL DEFAULT false,
+  deadline_days     INTEGER DEFAULT 14,
+  version           TEXT NOT NULL DEFAULT 'v1.0',
+  is_active         BOOLEAN NOT NULL DEFAULT true,
+  author            TEXT DEFAULT 'HSE & Ops Management',
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS worker_sop_progress (
+  id                   TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  worker_id            TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  sop_id               TEXT NOT NULL REFERENCES sop_modules(id) ON DELETE CASCADE,
+  last_slide_viewed    INTEGER NOT NULL DEFAULT 1,
+  is_completed         BOOLEAN NOT NULL DEFAULT false,
+  completed_at         TIMESTAMPTZ,
+  points_awarded       BOOLEAN NOT NULL DEFAULT false,
+  quiz_score           INTEGER DEFAULT 0,
+  time_spent_seconds   INTEGER NOT NULL DEFAULT 0,
+  bookmarked_slide_ids JSONB DEFAULT '[]'::jsonb,
+  personal_notes       TEXT,
+  created_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at           TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(worker_id, sop_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sop_modules_category ON sop_modules(category, is_active);
+CREATE INDEX IF NOT EXISTS idx_worker_sop_progress_worker ON worker_sop_progress(worker_id);
+CREATE INDEX IF NOT EXISTS idx_worker_sop_progress_completed ON worker_sop_progress(worker_id, is_completed);
+
+ALTER TABLE sop_modules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE worker_sop_progress ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow all read active sop_modules" ON sop_modules;
+CREATE POLICY "Allow all read active sop_modules" ON sop_modules FOR SELECT TO public USING (true);
+
+DROP POLICY IF EXISTS "Allow all write sop_modules" ON sop_modules;
+CREATE POLICY "Allow all write sop_modules" ON sop_modules FOR ALL TO public USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow all for worker_sop_progress" ON worker_sop_progress;
+CREATE POLICY "Allow all for worker_sop_progress" ON worker_sop_progress FOR ALL TO public USING (true) WITH CHECK (true);
+
+-- RPC: Complete SOP Module & Atomic Award +50 PTS + BIB Benchmark Boost
+CREATE OR REPLACE FUNCTION rpc_complete_sop_module(
+  p_worker_id TEXT,
+  p_sop_id TEXT,
+  p_time_spent INTEGER DEFAULT 180,
+  p_quiz_score INTEGER DEFAULT 100
+)
+RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 DECLARE
-  v_target_worker_id TEXT;
+  v_points INTEGER;
+  v_sop_title TEXT;
+  v_sop_code TEXT;
+  v_already_completed BOOLEAN;
+  v_worker_exists BOOLEAN;
 BEGIN
-  -- Cek apakah status berubah dari 'open' ke status validasi ('investigating', 'resolved', 'closed')
-  IF (OLD.status = 'open' OR OLD.points_awarded = FALSE OR OLD.points_awarded IS NULL)
-     AND (NEW.status IN ('investigating', 'resolved', 'closed')) THEN
-     
-     v_target_worker_id := NEW.worker_id;
-
-     IF v_target_worker_id IS NOT NULL AND v_target_worker_id <> '' THEN
-       -- Update poin worker secara atomik di database berbasis ID atau NIP Employee ID
-       UPDATE workers
-       SET total_points = total_points + 50,
-           updated_at = now()
-       WHERE id = v_target_worker_id OR employee_id = v_target_worker_id;
-
-       -- Tandai points_awarded = TRUE pada baris insiden ini
-       NEW.points_awarded := TRUE;
-     END IF;
+  SELECT points_reward, title, code INTO v_points, v_sop_title, v_sop_code 
+  FROM sop_modules WHERE id = p_sop_id;
+  
+  IF NOT FOUND THEN
+    v_points := 50;
+    v_sop_title := 'Modul SOP Logistik';
+    v_sop_code := p_sop_id;
   END IF;
 
-  RETURN NEW;
+  SELECT EXISTS(SELECT 1 FROM workers WHERE id = p_worker_id) INTO v_worker_exists;
+  IF NOT v_worker_exists THEN
+    RETURN jsonb_build_object('success', false, 'message', 'Pekerja tidak ditemukan.');
+  END IF;
+
+  SELECT is_completed INTO v_already_completed
+  FROM worker_sop_progress
+  WHERE worker_id = p_worker_id AND sop_id = p_sop_id;
+
+  IF v_already_completed = TRUE THEN
+    RETURN jsonb_build_object(
+      'success', true, 
+      'already_completed', true, 
+      'points_added', 0,
+      'message', 'Modul SOP ini sudah pernah diselesaikan sebelumnya.'
+    );
+  END IF;
+
+  INSERT INTO worker_sop_progress (
+    worker_id, sop_id, is_completed, completed_at, points_awarded, time_spent_seconds, quiz_score
+  )
+  VALUES (
+    p_worker_id, p_sop_id, true, now(), true, p_time_spent, p_quiz_score
+  )
+  ON CONFLICT (worker_id, sop_id) DO UPDATE SET
+    is_completed = true,
+    completed_at = now(),
+    points_awarded = true,
+    time_spent_seconds = worker_sop_progress.time_spent_seconds + p_time_spent,
+    quiz_score = p_quiz_score,
+    updated_at = now();
+
+  UPDATE workers
+  SET total_points = total_points + v_points,
+      bib_benchmark = LEAST(100.0, bib_benchmark + 2.5),
+      bib_total_score = ROUND(((bib_behavior * 0.35) + (bib_integrity * 0.30) + (LEAST(100.0, bib_benchmark + 2.5) * 0.35))::numeric, 2),
+      updated_at = now()
+  WHERE id = p_worker_id;
+
+  INSERT INTO activity_log (worker_id, action, detail)
+  VALUES (p_worker_id, 'checklist_completed', 'Menyelesaikan modul SOP: ' || v_sop_code || ' — ' || v_sop_title || ' (+ ' || v_points || ' PTS)');
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'points_added', v_points,
+    'sop_title', v_sop_title,
+    'message', 'Selamat! Anda telah menyelesaikan ' || v_sop_title || ' dan memperoleh +' || v_points || ' PTS.'
+  );
 END;
 $$;
 
--- Pasang Trigger pada tabel incident_reports
-DROP TRIGGER IF EXISTS trg_incident_reports_award_points ON incident_reports;
-CREATE TRIGGER trg_incident_reports_award_points
-  BEFORE UPDATE ON incident_reports
-  FOR EACH ROW
-  EXECUTE FUNCTION trg_fn_award_incident_points();
+
+
 
 
 

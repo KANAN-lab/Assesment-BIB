@@ -83,6 +83,8 @@ export interface RewardItem {
   availableStock: number;
   monthlyStockLimit?: number;
   badgeTag?: string;
+  minTier?: TierType;
+  maxClaimsPerMonth?: number;
 }
 
 export interface RewardHistory {
@@ -91,6 +93,11 @@ export interface RewardHistory {
   pointsSpent: number;
   redeemedAt: string;
   redemptionCode: string;
+  status?: 'pending' | 'completed' | 'cancelled';
+  expiryDate?: string;
+  fulfilledAt?: string;
+  fulfilledBy?: string;
+  fulfilledByName?: string;
 }
 
 export interface LeaderboardEntry {

@@ -1,9 +1,10 @@
 import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import confetti from 'canvas-confetti';
-import { RewardItem, RewardHistory } from '../types/assessment';
-import { RewardEntity } from '../domain/RewardEntity';
+import { RewardItem, RewardHistory, TierType } from '../types/assessment';
+import { RewardEntity, TIER_LEVEL_MAP } from '../domain/RewardEntity';
 import { PaginationControls } from './PaginationControls';
+import { VoucherQRCode } from './VoucherQRCode';
 import {
   Coins,
   CheckCircle,
@@ -23,12 +24,21 @@ import {
   AlertCircle,
   Loader2,
   RefreshCw,
+  Lock,
+  Calendar,
+  Download,
+  Copy,
+  Check,
+  Clock,
+  QrCode,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 interface RewardMarketplaceProps {
   userPoints: number;
+  userTier?: TierType;
   catalog: RewardItem[];
-  onRedeemReward: (item: RewardItem, code: string) => void;
+  onRedeemReward: (item: RewardItem, code: string) => Promise<any> | void;
   redemptionHistory: RewardHistory[];
   isAdmin?: boolean;
   onCreateReward?: (item: Omit<RewardItem, 'id'>) => Promise<void> | void;
@@ -36,10 +46,12 @@ interface RewardMarketplaceProps {
   onRestockReward?: (rewardId: string, addStock: number) => Promise<void> | void;
   onDeleteReward?: (rewardId: string) => Promise<void> | void;
   onResetMonthlyQuota?: () => Promise<void> | void;
+  onFulfillRedemption?: (redemptionId: string) => Promise<void> | void;
 }
 
 export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
   userPoints,
+  userTier = 'Novice Operational',
   catalog,
   onRedeemReward,
   redemptionHistory,
@@ -49,11 +61,20 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
   onRestockReward,
   onDeleteReward,
   onResetMonthlyQuota,
+  onFulfillRedemption,
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
   const [activeTab, setActiveTab] = useState<'catalog' | 'history' | 'hall-of-fame'>('catalog');
   const [selectedReward, setSelectedReward] = useState<RewardItem | null>(null);
   const [claimedCode, setClaimedCode] = useState<string | null>(null);
+  const [claimedExpiry, setClaimedExpiry] = useState<string | null>(null);
+  const [isRedeeming, setIsRedeeming] = useState<boolean>(false);
+  const [redeemError, setRedeemError] = useState<string | null>(null);
+  const [copiedCode, setCopiedCode] = useState<boolean>(false);
+
+  // History tab filters & fulfillment
+  const [historyStatusFilter, setHistoryStatusFilter] = useState<'all' | 'pending' | 'completed'>('all');
+  const [fulfillingId, setFulfillingId] = useState<string | null>(null);
 
   const [catalogPage, setCatalogPage] = useState<number>(1);
   const [historyPage, setHistoryPage] = useState<number>(1);
@@ -64,7 +85,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
   const [showRestockModal, setShowRestockModal] = useState(false);
   const [editingItem, setEditingItem] = useState<RewardItem | null>(null);
   const [restockItem, setRestockItem] = useState<RewardItem | null>(null);
-  
+
   // Form states for Add/Edit
   const [formTitle, setFormTitle] = useState('');
   const [formCategory, setFormCategory] = useState<RewardItem['category']>('E-Wallet');
@@ -72,6 +93,9 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
   const [formIconName, setFormIconName] = useState<string>('Wallet');
   const [formDescription, setFormDescription] = useState('');
   const [formAvailableStock, setFormAvailableStock] = useState<number>(20);
+  const [formMonthlyLimit, setFormMonthlyLimit] = useState<number>(25);
+  const [formMinTier, setFormMinTier] = useState<TierType>('Novice Operational');
+  const [formMaxClaims, setFormMaxClaims] = useState<number>(1);
   const [formBadgeTag, setFormBadgeTag] = useState('');
   const [restockAmount, setRestockAmount] = useState<number>(10);
 
@@ -107,10 +131,15 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
     return filteredCatalog.slice(start, start + pageSize);
   }, [filteredCatalog, catalogPage, pageSize]);
 
+  const filteredHistory = useMemo(() => {
+    if (historyStatusFilter === 'all') return redemptionHistory;
+    return redemptionHistory.filter((h) => (h.status || 'pending') === historyStatusFilter);
+  }, [redemptionHistory, historyStatusFilter]);
+
   const paginatedHistory = useMemo(() => {
     const start = (historyPage - 1) * pageSize;
-    return redemptionHistory.slice(start, start + pageSize);
-  }, [redemptionHistory, historyPage, pageSize]);
+    return filteredHistory.slice(start, start + pageSize);
+  }, [filteredHistory, historyPage, pageSize]);
 
   const getCategoryIcon = (iconName: string) => {
     switch (iconName) {
@@ -129,27 +158,94 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
     }
   };
 
-  const handleConfirmRedeem = () => {
+  const handleConfirmRedeem = async () => {
     if (!selectedReward) return;
     const rewardEntity = new RewardEntity(selectedReward);
-    if (!rewardEntity.canBeRedeemedBy(userPoints)) return;
+    if (!rewardEntity.canBeRedeemedBy(userPoints, userTier)) return;
 
     const generatedCode = RewardEntity.generateRedemptionCode(selectedReward.category);
-
-    confetti({
-      particleCount: 120,
-      spread: 80,
-      origin: { y: 0.6 },
-      colors: ['#10b981', '#34d399', '#f59e0b', '#06b6d4'],
+    const expiryDateStr = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('id-ID', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
     });
 
-    onRedeemReward(selectedReward, generatedCode);
-    setClaimedCode(generatedCode);
+    setIsRedeeming(true);
+    setRedeemError(null);
+
+    try {
+      const res: any = await onRedeemReward(selectedReward, generatedCode);
+      
+      confetti({
+        particleCount: 120,
+        spread: 80,
+        origin: { y: 0.6 },
+        colors: ['#10b981', '#34d399', '#f59e0b', '#06b6d4'],
+      });
+
+      setClaimedCode(res?.voucherCode || res?.redemptionCode || generatedCode);
+      setClaimedExpiry(res?.expiryDate ? new Date(res.expiryDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : expiryDateStr);
+    } catch (err: any) {
+      setRedeemError(err.message || 'Gagal melakukan penukaran reward. Silakan coba lagi.');
+    } finally {
+      setIsRedeeming(false);
+    }
   };
 
   const handleCloseModal = () => {
     setSelectedReward(null);
     setClaimedCode(null);
+    setClaimedExpiry(null);
+    setRedeemError(null);
+    setCopiedCode(false);
+  };
+
+  const handleCopyCode = (code: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCode(true);
+    setTimeout(() => setCopiedCode(false), 2000);
+  };
+
+  const handleFulfillItem = async (redemptionId: string) => {
+    if (!onFulfillRedemption) return;
+    if (!window.confirm('Tandai voucher ini sebagai SUDAH DISERAHKAN ke pekerja?')) return;
+    setFulfillingId(redemptionId);
+    try {
+      await onFulfillRedemption(redemptionId);
+    } catch (err: any) {
+      alert(err.message || 'Gagal menandai penyerahan voucher.');
+    } finally {
+      setFulfillingId(null);
+    }
+  };
+
+  const handleExportCSV = () => {
+    if (!redemptionHistory || redemptionHistory.length === 0) {
+      alert('Tidak ada data riwayat penukaran untuk diekspor.');
+      return;
+    }
+
+    const headers = ['ID Penukaran', 'Item Reward', 'Poin Terpotong', 'Kode Voucher', 'Waktu Penukaran', 'Status', 'Masa Berlaku', 'Diserahkan Oleh'];
+    const rows = redemptionHistory.map((h) => [
+      `"${h.id}"`,
+      `"${h.itemTitle.replace(/"/g, '""')}"`,
+      h.pointsSpent,
+      `"${h.redemptionCode}"`,
+      `"${h.redeemedAt}"`,
+      `"${h.status === 'completed' ? 'Selesai Diserahkan' : 'Menunggu Penyerahan'}"`,
+      `"${h.expiryDate ? new Date(h.expiryDate).toLocaleDateString('id-ID') : '-'}"`,
+      `"${h.fulfilledByName || '-'}"`,
+    ]);
+
+    const csvContent = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `riwayat_reward_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   // ── Admin Action Handlers ──
@@ -162,6 +258,9 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
     setFormIconName('Wallet');
     setFormDescription('');
     setFormAvailableStock(20);
+    setFormMonthlyLimit(25);
+    setFormMinTier('Novice Operational');
+    setFormMaxClaims(1);
     setFormBadgeTag('');
     setFormError(null);
     setShowAddEditModal(true);
@@ -175,6 +274,9 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
     setFormIconName(item.iconName);
     setFormDescription(item.description);
     setFormAvailableStock(item.availableStock);
+    setFormMonthlyLimit(item.monthlyStockLimit || 25);
+    setFormMinTier(item.minTier || 'Novice Operational');
+    setFormMaxClaims(item.maxClaimsPerMonth || 1);
     setFormBadgeTag(item.badgeTag || '');
     setFormError(null);
     setShowAddEditModal(true);
@@ -191,13 +293,16 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
     e.preventDefault();
     setFormError(null);
 
-    const payloadData = {
+    const payloadData: Omit<RewardItem, 'id'> = {
       title: formTitle,
       category: formCategory,
       pointsRequired: Number(formPointsRequired),
       iconName: formIconName,
       description: formDescription,
       availableStock: Number(formAvailableStock),
+      monthlyStockLimit: Number(formMonthlyLimit),
+      minTier: formMinTier,
+      maxClaimsPerMonth: Number(formMaxClaims),
       badgeTag: formBadgeTag.trim() || undefined,
     };
 
@@ -220,7 +325,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
         }
       }
       setShowAddEditModal(false);
-    } catch (err) {
+    } catch (err: any) {
       setFormError(err instanceof Error ? err.message : 'Gagal menyimpan item reward.');
     } finally {
       setFormSubmitting(false);
@@ -244,21 +349,10 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
       }
       setShowRestockModal(false);
       setRestockItem(null);
-    } catch (err) {
+    } catch (err: any) {
       setFormError(err instanceof Error ? err.message : 'Gagal mengisi stok reward.');
     } finally {
       setFormSubmitting(false);
-    }
-  };
-
-  const handleDeleteItem = async (item: RewardItem) => {
-    if (!window.confirm(`Apakah Anda yakin ingin menghapus reward "${item.title}"?`)) return;
-    try {
-      if (onDeleteReward) {
-        await onDeleteReward(item.id);
-      }
-    } catch (err) {
-      alert(err instanceof Error ? err.message : 'Gagal menghapus reward item.');
     }
   };
 
@@ -271,7 +365,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
             <ShoppingBag className="w-4 h-4 text-emerald-400" />
             Marketplace Rewards Logistik
           </h2>
-          <p className="text-[11px] text-zinc-500 mt-0.5">Tukarkan Poin BIB hasil apresiasi kinerja Anda dengan reward menarik</p>
+          <p className="text-[11px] text-zinc-500 mt-0.5">Tukarkan Poin BIB hasil apresiasi kinerja & K3 Anda dengan reward resmi</p>
         </div>
 
         {/* Tab & User Points & Admin Button */}
@@ -331,7 +425,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
           <div className="bg-zinc-800 border border-zinc-700 px-3 py-1 rounded-xl flex items-center gap-2">
             <Coins className="w-4 h-4 text-amber-400" />
             <div>
-              <span className="text-[10px] text-zinc-400 block leading-tight">Saldo</span>
+              <span className="text-[10px] text-zinc-400 block leading-tight">Saldo Poin</span>
               <span className="font-black text-xs text-amber-300">{userPoints.toLocaleString()} PTS</span>
             </div>
           </div>
@@ -344,8 +438,8 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-200/90">
             <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <div>
-              <span className="font-bold text-amber-300">Penukaran Adil & Transparan (FCFS): </span>
-              Kuota bulanan di-reset tanggal 1. Penukaran diproses secara *real-time* (Siapa Cepat Dia Dapat) dengan batas <strong>maksimal 1x klaim/item per bulan</strong> per pekerja.
+              <span className="font-bold text-amber-300">Penukaran FCFS & Syarat Tier: </span>
+              Kuota bulanan di-reset otomatis setiap tanggal 1. Penukaran menggunakan transaksi atomik FCFS (Siapa Cepat Dia Dapat). Beberapa reward eksklusif membutuhkan syarat minimal Tier pekerja.
             </div>
           </div>
 
@@ -373,28 +467,54 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {paginatedCatalog.map((item) => {
               const rewardEntity = new RewardEntity(item);
-              const canAfford = rewardEntity.canBeRedeemedBy(userPoints);
+              const canAfford = userPoints >= item.pointsRequired;
+              const isTierOk = rewardEntity.isTierEligible(userTier);
               const monthlyLimit = item.monthlyStockLimit || Math.max(item.availableStock, 25);
               const quotaPercentage = Math.min(100, Math.max(0, (item.availableStock / monthlyLimit) * 100));
 
-              const hasRedeemedThisMonth = (redemptionHistory || []).some((h: RewardHistory) => {
+              const claimsThisMonth = (redemptionHistory || []).filter((h: RewardHistory) => {
                 if (h.itemTitle.toLowerCase() !== item.title.toLowerCase()) return false;
                 const d = new Date(h.redeemedAt);
                 const now = new Date();
                 return !isNaN(d.getTime()) && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-              });
+              }).length;
+
+              const maxClaims = item.maxClaimsPerMonth || 1;
+              const isClaimLimitReached = claimsThisMonth >= maxClaims;
 
               return (
                 <div
                   key={item.id}
-                  className="bg-zinc-800/60 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between transition relative hover:border-zinc-700"
+                  className={`bg-zinc-800/60 border rounded-xl p-4 flex flex-col justify-between transition relative ${
+                    !isTierOk
+                      ? 'border-zinc-800/80 opacity-80'
+                      : item.availableStock <= 0
+                      ? 'border-rose-900/30'
+                      : 'border-zinc-800 hover:border-zinc-700'
+                  }`}
                 >
-                  {/* Badge tag if any */}
-                  {item.badgeTag && (
-                    <div className="absolute top-3 right-3 bg-amber-500 text-zinc-950 text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider">
-                      {item.badgeTag}
-                    </div>
-                  )}
+                  {/* Top Badges */}
+                  <div className="flex items-center gap-1.5 absolute top-3 right-3">
+                    {item.minTier && item.minTier !== 'Novice Operational' && (
+                      <div
+                        className={`text-[9px] font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
+                          isTierOk
+                            ? 'bg-purple-950/80 text-purple-300 border border-purple-800/50'
+                            : 'bg-zinc-900 text-zinc-400 border border-zinc-700'
+                        }`}
+                        title={`Syarat Tier Minimal: ${item.minTier}`}
+                      >
+                        <Lock className="w-2.5 h-2.5" />
+                        <span>{item.minTier.split(' ')[0]}</span>
+                      </div>
+                    )}
+
+                    {item.badgeTag && (
+                      <div className="bg-amber-500 text-zinc-950 text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider">
+                        {item.badgeTag}
+                      </div>
+                    )}
+                  </div>
 
                   <div>
                     <div className="flex items-start justify-between mb-2.5">
@@ -404,7 +524,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
 
                       {/* Admin Quick Action Controls */}
                       {isAdmin && (
-                        <div className="flex items-center gap-1 bg-zinc-900/90 border border-zinc-700 rounded-lg p-1">
+                        <div className="flex items-center gap-1 bg-zinc-900/90 border border-zinc-700 rounded-lg p-1 mr-12">
                           <button
                             onClick={() => handleOpenRestockModal(item)}
                             title="Isi Stok Reward"
@@ -421,7 +541,11 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                           </button>
                           {onDeleteReward && (
                             <button
-                              onClick={() => handleDeleteItem(item)}
+                              onClick={() => {
+                                if (window.confirm(`Hapus item "${item.title}"?`)) {
+                                  onDeleteReward(item.id);
+                                }
+                              }}
                               title="Hapus Reward"
                               className="p-1 text-rose-400 hover:bg-rose-500/20 rounded transition"
                             >
@@ -438,7 +562,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                     {/* Kuota Bulanan FCFS Progress Bar */}
                     <div className="bg-zinc-900/90 border border-zinc-800 p-2 rounded-lg mb-3 space-y-1">
                       <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-zinc-400">Kuota Bulan Ini (FCFS):</span>
+                        <span className="text-zinc-400">Kuota FCFS Bulan Ini:</span>
                         <span className={`font-mono font-bold ${item.availableStock > 5 ? 'text-emerald-400' : item.availableStock > 0 ? 'text-amber-400' : 'text-rose-400'}`}>
                           {item.availableStock} / {monthlyLimit} pcs
                         </span>
@@ -461,9 +585,14 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                         <span className="font-black text-amber-300">{item.pointsRequired.toLocaleString()} PTS</span>
                       </div>
 
-                      {hasRedeemedThisMonth ? (
+                      {!isTierOk ? (
+                        <span className="px-2.5 py-1 bg-zinc-900 border border-zinc-700 text-zinc-400 font-bold text-[10px] rounded-lg flex items-center gap-1">
+                          <Lock className="w-3 h-3 text-amber-400" />
+                          <span>Butuh {item.minTier?.split(' ')[0]}</span>
+                        </span>
+                      ) : isClaimLimitReached ? (
                         <span className="px-2.5 py-1 bg-purple-500/10 border border-purple-500/30 text-purple-300 font-bold text-[10px] rounded-lg">
-                          Sudah Klaim Bulan Ini
+                          Batas Klaim Tercapai
                         </span>
                       ) : (
                         <button
@@ -492,38 +621,126 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
             currentPage={catalogPage}
             totalItems={filteredCatalog.length}
             pageSize={pageSize}
-            onPageChange={(p) => {
-              setCatalogPage(p);
-            }}
+            onPageChange={(p) => setCatalogPage(p)}
           />
         </>
       ) : activeTab === 'history' ? (
         /* Redemption History Tab */
-        <div className="space-y-2">
-          {redemptionHistory.length === 0 ? (
+        <div className="space-y-3">
+          {/* History Controls Bar */}
+          <div className="flex items-center justify-between flex-wrap gap-2 pb-2">
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => { setHistoryStatusFilter('all'); setHistoryPage(1); }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
+                  historyStatusFilter === 'all' ? 'bg-zinc-700 text-white' : 'bg-zinc-800/60 text-zinc-400 hover:text-white'
+                }`}
+              >
+                Semua ({redemptionHistory.length})
+              </button>
+              <button
+                onClick={() => { setHistoryStatusFilter('pending'); setHistoryPage(1); }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
+                  historyStatusFilter === 'pending' ? 'bg-amber-600/30 text-amber-300 border border-amber-500/30' : 'bg-zinc-800/60 text-zinc-400 hover:text-white'
+                }`}
+              >
+                Menunggu Penyerahan ({redemptionHistory.filter(h => (h.status || 'pending') === 'pending').length})
+              </button>
+              <button
+                onClick={() => { setHistoryStatusFilter('completed'); setHistoryPage(1); }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
+                  historyStatusFilter === 'completed' ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-500/30' : 'bg-zinc-800/60 text-zinc-400 hover:text-white'
+                }`}
+              >
+                Selesai ({redemptionHistory.filter(h => h.status === 'completed').length})
+              </button>
+            </div>
+
+            <button
+              onClick={handleExportCSV}
+              className="px-3 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border border-zinc-700 rounded-lg text-xs font-semibold transition flex items-center gap-1.5"
+            >
+              <FileSpreadsheet className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Ekspor CSV</span>
+            </button>
+          </div>
+
+          {filteredHistory.length === 0 ? (
             <div className="text-center py-10 text-zinc-500 text-xs">
-              Belum ada riwayat penukaran reward. Tukarkan poin Anda sekarang!
+              Belum ada riwayat penukaran yang sesuai dengan filter ini.
             </div>
           ) : (
             <>
-              {paginatedHistory.map((history) => (
-                <div key={history.id} className="bg-zinc-800/50 border border-zinc-800 p-3 rounded-xl flex items-center justify-between">
-                  <div>
-                    <div className="font-bold text-xs text-white">{history.itemTitle}</div>
-                    <div className="text-[10px] text-zinc-500 mt-0.5">Waktu: {history.redeemedAt}</div>
-                  </div>
+              {paginatedHistory.map((history) => {
+                const isPending = (history.status || 'pending') === 'pending';
+                const isCompleted = history.status === 'completed';
 
-                  <div className="text-right">
-                    <div className="bg-zinc-950 px-2.5 py-1 rounded-md border border-zinc-800 text-xs font-mono text-emerald-400 font-bold">
-                      {history.redemptionCode}
+                return (
+                  <div
+                    key={history.id}
+                    className="bg-zinc-800/50 border border-zinc-800 p-3.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-xs text-white">{history.itemTitle}</span>
+                        <span
+                          className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                            isCompleted
+                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+                          }`}
+                        >
+                          {isCompleted ? '✓ Diserahkan' : '⏳ Menunggu Penyerahan'}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-zinc-400 flex items-center gap-3 flex-wrap">
+                        <span>Waktu: {history.redeemedAt}</span>
+                        {history.expiryDate && (
+                          <span>Masa Berlaku: {new Date(history.expiryDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                        )}
+                        {history.fulfilledByName && (
+                          <span className="text-emerald-400">Oleh: {history.fulfilledByName}</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="text-[10px] text-amber-400 font-bold mt-0.5">-{history.pointsSpent} PTS</div>
+
+                    <div className="flex items-center gap-3 self-end sm:self-center">
+                      <div className="text-right">
+                        <div className="bg-zinc-950 px-2.5 py-1 rounded-md border border-zinc-800 text-xs font-mono text-emerald-400 font-bold flex items-center gap-1.5">
+                          <span>{history.redemptionCode}</span>
+                          <button
+                            onClick={() => handleCopyCode(history.redemptionCode)}
+                            title="Salin Kode Voucher"
+                            className="text-zinc-500 hover:text-white transition"
+                          >
+                            <Copy className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <div className="text-[10px] text-amber-400 font-bold mt-0.5">-{history.pointsSpent} PTS</div>
+                      </div>
+
+                      {isAdmin && isPending && onFulfillRedemption && (
+                        <button
+                          onClick={() => handleFulfillItem(history.id)}
+                          disabled={fulfillingId === history.id}
+                          className="px-2.5 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-bold transition flex items-center gap-1 disabled:opacity-50"
+                          title="Tandai voucher ini sudah diserahkan ke pekerja"
+                        >
+                          {fulfillingId === history.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Check className="w-3.5 h-3.5" />
+                          )}
+                          <span>Serahkan</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               <PaginationControls
                 currentPage={historyPage}
-                totalItems={redemptionHistory.length}
+                totalItems={filteredHistory.length}
                 pageSize={pageSize}
                 onPageChange={(p) => setHistoryPage(p)}
               />
@@ -584,7 +801,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
           onClick={handleCloseModal}
         >
           <div
-            className="relative w-full max-w-md max-h-[82vh] sm:max-h-[85vh] m-auto card-elevated p-6 text-center"
+            className="relative w-full max-w-md max-h-[85vh] m-auto card-elevated p-6 text-center overflow-y-auto custom-scrollbar"
             onClick={e => e.stopPropagation()}
           >
             {!claimedCode ? (
@@ -593,56 +810,101 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                   <Sparkles className="w-6 h-6 text-emerald-400" />
                 </div>
 
-                <h3 className="text-base font-bold text-white mb-1">Konfirmasi Penukaran</h3>
-                <p className="text-xs text-zinc-400 mb-4">Anda akan menukarkan poin untuk item berikut:</p>
+                <h3 className="text-base font-bold text-white mb-1">Konfirmasi Penukaran Reward</h3>
+                <p className="text-xs text-zinc-400 mb-4">Anda akan menukarkan poin untuk item reward berikut:</p>
 
-                <div className="bg-zinc-900 p-3.5 rounded-xl border border-zinc-800 mb-5 text-left">
+                {redeemError && (
+                  <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/20 rounded-xl text-left flex items-start gap-2 text-rose-300 text-xs">
+                    <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{redeemError}</span>
+                  </div>
+                )}
+
+                <div className="bg-zinc-900 p-3.5 rounded-xl border border-zinc-800 mb-5 text-left space-y-2">
                   <div className="font-bold text-xs text-white">{selectedReward.title}</div>
-                  <div className="text-[11px] text-zinc-400 mt-1">{selectedReward.description}</div>
-                  <div className="mt-3 flex items-center justify-between text-xs border-t border-zinc-800 pt-2">
+                  <div className="text-[11px] text-zinc-400">{selectedReward.description}</div>
+                  
+                  <div className="pt-2 border-t border-zinc-800 flex items-center justify-between text-xs">
                     <span className="text-zinc-400">Biaya Poin:</span>
                     <span className="font-black text-amber-400">-{selectedReward.pointsRequired} PTS</span>
+                  </div>
+
+                  {selectedReward.minTier && selectedReward.minTier !== 'Novice Operational' && (
+                    <div className="flex items-center justify-between text-xs text-zinc-400">
+                      <span>Syarat Tier:</span>
+                      <span className="font-bold text-purple-300">{selectedReward.minTier}</span>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between text-xs text-zinc-400">
+                    <span>Masa Berlaku Voucher:</span>
+                    <span className="font-bold text-emerald-400">30 Hari sejak diklaim</span>
                   </div>
                 </div>
 
                 <div className="flex gap-2">
                   <button
                     onClick={handleCloseModal}
+                    disabled={isRedeeming}
                     className="w-1/2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold py-2 rounded-xl text-xs transition"
                   >
                     Batal
                   </button>
                   <button
                     onClick={handleConfirmRedeem}
-                    className="w-1/2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs transition"
+                    disabled={isRedeeming}
+                    className="w-1/2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-900/30"
                   >
-                    Tukarkan Sekarang
+                    {isRedeeming && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                    <span>{isRedeeming ? 'Memproses...' : 'Tukarkan Sekarang'}</span>
                   </button>
                 </div>
               </>
             ) : (
-              /* Success / Claimed Screen */
-              <>
-                <div className="w-14 h-14 bg-emerald-500/10 rounded-full border border-emerald-500/30 flex items-center justify-center mx-auto mb-3">
-                  <CheckCircle className="w-7 h-7 text-emerald-400" />
+              /* Success / Claimed Screen with QR Code */
+              <div className="space-y-4">
+                <div className="w-12 h-12 bg-emerald-500/10 rounded-full border border-emerald-500/30 flex items-center justify-center mx-auto">
+                  <CheckCircle className="w-6 h-6 text-emerald-400" />
                 </div>
 
-                <h3 className="text-base font-black text-white mb-1">Reward Berhasil Ditukar</h3>
-                <p className="text-xs text-zinc-400 mb-5">Voucher reward Anda telah diterbitkan.</p>
+                <div>
+                  <h3 className="text-base font-black text-white">Voucher Berhasil Diterbitkan!</h3>
+                  <p className="text-xs text-zinc-400 mt-0.5">Tunjukkan QR Code atau Kode Voucher ke petugas terkait</p>
+                </div>
 
-                <div className="bg-zinc-900 p-4 rounded-xl border border-emerald-500/30 mb-5">
-                  <div className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1 font-semibold">Kode Voucher Digital</div>
-                  <div className="text-lg font-mono font-black text-emerald-400 tracking-wider select-all">{claimedCode}</div>
-                  <div className="text-[10px] text-zinc-500 mt-1">Tunjukkan kode ini ke petugas / aplikasi terkait</div>
+                {/* QR Code Card */}
+                <div className="bg-zinc-950 p-4 rounded-2xl border border-zinc-800 flex flex-col items-center space-y-3">
+                  <VoucherQRCode code={claimedCode} size={130} />
+
+                  <div className="w-full bg-zinc-900/90 p-3 rounded-xl border border-zinc-800">
+                    <div className="text-[10px] text-zinc-500 uppercase tracking-wider font-bold mb-1">Kode Voucher Digital</div>
+                    <div className="flex items-center justify-center gap-2">
+                      <span className="text-base font-mono font-black text-emerald-400 tracking-wider select-all">{claimedCode}</span>
+                      <button
+                        onClick={() => handleCopyCode(claimedCode)}
+                        title="Salin Kode Voucher"
+                        className="p-1 text-zinc-400 hover:text-white transition rounded"
+                      >
+                        {copiedCode ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  {claimedExpiry && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+                      <Clock className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Berlaku hingga: <strong className="text-zinc-200">{claimedExpiry}</strong></span>
+                    </div>
+                  )}
                 </div>
 
                 <button
                   onClick={handleCloseModal}
                   className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-2.5 rounded-xl text-xs transition"
                 >
-                  Selesai
+                  Tutup & Simpan ke Riwayat
                 </button>
-              </>
+              </div>
             )}
           </div>
         </div>,
@@ -656,7 +918,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
           onClick={() => setShowAddEditModal(false)}
         >
           <div
-            className="relative w-full max-w-lg max-h-[82vh] sm:max-h-[85vh] m-auto card-elevated p-6 overflow-y-auto custom-scrollbar"
+            className="relative w-full max-w-lg max-h-[85vh] m-auto card-elevated p-6 overflow-y-auto custom-scrollbar"
             onClick={e => e.stopPropagation()}
           >
             <button
@@ -723,6 +985,61 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Syarat Minimal Tier</label>
+                  <select
+                    value={formMinTier}
+                    onChange={(e) => setFormMinTier(e.target.value as TierType)}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="Novice Operational">Novice Operational (Semua)</option>
+                    <option value="Pro Specialist">Pro Specialist</option>
+                    <option value="Elite Logistician">Elite Logistician</option>
+                    <option value="Legendary Champion">Legendary Champion</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Batas Klaim / User / Bulan</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={formMaxClaims}
+                    onChange={(e) => setFormMaxClaims(Number(e.target.value))}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Stok Awal Saat Ini *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={formAvailableStock}
+                    onChange={(e) => setFormAvailableStock(Number(e.target.value))}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Limit Kuota Bulanan Tgl 1</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={formMonthlyLimit}
+                    onChange={(e) => setFormMonthlyLimit(Number(e.target.value))}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="block text-xs text-zinc-400 mb-1">Ikon Tampilan</label>
                   <select
                     value={formIconName}
@@ -739,14 +1056,13 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                 </div>
 
                 <div>
-                  <label className="block text-xs text-zinc-400 mb-1">Jumlah Stok Awal *</label>
+                  <label className="block text-xs text-zinc-400 mb-1">Badge Tag (Opsional)</label>
                   <input
-                    type="number"
-                    min="0"
-                    value={formAvailableStock}
-                    onChange={(e) => setFormAvailableStock(Number(e.target.value))}
+                    type="text"
+                    value={formBadgeTag}
+                    onChange={(e) => setFormBadgeTag(e.target.value)}
+                    placeholder="cth. Popular, Exclusive, VIP"
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                    required
                   />
                 </div>
               </div>
@@ -760,17 +1076,6 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                   placeholder="Jelaskan detail voucher atau fisik reward..."
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                   required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-zinc-400 mb-1">Badge Tag (Opsional)</label>
-                <input
-                  type="text"
-                  value={formBadgeTag}
-                  onChange={(e) => setFormBadgeTag(e.target.value)}
-                  placeholder="cth. Popular, Best Value, Exclusive, VIP Perk"
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                 />
               </div>
 
@@ -804,7 +1109,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
           onClick={() => setShowRestockModal(false)}
         >
           <div
-            className="relative w-full max-w-sm max-h-[82vh] sm:max-h-[85vh] m-auto card-elevated p-6 overflow-y-auto custom-scrollbar"
+            className="relative w-full max-w-sm max-h-[85vh] m-auto card-elevated p-6 overflow-y-auto custom-scrollbar"
             onClick={e => e.stopPropagation()}
           >
             <button

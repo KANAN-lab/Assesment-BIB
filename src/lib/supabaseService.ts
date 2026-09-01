@@ -59,6 +59,8 @@ interface RewardCatalogRow {
   available_stock: number;
   monthly_stock_limit?: number | null;
   badge_tag: string | null;
+  min_tier?: string | null;
+  max_claims_per_month?: number | null;
 }
 
 interface RedemptionRow {
@@ -68,6 +70,10 @@ interface RedemptionRow {
   points_spent: number;
   redeemed_at: string;
   redemption_code: string;
+  status?: string | null;
+  expiry_date?: string | null;
+  fulfilled_at?: string | null;
+  fulfilled_by?: string | null;
 }
 
 // ─── Mappers ─────────────────────────────────────────────────────────────────
@@ -137,6 +143,8 @@ function rowToRewardItem(row: RewardCatalogRow): RewardItem {
     availableStock: row.available_stock,
     monthlyStockLimit: row.monthly_stock_limit ?? Math.max(row.available_stock, 25),
     badgeTag: row.badge_tag ?? undefined,
+    minTier: (row.min_tier as TierType) || 'Novice Operational',
+    maxClaimsPerMonth: row.max_claims_per_month ?? 1,
   };
 }
 
@@ -147,6 +155,10 @@ function rowToRewardHistory(row: RedemptionRow): RewardHistory {
     pointsSpent: row.points_spent,
     redeemedAt: row.redeemed_at,
     redemptionCode: row.redemption_code,
+    status: (row.status as 'pending' | 'completed' | 'cancelled') || 'pending',
+    expiryDate: row.expiry_date ?? undefined,
+    fulfilledAt: row.fulfilled_at ?? undefined,
+    fulfilledBy: row.fulfilled_by ?? undefined,
   };
 }
 
@@ -379,7 +391,10 @@ export async function createRewardCatalogItem(itemData: Omit<RewardItem, 'id'>):
     icon_name: rewardEntity.iconName,
     description: rewardEntity.description,
     available_stock: rewardEntity.availableStock,
+    monthly_stock_limit: rewardEntity.monthlyStockLimit,
     badge_tag: rewardEntity.badgeTag || null,
+    min_tier: rewardEntity.minTier || 'Novice Operational',
+    max_claims_per_month: rewardEntity.maxClaimsPerMonth || 1,
   };
 
   const { data, error } = await supabase.from('reward_catalog').insert(payload).select().single();
@@ -401,7 +416,10 @@ export async function updateRewardCatalogItem(rewardId: string, updates: Partial
     icon_name: existingEntity.iconName,
     description: existingEntity.description,
     available_stock: existingEntity.availableStock,
+    monthly_stock_limit: existingEntity.monthlyStockLimit,
     badge_tag: existingEntity.badgeTag || null,
+    min_tier: existingEntity.minTier || 'Novice Operational',
+    max_claims_per_month: existingEntity.maxClaimsPerMonth || 1,
   };
 
   const { data, error } = await supabase.from('reward_catalog').update(payload).eq('id', rewardId).select().single();
@@ -473,6 +491,9 @@ export async function fetchAllRedemptionHistory(): Promise<AdminRedemptionRecord
         name,
         employee_id,
         division
+      ),
+      fulfiller:fulfilled_by (
+        name
       )
     `)
     .order('created_at', { ascending: false });
@@ -499,7 +520,28 @@ export async function fetchAllRedemptionHistory(): Promise<AdminRedemptionRecord
     workerName: row.workers?.name || 'Staf Terdaftar',
     workerEmployeeId: row.workers?.employee_id || '-',
     workerDivision: row.workers?.division || '-',
+    fulfilledByName: row.fulfiller?.name,
   }));
+}
+
+export async function fulfillRedemption(redemptionId: string, adminWorkerId: string): Promise<void> {
+  const { error } = await supabase.rpc('rpc_fulfill_redemption', {
+    p_redemption_id: redemptionId,
+    p_admin_worker_id: adminWorkerId,
+  });
+
+  if (error) {
+    // Fallback direct update
+    const { error: updateErr } = await supabase
+      .from('redemption_history')
+      .update({
+        status: 'completed',
+        fulfilled_at: new Date().toISOString(),
+        fulfilled_by: adminWorkerId,
+      })
+      .eq('id', redemptionId);
+    if (updateErr) throw updateErr;
+  }
 }
 
 export async function insertRedemption(
@@ -514,6 +556,8 @@ export async function insertRedemption(
     points_spent: history.pointsSpent,
     redeemed_at: history.redeemedAt,
     redemption_code: history.redemptionCode,
+    status: history.status || 'pending',
+    expiry_date: history.expiryDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
   });
   if (insertError) throw insertError;
 

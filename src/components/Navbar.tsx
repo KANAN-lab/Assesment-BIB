@@ -111,16 +111,6 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="text-zinc-400">Poin</span>
                 <span className="font-bold text-emerald-300 ml-0.5">{currentWorker.totalPoints.toLocaleString()}</span>
               </div>
-              {onOpenSopLibrary && (
-                <button
-                  onClick={onOpenSopLibrary}
-                  className="flex items-center gap-1.5 bg-cyan-950/40 hover:bg-cyan-900/60 border border-cyan-500/30 px-3 py-1.5 rounded-lg text-xs font-bold text-cyan-300 transition"
-                  title="Buka Perpustakaan SOP K3"
-                >
-                  <BookOpen className="w-3.5 h-3.5" />
-                  SOP K3
-                </button>
-              )}
               {onOpenOnboarding && (
                 <button
                   onClick={onOpenOnboarding}

@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { WorkerProfile, CompetencyItem, Announcement, IncidentReport, ActivityLog, RewardItem } from '../types/assessment';
+import { WorkerProfile, CompetencyItem, Announcement, IncidentReport, ActivityLog, RewardItem, TierType } from '../types/assessment';
 import { DivisionEntity } from '../domain/DivisionEntity';
 import { RoleEntity } from '../domain/RoleEntity';
 import { RewardEntity } from '../domain/RewardEntity';
@@ -12,7 +12,7 @@ import {
   Settings, UserCheck, Plus, Search, TableProperties,
   ShieldAlert, Award, FileSpreadsheet, Upload, Check, Trash2, Edit3,
   CheckCircle2, Building2, UserPlus, ChevronDown, Zap, RefreshCw, AlertTriangle, Key, Cpu, Clock, Sparkles, HelpCircle,
-  Megaphone, Activity, BarChart2, Download, X, Calendar, ToggleLeft, ToggleRight, ShoppingBag, PackageCheck, History, Coins, PackagePlus, Edit2, Loader2, AlertCircle, Users, ShieldCheck, ArrowRightLeft, ExternalLink
+  Megaphone, Activity, BarChart2, Download, X, Calendar, ToggleLeft, ToggleRight, ShoppingBag, PackageCheck, History, Coins, PackagePlus, Edit2, Loader2, AlertCircle, Users, ShieldCheck, ArrowRightLeft, ExternalLink, BookOpen
 } from 'lucide-react';
 import { WorkerAvatar } from './WorkerAvatar';
 import { CustomDataTable, DataTableColumn } from './CustomDataTable';
@@ -22,11 +22,12 @@ import {
   fetchAnnouncements, createAnnouncement, toggleAnnouncement, deleteAnnouncement,
   fetchIncidentReports, updateIncidentStatus, updateIncidentCapaAndStatus,
   fetchActivityLog, exportWorkersCSV, exportIncidentsCSV,
-  fetchAllRedemptionHistory, AdminRedemptionRecord,
+  fetchAllRedemptionHistory, fulfillRedemption, AdminRedemptionRecord,
   batchImportWorkers, mutateWorkerRoleAndDivision
 } from '../lib/supabaseService';
 import { BadgeManagementPanel } from './BadgeManagementPanel';
 import { QuizManagementPanel } from './QuizManagementPanel';
+import { SopManagementPanel } from './SopManagementPanel';
 import { SystemConfigService, FREQUENCY_OPTIONS } from '../domain/SystemConfigService';
 import { ExecutivePDFReportGenerator } from '../lib/pdfReportService';
 
@@ -167,7 +168,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   onRestockReward,
   onDeleteReward,
 }) => {
-  const [activeTab, setActiveTab] = useState<'workers' | 'approvals' | 'divisions' | 'roles' | 'matrix' | 'ai-quiz' | 'analytics' | 'announcements' | 'incidents' | 'activity' | 'rewards' | 'badges' | 'quiz' | 'config'>('workers');
+  const [activeTab, setActiveTab] = useState<'workers' | 'approvals' | 'divisions' | 'roles' | 'matrix' | 'ai-quiz' | 'analytics' | 'announcements' | 'incidents' | 'activity' | 'rewards' | 'badges' | 'quiz' | 'config' | 'sop'>('workers');
   const [quizMeta, setQuizMeta] = useState<QuizStatusMeta>(() => getQuizStatusMeta());
   const [refreshingQuiz, setRefreshingQuiz] = useState(false);
 
@@ -647,8 +648,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
       ]
     },
     {
-      groupLabel: 'AI ENGINE & INFORMASI',
+      groupLabel: 'AI ENGINE & EDUKASI SOP',
       tabs: [
+        { key: 'sop', label: 'Modul SOP Micro-Deck', icon: BookOpen },
         { key: 'ai-quiz', label: 'Gappy AI Engine', icon: Zap },
         { key: 'quiz', label: 'Bank Soal Quiz', icon: HelpCircle },
         { key: 'announcements', label: 'Pengumuman Tim', icon: Megaphone, badge: announcements.filter(a => a.isActive).length },
@@ -1641,6 +1643,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
       {activeTab === 'rewards' && (
         <AdminRewardManagerSection
           rewardCatalog={rewardCatalog}
+          currentAdminId={currentAdminId}
           onCreateReward={onCreateReward}
           onUpdateReward={onUpdateReward}
           onRestockReward={onRestockReward}
@@ -1661,6 +1664,11 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
         <div className="card p-5">
           <QuizManagementPanel />
         </div>
+      )}
+
+      {/* ─── TAB: MODUL SOP MICRO-DECK ─── */}
+      {activeTab === 'sop' && (
+        <SopManagementPanel currentAdminId={currentAdminId} onToast={showToast} />
       )}
 
       {/* ─── TAB: ATURAN & CONFIG SYSTEM ─── */}
@@ -2255,6 +2263,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
 
 interface AdminRewardManagerSectionProps {
   rewardCatalog: RewardItem[];
+  currentAdminId?: string;
   onCreateReward?: (item: Omit<RewardItem, 'id'>) => Promise<void> | void;
   onUpdateReward?: (rewardId: string, updates: Partial<Omit<RewardItem, 'id'>>) => Promise<void> | void;
   onRestockReward?: (rewardId: string, addStock: number) => Promise<void> | void;
@@ -2264,6 +2273,7 @@ interface AdminRewardManagerSectionProps {
 
 export const AdminRewardManagerSection: React.FC<AdminRewardManagerSectionProps> = ({
   rewardCatalog,
+  currentAdminId,
   onCreateReward,
   onUpdateReward,
   onRestockReward,
@@ -2284,6 +2294,7 @@ export const AdminRewardManagerSection: React.FC<AdminRewardManagerSectionProps>
   const [showRestockModal, setShowRestockModal] = useState(false);
   const [restockRewardItem, setRestockRewardItem] = useState<RewardItem | null>(null);
   const [restockAddAmount, setRestockAddAmount] = useState<number>(10);
+  const [fulfillingRewardId, setFulfillingRewardId] = useState<string | null>(null);
 
   // Form states
   const [rewardFormTitle, setRewardFormTitle] = useState('');
@@ -2292,17 +2303,38 @@ export const AdminRewardManagerSection: React.FC<AdminRewardManagerSectionProps>
   const [rewardFormIcon, setRewardFormIcon] = useState<string>('Wallet');
   const [rewardFormDesc, setRewardFormDesc] = useState('');
   const [rewardFormStock, setRewardFormStock] = useState<number>(20);
+  const [rewardFormMonthlyLimit, setRewardFormMonthlyLimit] = useState<number>(25);
+  const [rewardFormMinTier, setRewardFormMinTier] = useState<TierType>('Novice Operational');
+  const [rewardFormMaxClaims, setRewardFormMaxClaims] = useState<number>(1);
   const [rewardFormBadge, setRewardFormBadge] = useState('');
   const [rewardFormError, setRewardFormError] = useState<string | null>(null);
   const [rewardFormSubmitting, setRewardFormSubmitting] = useState(false);
 
-  useEffect(() => {
+  const loadAllRedemptions = () => {
     setLoadingRedemptions(true);
     fetchAllRedemptionHistory()
       .then(setAllRedemptions)
       .catch(console.warn)
       .finally(() => setLoadingRedemptions(false));
+  };
+
+  useEffect(() => {
+    loadAllRedemptions();
   }, []);
+
+  const handleFulfillFromAdmin = async (redemptionId: string) => {
+    if (!window.confirm('Tandai voucher ini sebagai SUDAH DISERAHKAN ke pekerja?')) return;
+    setFulfillingRewardId(redemptionId);
+    try {
+      await fulfillRedemption(redemptionId, currentAdminId || 'SYS-ADMIN');
+      showToast('Voucher berhasil ditandai sebagai telah diserahkan.');
+      loadAllRedemptions();
+    } catch (err: any) {
+      showToast(`Gagal memproses penyerahan: ${err.message}`);
+    } finally {
+      setFulfillingRewardId(null);
+    }
+  };
 
   const filteredAdminCatalog = useMemo(() => {
     return rewardCatalog.filter((item) => {
@@ -2372,7 +2404,52 @@ export const AdminRewardManagerSection: React.FC<AdminRewardManagerSectionProps>
         </span>
       ),
     },
-  ], []);
+    {
+      key: 'status',
+      header: 'Status Penyerahan',
+      sortable: true,
+      render: (log) => {
+        const isCompleted = log.status === 'completed';
+        return (
+          <span
+            className={`text-[9px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
+              isCompleted
+                ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
+            }`}
+          >
+            {isCompleted ? '✓ Diserahkan' : '⏳ Menunggu'}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'id',
+      header: 'Aksi Serahkan',
+      align: 'center',
+      render: (log) => {
+        const isCompleted = log.status === 'completed';
+        if (isCompleted) {
+          return <span className="text-[10px] text-zinc-500">Selesai</span>;
+        }
+        return (
+          <button
+            onClick={() => handleFulfillFromAdmin(log.id)}
+            disabled={fulfillingRewardId === log.id}
+            className="px-2 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-[11px] font-bold transition flex items-center gap-1 disabled:opacity-50 mx-auto"
+            title="Tandai voucher ini sudah diserahkan ke pekerja"
+          >
+            {fulfillingRewardId === log.id ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Check className="w-3 h-3" />
+            )}
+            <span>Serahkan</span>
+          </button>
+        );
+      },
+    },
+  ], [fulfillingRewardId]);
 
   const handleOpenCreateRewardModal = () => {
     setEditingReward(null);
@@ -2382,6 +2459,9 @@ export const AdminRewardManagerSection: React.FC<AdminRewardManagerSectionProps>
     setRewardFormIcon('Wallet');
     setRewardFormDesc('');
     setRewardFormStock(20);
+    setRewardFormMonthlyLimit(25);
+    setRewardFormMinTier('Novice Operational');
+    setRewardFormMaxClaims(1);
     setRewardFormBadge('');
     setRewardFormError(null);
     setShowRewardModal(true);
@@ -2395,6 +2475,9 @@ export const AdminRewardManagerSection: React.FC<AdminRewardManagerSectionProps>
     setRewardFormIcon(item.iconName);
     setRewardFormDesc(item.description);
     setRewardFormStock(item.availableStock);
+    setRewardFormMonthlyLimit(item.monthlyStockLimit || 25);
+    setRewardFormMinTier(item.minTier || 'Novice Operational');
+    setRewardFormMaxClaims(item.maxClaimsPerMonth || 1);
     setRewardFormBadge(item.badgeTag || '');
     setRewardFormError(null);
     setShowRewardModal(true);
@@ -2411,13 +2494,16 @@ export const AdminRewardManagerSection: React.FC<AdminRewardManagerSectionProps>
     e.preventDefault();
     setRewardFormError(null);
 
-    const payload = {
+    const payload: Omit<RewardItem, 'id'> = {
       title: rewardFormTitle,
       category: rewardFormCategory,
       pointsRequired: Number(rewardFormPoints),
       iconName: rewardFormIcon,
       description: rewardFormDesc,
       availableStock: Number(rewardFormStock),
+      monthlyStockLimit: Number(rewardFormMonthlyLimit),
+      minTier: rewardFormMinTier,
+      maxClaimsPerMonth: Number(rewardFormMaxClaims),
       badgeTag: rewardFormBadge.trim() || undefined,
     };
 
@@ -2604,70 +2690,109 @@ export const AdminRewardManagerSection: React.FC<AdminRewardManagerSectionProps>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
-              {filteredAdminCatalog.map((item) => (
-                <div
-                  key={item.id}
-                  className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between relative hover:border-zinc-700 transition"
-                >
-                  {item.badgeTag && (
-                    <div className="absolute top-3 right-3 bg-amber-500 text-zinc-950 text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider">
-                      {item.badgeTag}
-                    </div>
-                  )}
+              {filteredAdminCatalog.map((item) => {
+                const TIER_COLOR: Record<string, string> = {
+                  'Novice Operational': 'text-zinc-400 border-zinc-700',
+                  'Pro Specialist': 'text-blue-400 border-blue-700/50',
+                  'Elite Logistician': 'text-purple-400 border-purple-700/50',
+                  'Legendary Champion': 'text-amber-400 border-amber-700/50',
+                };
+                const tierColor = TIER_COLOR[item.minTier || 'Novice Operational'] || 'text-zinc-400 border-zinc-700';
+                const stockPct = item.monthlyStockLimit
+                  ? Math.min(100, Math.round((item.availableStock / item.monthlyStockLimit) * 100))
+                  : 100;
 
-                  <div>
-                    <div className="flex items-center justify-between mb-2.5">
-                      <span className="text-[10px] font-mono text-zinc-500 bg-zinc-950 px-2 py-0.5 rounded border border-zinc-800">
-                        {item.id}
-                      </span>
-                      <span className="text-[10px] text-purple-400 font-semibold">{item.category}</span>
-                    </div>
-
-                    <h4 className="font-bold text-white text-xs mb-1 leading-snug">{item.title}</h4>
-                    <p className="text-[11px] text-zinc-400 leading-relaxed mb-3">{item.description}</p>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between py-2 border-t border-zinc-800 text-xs mb-3">
-                      <div className="flex items-center gap-1">
-                        <Coins className="w-3.5 h-3.5 text-amber-400" />
-                        <span className="font-black text-amber-300">{item.pointsRequired.toLocaleString()} PTS</span>
-                      </div>
-
-                      <div className="flex items-center gap-1">
-                        <span className="text-zinc-500 text-[11px]">Stok:</span>
-                        <span className={`font-mono font-bold ${item.availableStock > 5 ? 'text-emerald-400' : item.availableStock > 0 ? 'text-amber-400' : 'text-rose-400'}`}>
-                          {item.availableStock} pcs
+                return (
+                  <div
+                    key={item.id}
+                    className="bg-zinc-900/80 border border-zinc-800 rounded-xl p-4 flex flex-col justify-between relative hover:border-zinc-700 transition group"
+                  >
+                    {/* Badge Tags */}
+                    <div className="absolute top-3 right-3 flex flex-col items-end gap-1">
+                      {item.badgeTag && (
+                        <span className="bg-amber-500 text-zinc-950 text-[9px] font-black px-2 py-0.5 rounded uppercase tracking-wider">
+                          {item.badgeTag}
                         </span>
-                      </div>
+                      )}
+                      {item.minTier && item.minTier !== 'Novice Operational' && (
+                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded border bg-zinc-950 ${tierColor}`}>
+                          🔒 {item.minTier}
+                        </span>
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => handleOpenRestockRewardModal(item)}
-                        className="w-1/3 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg py-1.5 text-xs font-bold transition flex items-center justify-center gap-1"
-                      >
-                        <PackagePlus className="w-3.5 h-3.5" />
-                        + Stok
-                      </button>
-                      <button
-                        onClick={() => handleOpenEditRewardModal(item)}
-                        className="w-1/3 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-lg py-1.5 text-xs font-bold transition flex items-center justify-center gap-1"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteRewardItem(item)}
-                        className="w-1/3 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-lg py-1.5 text-xs font-bold transition flex items-center justify-center gap-1"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        Hapus
-                      </button>
+                    <div>
+                      <div className="flex items-center justify-between mb-2.5">
+                        <span className="text-[10px] font-mono text-zinc-500 bg-zinc-950 px-2 py-0.5 rounded border border-zinc-800">
+                          {item.id}
+                        </span>
+                        <span className="text-[10px] text-purple-400 font-semibold">{item.category}</span>
+                      </div>
+
+                      <h4 className="font-bold text-white text-xs mb-1 leading-snug pr-20">{item.title}</h4>
+                      <p className="text-[11px] text-zinc-400 leading-relaxed mb-3">{item.description}</p>
+                    </div>
+
+                    <div>
+                      {/* Points & Stock Row */}
+                      <div className="flex items-center justify-between py-2 border-t border-zinc-800 text-xs">
+                        <div className="flex items-center gap-1">
+                          <Coins className="w-3.5 h-3.5 text-amber-400" />
+                          <span className="font-black text-amber-300">{item.pointsRequired.toLocaleString()} PTS</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-zinc-500 text-[11px]">Stok:</span>
+                          <span className={`font-mono font-bold ${item.availableStock > 5 ? 'text-emerald-400' : item.availableStock > 0 ? 'text-amber-400' : 'text-rose-400'}`}>
+                            {item.availableStock}{item.monthlyStockLimit ? `/${item.monthlyStockLimit}` : ''} pcs
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Stock Bar */}
+                      {item.monthlyStockLimit && (
+                        <div className="w-full h-1.5 bg-zinc-800 rounded-full mb-2 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${stockPct > 40 ? 'bg-emerald-500' : stockPct > 15 ? 'bg-amber-500' : 'bg-rose-500'}`}
+                            style={{ width: `${stockPct}%` }}
+                          />
+                        </div>
+                      )}
+
+                      {/* Metadata Row */}
+                      <div className="flex items-center gap-2 mb-3 text-[10px] text-zinc-500">
+                        <span>Max {item.maxClaimsPerMonth || 1}x/bulan/user</span>
+                        <span className="text-zinc-700">•</span>
+                        <span>Reset tiap tgl 1</span>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => handleOpenRestockRewardModal(item)}
+                          className="w-1/3 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 rounded-lg py-1.5 text-xs font-bold transition flex items-center justify-center gap-1"
+                        >
+                          <PackagePlus className="w-3.5 h-3.5" />
+                          + Stok
+                        </button>
+                        <button
+                          onClick={() => handleOpenEditRewardModal(item)}
+                          className="w-1/3 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-lg py-1.5 text-xs font-bold transition flex items-center justify-center gap-1"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteRewardItem(item)}
+                          className="w-1/3 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/30 rounded-lg py-1.5 text-xs font-bold transition flex items-center justify-center gap-1"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Hapus
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             {filteredAdminCatalog.length === 0 && (
@@ -2692,8 +2817,8 @@ export const AdminRewardManagerSection: React.FC<AdminRewardManagerSectionProps>
       </div>
 
       {/* Add / Edit Reward Modal */}
-      {showRewardModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm animate-fade-in">
+      {showRewardModal && createPortal(
+        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/80 backdrop-blur-md p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in">
           <div className="card-elevated w-full max-w-lg p-6 relative">
             <button
               onClick={() => setShowRewardModal(false)}
@@ -2759,6 +2884,61 @@ export const AdminRewardManagerSection: React.FC<AdminRewardManagerSectionProps>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Syarat Minimal Tier</label>
+                  <select
+                    value={rewardFormMinTier}
+                    onChange={(e) => setRewardFormMinTier(e.target.value as TierType)}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                  >
+                    <option value="Novice Operational">Novice Operational (Semua)</option>
+                    <option value="Pro Specialist">Pro Specialist</option>
+                    <option value="Elite Logistician">Elite Logistician</option>
+                    <option value="Legendary Champion">Legendary Champion</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Batas Klaim / User / Bulan</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={rewardFormMaxClaims}
+                    onChange={(e) => setRewardFormMaxClaims(Number(e.target.value))}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Stok Awal Saat Ini *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={rewardFormStock}
+                    onChange={(e) => setRewardFormStock(Number(e.target.value))}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs text-zinc-400 mb-1">Limit Kuota Bulanan Tgl 1</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={rewardFormMonthlyLimit}
+                    onChange={(e) => setRewardFormMonthlyLimit(Number(e.target.value))}
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
                   <label className="block text-xs text-zinc-400 mb-1">Ikon Tampilan</label>
                   <select
                     value={rewardFormIcon}
@@ -2775,14 +2955,13 @@ export const AdminRewardManagerSection: React.FC<AdminRewardManagerSectionProps>
                 </div>
 
                 <div>
-                  <label className="block text-xs text-zinc-400 mb-1">Jumlah Stok Awal *</label>
+                  <label className="block text-xs text-zinc-400 mb-1">Badge Tag (Opsional)</label>
                   <input
-                    type="number"
-                    min="0"
-                    value={rewardFormStock}
-                    onChange={(e) => setRewardFormStock(Number(e.target.value))}
+                    type="text"
+                    value={rewardFormBadge}
+                    onChange={(e) => setRewardFormBadge(e.target.value)}
+                    placeholder="cth. Popular, Best Value, Exclusive, VIP"
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                    required
                   />
                 </div>
               </div>
@@ -2796,17 +2975,6 @@ export const AdminRewardManagerSection: React.FC<AdminRewardManagerSectionProps>
                   placeholder="Jelaskan detail voucher atau fisik reward..."
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                   required
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-zinc-400 mb-1">Badge Tag (Opsional)</label>
-                <input
-                  type="text"
-                  value={rewardFormBadge}
-                  onChange={(e) => setRewardFormBadge(e.target.value)}
-                  placeholder="cth. Popular, Best Value, Exclusive, VIP Perk"
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                 />
               </div>
 
@@ -2829,12 +2997,13 @@ export const AdminRewardManagerSection: React.FC<AdminRewardManagerSectionProps>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Restock Modal */}
-      {showRestockModal && restockRewardItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-zinc-950/80 backdrop-blur-sm animate-fade-in">
+      {showRestockModal && restockRewardItem && createPortal(
+        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/80 backdrop-blur-md p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in">
           <div className="card-elevated w-full max-w-sm p-6 relative">
             <button
               onClick={() => setShowRestockModal(false)}
@@ -2892,7 +3061,8 @@ export const AdminRewardManagerSection: React.FC<AdminRewardManagerSectionProps>
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

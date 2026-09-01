@@ -1,0 +1,794 @@
+[
+  {
+    "id": "sop-mhe-01",
+    "code": "SOP-MHE-01",
+    "title": "Pengoperasian Forklift Aman di Area Gudang",
+    "description": "Pedoman standar keselamatan pengoperasian forklift & reachtruck, pre-use inspection, manuver blind spot, dan batas angkat muatan.",
+    "category": "Operasional MHE",
+    "difficulty": "Mandatory Compliance",
+    "targetDivisions": ["WFG", "WRM", "ALL"],
+    "targetRoles": ["Operator Forklift", "ALL"],
+    "estimatedMinutes": 3,
+    "pointsReward": 50,
+    "badgeIcon": "Truck",
+    "isMandatory": true,
+    "deadlineDays": 7,
+    "version": "v2.0",
+    "isActive": true,
+    "author": "Tim HSE PT DAM Indonesia",
+    "createdAt": "2026-08-01T08:00:00Z",
+    "updatedAt": "2026-08-25T10:00:00Z",
+    "slides": [
+      {
+        "id": "slide-mhe-1",
+        "slideNumber": 1,
+        "slideType": "step_instruction",
+        "title": "Inspeksi Visual Pre-Use 8-Titik",
+        "subtitle": "Wajib dilakukan sebelum menghidupkan mesin forklift di awal shift",
+        "content": "Pemeriksaan visual keliling (pre-use inspection) bertujuan mendeteksi kebocoran oli, keausan ban, atau kerusakan struktural sebelum unit digunakan beroperasi.",
+        "audioNarrationText": "Langkah pertama sebelum mengoperasikan forklift adalah melakukan inspeksi visual delapan titik. Periksa kondisi garpu, sistem hidrolik, rantai pengangkat, tekanan ban, sabuk pengaman, klakson, lampu strobo, dan APAR.",
+        "steps": [
+          {
+            "stepNumber": 1,
+            "title": "Fisik Garpu & Rantai",
+            "description": "Pastikan garpu tidak retak, bengkok, atau aus lebih dari 10%. Rantai tiang mast dalam kondisi kencang dan terlumasi.",
+            "iconName": "CheckCircle2",
+            "keyHighlight": "Toleransi keausan garpu max 10%"
+          },
+          {
+            "stepNumber": 2,
+            "title": "Sistem Hidrolik & Oli",
+            "description": "Periksa selang hidrolik dan lantai bawah unit dari tetesan oli. Level oli hidrolik harus pada garis aman.",
+            "iconName": "Droplets",
+            "keyHighlight": "Dilarang operasi jika ada kebocoran oli aktif"
+          },
+          {
+            "stepNumber": 3,
+            "title": "Fungsi Rem & Safety Device",
+            "description": "Uji rem kaki, rem parkir tangan, klakson, sabuk pengaman, lampu strobo berkedip, dan pastikan tabung APAR unit terisi penuh.",
+            "iconName": "ShieldAlert",
+            "keyHighlight": "Klakson dan lampu strobo wajib berfungsi 100%"
+          }
+        ]
+      },
+      {
+        "id": "slide-mhe-2",
+        "slideNumber": 2,
+        "slideType": "dos_and_donts",
+        "title": "Manuver di Jalur Sempit & Blind Spot",
+        "subtitle": "Kaidah berkendara defensif di persimpangan lorong gudang",
+        "content": "Mayoritas insiden tabrakan di gudang terjadi di persimpangan rak (*blind spot*). Patuhi aturan kecepatan dan marka jalan.",
+        "audioNarrationText": "Perhatikan aturan aman dan larangan saat bermanuver. Wajib bunyikan klakson dan melambat sebelum persimpangan. Jangan pernah mengebut atau membawa muatan yang menghalangi pandangan ke depan.",
+        "dosAndDonts": [
+          {
+            "doTitle": "Perlambat & Bunyikan Klakson",
+            "doText": "Kurangi kecepatan hingga < 5 km/jam dan bunyikan klakson minimal 2x saat mendekati persimpangan lorong rak atau pintu dock.",
+            "doTip": "Gunakan cermin cembung (convex mirror) di dinding atas.",
+            "dontTitle": "Mengebut di Persimpangan",
+            "dontText": "Dilarang memotong jalur atau melaju kencang tanpa membunyikan klakson peringatan di area persimpangan blind spot.",
+            "dontWarning": "Risiko fatal tertabrak pejalan kaki atau forklift lain."
+          },
+          {
+            "doTitle": "Mundur Saat Pandangan Terhalang",
+            "doText": "Jika muatan bertumpuk tinggi menghalangi pandangan ke depan, wajib kemudikan forklift berjalan MUNDUR (reverse driving) dengan menengok ke belakang.",
+            "doTip": "Pastikan jalur mundur bebas dari pejalan kaki.",
+            "dontTitle": "Maju Saat Pandangan Buta",
+            "dontText": "Dilarang menyetir maju sambil memiringkan kepala ke samping saat pandangan depan tertutup muatan tinggi.",
+            "dontWarning": "Potensi menabrak tiang rak gudang atau personel."
+          }
+        ]
+      },
+      {
+        "id": "slide-mhe-3",
+        "slideNumber": 3,
+        "slideType": "safety_alert",
+        "title": "Golden Rules: Batas Ketinggian Garpu & Kecepatan",
+        "subtitle": "Kaidah mutlak pencegahan terguling (rollover) dan kerusakan barang",
+        "content": "Pusat gravitasi forklift berubah drastis saat garpu dinaikkan. Mengemudi dengan garpu terangkat adalah pelanggaran berat K3.",
+        "alertLevel": "critical",
+        "audioNarrationText": "Aturan keselamatan kritis. Saat forklift berjalan membawa muatan, ketinggian garpu wajib dijaga antara 15 hingga 20 sentimeter dari lantai dengan tiang dimiringkan ke belakang. Kecepatan maksimal dalam ruangan adalah 10 kilometer per jam.",
+        "steps": [
+          {
+            "stepNumber": 1,
+            "title": "Ketinggian Garpu Saat Melaju: 15 – 20 CM",
+            "description": "Garpu harus berada 15-20 cm di atas lantai, dengan tiang dimiringkan sedikit ke belakang (tilt back) agar muatan bersandar stabil.",
+            "iconName": "AlertTriangle",
+            "keyHighlight": "DILARANG melaju dengan garpu terangkat > 30 cm!"
+          },
+          {
+            "stepNumber": 2,
+            "title": "Batas Kecepatan Maksimum: 10 KM/JAM",
+            "description": "Di dalam ruangan gudang: Max 10 km/jam. Di area padat pejalan kaki & loading dock: Max 5 km/jam.",
+            "iconName": "Gauge",
+            "keyHighlight": "Patuhi marka batas kecepatan di lantai gudang."
+          }
+        ]
+      },
+      {
+        "id": "slide-mhe-4",
+        "slideNumber": 4,
+        "slideType": "interactive_hotspot",
+        "title": "Titik Kritis Stabilitas Muatan (Load Center)",
+        "subtitle": "Pahami segitiga stabilitas dan kapasitas angkat forklift",
+        "content": "Setiap unit forklift memiliki bagan beban (Load Capacity Chart). Jangan pernah menambah beban tambahan (counterweight) tidak resmi di bagian belakang.",
+        "audioNarrationText": "Perhatikan titik-titik kritis stabilitas muatan pada diagram. Pastikan beban menempel rapat di punggung garpu dan berat tidak melebihi kapasitas kerja aman unit.",
+        "hotspots": [
+          {
+            "id": "hs-1",
+            "xPercent": 25,
+            "yPercent": 70,
+            "label": "Punggung Garpu (Mast Backrest)",
+            "description": "Muatan palet wajib didorong rapat hingga menyentuh backrest sebelum garpu diangkat.",
+            "status": "critical"
+          },
+          {
+            "id": "hs-2",
+            "xPercent": 50,
+            "yPercent": 40,
+            "label": "Overhead Guard (Atap Pelindung)",
+            "description": "Atap pelindung operator dari kejatuhan barang. Jangan pernah dilepas atau dimodifikasi.",
+            "status": "safe"
+          },
+          {
+            "id": "hs-3",
+            "xPercent": 80,
+            "yPercent": 65,
+            "label": "Roda Belakang (Kemudi Steering)",
+            "description": "Forklift berbelok menggunakan roda belakang. Perhatikan ayunan ekor (tail swing) saat berbelok dekat dinding/rak.",
+            "status": "check"
+          }
+        ]
+      },
+      {
+        "id": "slide-mhe-5",
+        "slideNumber": 5,
+        "slideType": "quiz_checkpoint",
+        "title": "Kuis Evaluasi Pemahaman SOP Forklift",
+        "subtitle": "Jawab pertanyaan berikut dengan benar untuk menyelesaikan modul dan mengklaim reward",
+        "content": "Pilihlah salah satu jawaban yang paling tepat sesuai dengan instruksi kerja keselamatan forklift.",
+        "audioNarrationText": "Uji pemahaman Anda. Berapakah ketinggian garpu yang diizinkan saat forklift berjalan melaju membawa muatan?",
+        "quiz": {
+          "id": "q-mhe-1",
+          "question": "Berapakah ketinggian garpu yang WAJIB dijaga saat forklift melaju membawa muatan di lantai gudang?",
+          "options": [
+            "Menempel langsung di lantai (0 cm)",
+            "15 sampai 20 cm di atas lantai dengan tiang miring ke belakang",
+            "Setinggi 1 meter agar muatan terlihat jelas dari jauh",
+            "Sesuai ketinggian rak tujuan agar tidak perlu mengangkat lagi"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "Ketinggian garpu 15–20 cm dari lantai dengan posisi tiang miring ke belakang (tilt back) adalah standar internasional K3 untuk menjaga pusat gravitasi unit tetap rendah dan mencegah forklift terguling saat bermanuver.",
+          "points": 50
+        }
+      }
+    ]
+  },
+  {
+    "id": "sop-wrh-02",
+    "code": "SOP-WRH-02",
+    "title": "Standar Susunan Palet & Interlocking Stacking",
+    "description": "Standar penanganan palet kargo, pola kuncian silang, pencegahan kerobohan susunan, dan penataan staging area.",
+    "category": "Warehouse & Staging",
+    "difficulty": "Intermediate",
+    "targetDivisions": ["WFG", "WRM", "ALL"],
+    "targetRoles": ["Checker", "Operator Forklift", "ALL"],
+    "estimatedMinutes": 3,
+    "pointsReward": 50,
+    "badgeIcon": "Boxes",
+    "isMandatory": true,
+    "deadlineDays": 14,
+    "version": "v1.2",
+    "isActive": true,
+    "author": "Tim Warehouse Operations PT DAM",
+    "createdAt": "2026-08-05T08:00:00Z",
+    "updatedAt": "2026-08-26T11:00:00Z",
+    "slides": [
+      {
+        "id": "slide-wrh-1",
+        "slideNumber": 1,
+        "slideType": "step_instruction",
+        "title": "Kriteria Kelayakan Palet Kayu",
+        "subtitle": "Pemeriksaan visual palet sebelum dilakukan pemuatan barang karton",
+        "content": "Menggunakan palet yang rusak dapat menyebabkan tumpukan barang runtuh dan merusak barang bernilai tinggi.",
+        "audioNarrationText": "Sebelum menyusun barang, periksa kondisi fisik palet. Pastikan papan palet utuh, tidak ada paku menonjol, balok penopang tidak patah, dan palet kering tidak lapuk.",
+        "steps": [
+          {
+            "stepNumber": 1,
+            "title": "Cek Papan Atas (Top Deckboards)",
+            "description": "Papan kayu harus utuh, tidak retak parah, dan tidak ada lubang besar yang dapat membuat karton amblas.",
+            "iconName": "Layers",
+            "keyHighlight": "Papan utuh dan rata"
+          },
+          {
+            "stepNumber": 2,
+            "title": "Bebas Paku Menonjol",
+            "description": "Pastikan tidak ada paku mencuat keluar yang dapat merobek kemasan karton atau melukai tangan pekerja.",
+            "iconName": "Shield",
+            "keyHighlight": "Zero protruding nails"
+          },
+          {
+            "stepNumber": 3,
+            "title": "Balok Kaki (Stringers/Blocks)",
+            "description": "Balok tumpuan garpu forklift harus kokoh. Jika balok patah atau gompal > 25%, palet WAJIB diafkirkan.",
+            "iconName": "XCircle",
+            "keyHighlight": "Afkirkan palet dengan balok pecah"
+          }
+        ]
+      },
+      {
+        "id": "slide-wrh-2",
+        "slideNumber": 2,
+        "slideType": "dos_and_donts",
+        "title": "Pola Susunan Kuncian Silang (Interlocking)",
+        "subtitle": "Kaidah penyusunan karton pada palet standar",
+        "content": "Penyusunan sejajar tanpa kuncian (*column stacking*) rentan bergeser dan roboh saat dipindahkan forklift.",
+        "audioNarrationText": "Terapkan pola susunan bersilang pada setiap lapis karton. Jangan menumpuk karton lurus sejajar tanpa kuncian karena sangat mudah goyah dan runtuh saat dipindahkan.",
+        "dosAndDonts": [
+          {
+            "doTitle": "Gunakan Pola Kuncian Silang",
+            "doText": "Ubah orientasi karton pada setiap layer (lapisan ganjil horizontal, lapisan genap vertikal) sehingga karton saling mengunci.",
+            "doTip": "Ikat dengan stretch film wrapping minimal 3 putaran di bagian atas.",
+            "dontTitle": "Susunan Lurus (Column Stacking) Tanpa Pengikat",
+            "dontText": "Menumpuk karton sejajar lurus ke atas dari bawah sampai atas tanpa disilangkan atau di-wrap.",
+            "dontWarning": "Tumpukan akan mudah amblas dan condong ke samping."
+          },
+          {
+            "doTitle": "Rata di Batas Tepi Palet",
+            "doText": "Susun karton presisi di dalam batas tepi palet (flush fit) tanpa menggantung keluar (overhang).",
+            "doTip": "Overhang mengurangi kekuatan tumpukan hingga 30%.",
+            "dontTitle": "Karton Menjorok Keluar (Overhang)",
+            "dontText": "Membiarkan sisi karton keluar lebih dari 2 cm dari bibir tepi palet kayu.",
+            "dontWarning": "Karton rentan sobek tersenggol garpu forklift lain."
+          }
+        ]
+      },
+      {
+        "id": "slide-wrh-3",
+        "slideNumber": 3,
+        "slideType": "safety_alert",
+        "title": "Batas Maksimal Stacking Staging: Max 3 Tier",
+        "subtitle": "Kaidah keselamatan penumpukan palet di area staging lantai gudang",
+        "content": "Penumpukan palet bertingkat (block stacking) di lantai gudang harus mematuhi batas beban dan kestabilan.",
+        "alertLevel": "warning",
+        "audioNarrationText": "Perhatikan batas tumpukan palet. Di area lantai staging, batas maksimal tumpukan adalah tiga tier dan tidak boleh melebihi garis marka batas ketinggian di dinding gudang.",
+        "steps": [
+          {
+            "stepNumber": 1,
+            "title": "Maksimal 3 Tier Palet Bertingkat",
+            "description": "Tumpukan palet di lantai bebas rak maksimal 3 susun, dengan syarat karton bawah kokoh dan tidak penyok.",
+            "iconName": "AlertCircle",
+            "keyHighlight": "Maksimal 3 susun di lantai"
+          },
+          {
+            "stepNumber": 2,
+            "title": "Label SKU Menghadap Koridor (Aisle Facing)",
+            "description": "Semua barcode dan label deskripsi barang harus menghadap ke arah koridor utama agar memudahkan proses scanning checker.",
+            "iconName": "QrCode",
+            "keyHighlight": "Label barcode selalu menghadap depan"
+          }
+        ]
+      },
+      {
+        "id": "slide-wrh-4",
+        "slideNumber": 4,
+        "slideType": "decision_tree",
+        "title": "Alur Penanganan Palet Miring / Rusak di Rak",
+        "subtitle": "Pohon keputusan penanganan darurat potensi barang runtuh",
+        "content": "Jika menemukan palet miring di rak tingkat tinggi (racking), ikuti alur protokol berikut:",
+        "audioNarrationText": "Jika menemukan susunan palet miring di rak, segera pasang garis pembatas di bawahnya, jangan dicongkel sembarangan, dan segera laporkan ke supervisor shift untuk diturunkan menggunakan reachtruck secara hati-hati.",
+        "decisionNodes": [
+          {
+            "condition": "Palet miring < 5 derajat di rak lantai 1",
+            "actionRequired": "Rapikan manual dengan tangan saat posisi palet di lantai, pastikan dasar rata.",
+            "responsibleRole": "Checker / Helper"
+          },
+          {
+            "condition": "Palet miring > 10 derajat di rak tingkat tinggi (Level 2 ke atas)",
+            "actionRequired": "Pasang cone pembatas di bawah rak, larang orang melintas, dan panggil Supervisor + Reachtruck Operator.",
+            "responsibleRole": "Supervisor & Operator",
+            "isEscalateToSupervisor": true
+          }
+        ]
+      },
+      {
+        "id": "slide-wrh-5",
+        "slideNumber": 5,
+        "slideType": "quiz_checkpoint",
+        "title": "Kuis Evaluasi Standar Palet & Stacking",
+        "subtitle": "Jawab pertanyaan untuk memverifikasi pemahaman Anda dan mengklaim +50 PTS",
+        "content": "Pilihlah jawaban yang benar terkait kaidah penyusunan karton di atas palet.",
+        "audioNarrationText": "Pertanyaan evaluasi: Mengapa susunan karton di atas palet wajib menggunakan metode interlocking atau kuncian silang?",
+        "quiz": {
+          "id": "q-wrh-1",
+          "question": "Mengapa susunan karton pada palet wajib menggunakan metode interlocking (kuncian silang antar layer)?",
+          "options": [
+            "Hanya untuk mempercantik tampilan barang di gudang",
+            "Agar karton saling mengikat dan tumpukan tidak mudah bergeser/runtuh saat diangkut forklift",
+            "Agar muatan lebih berat dan hemat tempat",
+            "Supaya barcode tidak bisa dibaca oleh orang lain"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "Metode interlocking (kuncian silang) mendistribusikan beban secara merata ke seluruh struktur palet dan mencegah terjadinya keruntuhan tumpukan (load shift) akibat gaya inersia saat forklift bermanuver.",
+          "points": 50
+        }
+      }
+    ]
+  },
+  {
+    "id": "sop-hse-03",
+    "code": "SOP-HSE-03",
+    "title": "Tanggap Darurat Kebakaran & Penggunaan APAR (PASS)",
+    "description": "Pengenalan kelas kebakaran gudang, teknik penggunaan APAR metode PASS, dan rute evakuasi darurat.",
+    "category": "K3 & Safety",
+    "difficulty": "Beginner",
+    "targetDivisions": ["ALL"],
+    "targetRoles": ["ALL"],
+    "estimatedMinutes": 3,
+    "pointsReward": 50,
+    "badgeIcon": "Flame",
+    "isMandatory": true,
+    "deadlineDays": 7,
+    "version": "v2.1",
+    "isActive": true,
+    "author": "Tim Tanggap Darurat HSE PT DAM",
+    "createdAt": "2026-08-10T08:00:00Z",
+    "updatedAt": "2026-08-28T09:00:00Z",
+    "slides": [
+      {
+        "id": "slide-hse-1",
+        "slideNumber": 1,
+        "slideType": "step_instruction",
+        "title": "Mengenal 3 Kelas Kebakaran di Fasilitas Logistik",
+        "subtitle": "Ketahui jenis media pemadam yang tepat sebelum memadamkan api",
+        "content": "Menggunakan air pada kebakaran listrik atau minyak dapat menyebabkan sengatan fatal atau ledakan percikan.",
+        "audioNarrationText": "Kenali tiga kelas kebakaran utama di gudang. Kelas A untuk benda padat seperti kayu dan karton. Kelas B untuk cairan mudah terbakar seperti solar dan oli. Kelas C untuk instalasi listrik bertegangan. Gunakan APAR serbuk kimia kering untuk semua kelas tersebut.",
+        "steps": [
+          {
+            "stepNumber": 1,
+            "title": "Kelas A: Benda Padat",
+            "description": "Kayu, kertas, karton packing, kain, dan palet kayu. Media: APAR Dry Chemical Powder atau Air bertekanan.",
+            "iconName": "Package",
+            "keyHighlight": "Bahan padat mudah terbakar"
+          },
+          {
+            "stepNumber": 2,
+            "title": "Kelas B: Cairan Mudah Terbakar",
+            "description": "Bensin, solar armada, oli hidrolik forklift, tiner, dan pelumas. Media: APAR Foam atau Dry Powder (DILARANG pakai air).",
+            "iconName": "Fuel",
+            "keyHighlight": "Cairan & pelumas"
+          },
+          {
+            "stepNumber": 3,
+            "title": "Kelas C: Instalasi Listrik",
+            "description": "Panel listrik gudang, kabel charger forklift elektrik, stop kontak. Media: APAR CO2 atau Dry Chemical Powder.",
+            "iconName": "Zap",
+            "keyHighlight": "Arus listrik aktif"
+          }
+        ]
+      },
+      {
+        "id": "slide-hse-2",
+        "slideNumber": 2,
+        "slideType": "step_instruction",
+        "title": "4 Langkah Penggunaan APAR: Metode P.A.S.S",
+        "subtitle": "Standar internasional pemadaman api awal dengan tabung APAR",
+        "content": "Pegang tabung APAR dalam posisi tegak, jangan dibalik, dan periksa jarum manometer pada zona hijau.",
+        "audioNarrationText": "Ingat metode PASS. P: Cabut pin pengaman. A: Arahkan corong ke dasar sumber api. S: Tekan tuas katup. S: Sapukan corong dari sisi ke sisi secara merata.",
+        "steps": [
+          {
+            "stepNumber": 1,
+            "title": "P — Pull (Cabut Pin)",
+            "description": "Tarik dan putuskan segel plastik untuk mencabut pin pengaman besi pada tuas pegangan APAR.",
+            "iconName": "Key",
+            "keyHighlight": "Cabut pin pengaman"
+          },
+          {
+            "stepNumber": 2,
+            "title": "A — Aim (Arahkan ke Dasar Api)",
+            "description": "Pegang ujung selang dan arahkan moncong (nozzle) ke PUSAT DASAR API (bukan ke jilatan lidah api atas).",
+            "iconName": "Target",
+            "keyHighlight": "Arahkan ke dasar/akar api"
+          },
+          {
+            "stepNumber": 3,
+            "title": "S — Squeeze (Tekan Tuas)",
+            "description": "Tekan tuas pegangan dengan mantap secara penuh untuk menyemprotkan serbuk kimia pemadam.",
+            "iconName": "Hand",
+            "keyHighlight": "Tekan tuas secara stabil"
+          },
+          {
+            "stepNumber": 4,
+            "title": "S — Sweep (Sapukan Sisi ke Sisi)",
+            "description": "Sapukan semprotan dari kiri ke kanan (side-to-side) secara merata hingga seluruh permukaan api tertutup.",
+            "iconName": "MoveHorizontal",
+            "keyHighlight": "Sapukan secara merata"
+          }
+        ]
+      },
+      {
+        "id": "slide-hse-3",
+        "slideNumber": 3,
+        "slideType": "dos_and_donts",
+        "title": "Posisi Aman Saat Memadamkan Api",
+        "subtitle": "Kaidah keselamatan diri operator pemadam api awal",
+        "content": "Keselamatan jiwa adalah prioritas utama. Jangan pernah memadamkan api yang sudah membesar melebihi tinggi badan.",
+        "audioNarrationText": "Perhatikan posisi berdiri Anda saat memadamkan api. Selalu berdiri searah dengan hembusan angin pada jarak aman dua hingga tiga meter dan pastikan jalur keluar di belakang Anda terbuka.",
+        "dosAndDonts": [
+          {
+            "doTitle": "Berdiri Searah Hembusan Angin",
+            "doText": "Posisikan tubuh Anda membelakangi arah datangnya angin (angin di belakang punggung) pada jarak aman 2–3 meter dari api.",
+            "doTip": "Mencegah asap dan panas meniup balik ke wajah Anda.",
+            "dontTitle": "Melawan Arah Angin (Headwind)",
+            "dontText": "Menyemprot APAR dengan posisi melawan hembusan angin atau berdiri terlalu dekat (< 1 meter).",
+            "dontWarning": "Serbuk kimia dan kobaran api akan menyembur ke arah Anda."
+          },
+          {
+            "doTitle": "Jaga Jalur Evakuasi Terbuka",
+            "doText": "Pastikan pintu keluar darurat selalu berada di belakang punggung Anda saat mencoba memadamkan api.",
+            "doTip": "Jika api tidak padam dalam 15 detik, segera evakuasi.",
+            "dontTitle": "Membiarkan Diri Terjebak",
+            "dontText": "Maju ke sudut ruangan sempit yang tidak memiliki jalur keluar alternatif jika api mendadak membesar.",
+            "dontWarning": "Risiko terjebak kepulan asap monoksida beracun."
+          }
+        ]
+      },
+      {
+        "id": "slide-hse-4",
+        "slideNumber": 4,
+        "slideType": "safety_alert",
+        "title": "Titik Kumpul (Assembly Point) & Jalur Evakuasi",
+        "subtitle": "Protokol evakuasi saat alarm kebakaran gedung berbunyi",
+        "content": "Dilarang keras kembali ke dalam gedung untuk mengambil barang pribadi saat proses evakuasi berlangsung.",
+        "alertLevel": "critical",
+        "audioNarrationText": "Saat alarm evakuasi berbunyi, segera tinggalkan pekerjaan, matikan mesin forklift, ikuti petunjuk lampu darurat menuju Titik Kumpul di halaman parkir utama, dan laporkan kehadiran Anda ke Koordinator Evakuasi.",
+        "steps": [
+          {
+            "stepNumber": 1,
+            "title": "Matikan Mesin Alat & Turunkan Garpu",
+            "description": "Tarik rem parkir, turunkan garpu forklift ke lantai, cabut kunci, dan segera keluar mengikuti jalur hijau evakuasi.",
+            "iconName": "Power",
+            "keyHighlight": "Amankan unit alat kerja"
+          },
+          {
+            "stepNumber": 2,
+            "title": "Kumpul di Titik Kumpul (Assembly Point)",
+            "description": "Menuju Titik Kumpul Halaman Parkir Utama PT DAM Indonesia. Lakukan roll-call kehadiran tim dengan Supervisor.",
+            "iconName": "Users",
+            "keyHighlight": "Tetap di Titik Kumpul hingga instruksi aman"
+          }
+        ]
+      },
+      {
+        "id": "slide-hse-5",
+        "slideNumber": 5,
+        "slideType": "quiz_checkpoint",
+        "title": "Kuis Evaluasi Tanggap Darurat APAR",
+        "subtitle": "Jawab pertanyaan berikut untuk memverifikasi pemahaman dan mengklaim +50 PTS",
+        "content": "Pilihlah arti huruf yang benar pada metode PASS.",
+        "audioNarrationText": "Pertanyaan: Apa arti huruf A pada singkatan metode PASS saat mengoperasikan tabung APAR?",
+        "quiz": {
+          "id": "q-hse-1",
+          "question": "Apakah arti huruf 'A' pada metode P.A.S.S saat menggunakan tabung APAR?",
+          "options": [
+            "Air (Siram dengan air)",
+            "Aim (Arahkan corong ke dasar sumber api)",
+            "Alarm (Nyalakan alarm gedung)",
+            "Away (Lari menjauh dari lokasi kebakaran)"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "Huruf 'A' pada metode P.A.S.S berarti 'Aim', yaitu mengarahkan moncong atau selang tabung pemadam ke dasar/akar api di mana bahan bakar berada, bukan ke pucuk lidah api.",
+          "points": 50
+        }
+      }
+    ]
+  },
+  {
+    "id": "sop-inb-04",
+    "code": "SOP-INB-04",
+    "title": "Verifikasi Dokumen & Timbangan Truk Logistik",
+    "description": "Prosedur operasional kalibrasi timbangan jembatan, rekonsiliasi Surat Jalan, dan penanganan selisih tonase.",
+    "category": "Inbound & Timbangan",
+    "difficulty": "Intermediate",
+    "targetDivisions": ["TIM", "WRM", "ALL"],
+    "targetRoles": ["Admin", "Checker", "ALL"],
+    "estimatedMinutes": 3,
+    "pointsReward": 50,
+    "badgeIcon": "Scale",
+    "isMandatory": true,
+    "deadlineDays": 14,
+    "version": "v1.1",
+    "isActive": true,
+    "author": "Divisi Timbangan & Inbound PT DAM",
+    "createdAt": "2026-08-15T08:00:00Z",
+    "updatedAt": "2026-08-29T10:00:00Z",
+    "slides": [
+      {
+        "id": "slide-inb-1",
+        "slideNumber": 1,
+        "slideType": "step_instruction",
+        "title": "Prosedur Penimbangan Jembatan Timbang (Weighbridge)",
+        "subtitle": "Langkah standar penimbangan bruto, tara, dan netto armada truk",
+        "content": "Akurasi data tonase timbangan adalah acuan utama rekonsiliasi pembayaran dan inventori bahan baku.",
+        "audioNarrationText": "Langkah pertama penimbangan adalah memastikan indikator timbangan pada angka nol sebelum truk naik. Pastikan seluruh roda truk berada di atas platform timbangan dan supir wajib turun dari kabin.",
+        "steps": [
+          {
+            "stepNumber": 1,
+            "title": "Zero Balance Check",
+            "description": "Sebelum kendaraan naik, pastikan indikator digital pada display timbangan menunjukkan angka 0 kg tepat.",
+            "iconName": "CheckSquare",
+            "keyHighlight": "Display wajib 0 kg"
+          },
+          {
+            "stepNumber": 2,
+            "title": "Posisi Roda Truk Presisi",
+            "description": "Seluruh ban truk (depan hingga belakang) harus berada di dalam batas garis kuning platform jembatan timbang.",
+            "iconName": "Crosshair",
+            "keyHighlight": "Tidak boleh ada ban menginjak pinggiran aspal"
+          },
+          {
+            "stepNumber": 3,
+            "title": "Supir & Kernet Turun",
+            "description": "Pengemudi dan kernet wajib turun dari kabin saat penimbangan Bruto maupun Tara berlangsung.",
+            "iconName": "UserMinus",
+            "keyHighlight": "Kabin truk wajib kosong saat ditimbang"
+          }
+        ]
+      },
+      {
+        "id": "slide-inb-2",
+        "slideNumber": 2,
+        "slideType": "dos_and_donts",
+        "title": "Rekonsiliasi Fisik Surat Jalan vs Sistem",
+        "subtitle": "Kaidah pencocokan dokumen Delivery Order dan kondisi fisik barang",
+        "content": "Pencegahan discrepancy barang dimulai dari ketelitian admin timbangan dan checker inbound.",
+        "audioNarrationText": "Periksa kesesuaian dokumen pengiriman. Wajib cocokkan nomor polisi, nomor segel, dan nama vendor pada surat jalan. Jangan pernah menandatangani surat jalan sebelum barang selesai dibongkar dan dihitung fisiknya.",
+        "dosAndDonts": [
+          {
+            "doTitle": "Cek Nomor Polisi & Nomor Segel",
+            "doText": "Cocokkan nomor plat truk fisik dan nomor botol segel kontainer dengan yang tertera pada Surat Jalan resmi pengirim.",
+            "doTip": "Foto kondisi segel sebelum dipotong.",
+            "dontTitle": "Memotong Segel Tanpa Verifikasi",
+            "dontText": "Langsung memotong segel pengaman kontainer sebelum mencocokkan nomor serinya dengan dokumen legal pengiriman.",
+            "dontWarning": "Klaim asuransi barang hilang/rusak akan ditolak vendor."
+          },
+          {
+            "doTitle": "Buat Berita Acara Kerusakan (BAK)",
+            "doText": "Jika ditemukan barang pecah, basah, atau selisih tonase > 0.5%, buat dokumen BAK resmi yang ditandatangani supir vendor.",
+            "doTip": "Lampirkan bukti foto timbangan & foto fisik barang rusak.",
+            "dontTitle": "Menerima Barang Rusak Tanpa Catatan",
+            "dontText": "Menerima barang rusak secara lisan dan berjanji mengurus administrasinya di kemudian hari.",
+            "dontWarning": "Selisih kerugian inventori akan dibebankan ke tim gudang."
+          }
+        ]
+      },
+      {
+        "id": "slide-inb-3",
+        "slideNumber": 3,
+        "slideType": "quiz_checkpoint",
+        "title": "Kuis Evaluasi Prosedur Timbangan & Inbound",
+        "subtitle": "Jawab pertanyaan untuk memverifikasi pemahaman dan mengklaim reward +50 PTS",
+        "content": "Pilihlah jawaban yang benar terkait SOP jembatan timbang.",
+        "audioNarrationText": "Pertanyaan evaluasi: Mengapa pengemudi dan kernet wajib turun dari kabin truk saat proses penimbangan muatan?",
+        "quiz": {
+          "id": "q-inb-1",
+          "question": "Mengapa pengemudi dan kernet truk WAJIB turun dari kabin saat proses penimbangan Bruto dan Tara?",
+          "options": [
+            "Agar supir bisa beristirahat dan minum kopi",
+            "Untuk menjamin akurasi berat netto muatan murni tanpa tercampur berat badan manusia",
+            "Karena timbangan tidak kuat menahan berat manusia",
+            "Hanya formalitas aturan satpam gerbang"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "Kewajiban supir dan kernet turun dari kabin memastikan bahwa perhitungan berat Netto (Bruto - Tara) 100% mencerminkan berat riil muatan barang tanpa dipengaruhi oleh variasi berat personel di dalam kabin.",
+          "points": 50
+        }
+      }
+    ]
+  },
+  {
+    "id": "sop-5s-05",
+    "code": "SOP-5S-05",
+    "title": "Budaya 5S & Standar Staging Loading Dock",
+    "description": "Penerapan 5S (Ringkas, Rapi, Resik, Rawat, Rajin), kerapian area dock, penataan wheel chock, dan zona bebas halangan.",
+    "category": "5S & Continuous Improvement",
+    "difficulty": "Beginner",
+    "targetDivisions": ["ALL"],
+    "targetRoles": ["ALL"],
+    "estimatedMinutes": 3,
+    "pointsReward": 50,
+    "badgeIcon": "Sparkles",
+    "isMandatory": false,
+    "deadlineDays": 30,
+    "version": "v1.0",
+    "isActive": true,
+    "author": "Tim K3 & Continuous Improvement PT DAM",
+    "createdAt": "2026-08-20T08:00:00Z",
+    "updatedAt": "2026-08-30T10:00:00Z",
+    "slides": [
+      {
+        "id": "slide-5s-1",
+        "slideNumber": 1,
+        "slideType": "step_instruction",
+        "title": "Penerapan 5S di Area Operasional Gudang",
+        "subtitle": "Ringkas, Rapi, Resik, Rawat, dan Rajin sebagai pilar keselamatan kerja",
+        "content": "Lingkungan kerja yang bersih dan rapi secara langsung menurunkan angka kecelakaan kerja hingga 70%.",
+        "audioNarrationText": "Terapkan prinsip 5S setiap hari. Ringkas: Pisahkan barang tidak terpakai. Rapi: Tempatkan barang sesuai markanya. Resik: Bersihkan ceceran sampah dan oli. Rawat: Pertahankan standar kebersihan. Rajin: Jadikan kebiasaan disiplin diri.",
+        "steps": [
+          {
+            "stepNumber": 1,
+            "title": "1. Seiri (Ringkas)",
+            "description": "Singkirkan palet rusak, plastik wrapping bekas, dan barang sisa dari area lalu lintas forklift.",
+            "iconName": "Trash2",
+            "keyHighlight": "Hanya simpan yang dibutuhkan"
+          },
+          {
+            "stepNumber": 2,
+            "title": "2. Seiton (Rapi)",
+            "description": "Simpan peralatan (hand pallet, wheel chock, scanner barcode) tepat di dalam kotak/marka penyimpanan bertanda.",
+            "iconName": "Grid",
+            "keyHighlight": "Ada tempat untuk setiap barang"
+          },
+          {
+            "stepNumber": 3,
+            "title": "3. Seiso (Resik)",
+            "description": "Segera bersihkan tumpahan oli atau air di lantai dock dengan absorbant/majun sebelum dilewati armada.",
+            "iconName": "Sparkles",
+            "keyHighlight": "Pembersihan adalah inspeksi"
+          }
+        ]
+      },
+      {
+        "id": "slide-5s-2",
+        "slideNumber": 2,
+        "slideType": "dos_and_donts",
+        "title": "Keselamatan Area Loading Dock & Ban Truk",
+        "subtitle": "Kaidah pencegahan truk bergeser (truck creeping) saat bongkar muat",
+        "content": "Getaran forklift masuk-keluar kontainer dapat menggeser posisi truk jika ban tidak diganjal dengan benar.",
+        "audioNarrationText": "Pastikan ganjal roda atau wheel chock terpasang rapat di kedua ban belakang truk sebelum dock leveller diturunkan. Jangan biarkan sampah plastik wrapping berserakan di area dock.",
+        "dosAndDonts": [
+          {
+            "doTitle": "Pasang Wheel Chock (Ganjal Roda)",
+            "doText": "Wajib pasang ganjal roda karet/besi (wheel chock) pada ban belakang truk dan pastikan supir menarik rem tangan serta mematikan mesin.",
+            "doTip": "Pasang di kedua sisi ban kiri dan kanan.",
+            "dontTitle": "Bongkar Muat Tanpa Ganjal Ban",
+            "dontText": "Memasukkan forklift ke dalam bak truk yang hanya mengandalkan rem tangan tanpa dipasang wheel chock fisik.",
+            "dontWarning": "Truk dapat meluncur maju dan forklift jatuh ke celah dock."
+          },
+          {
+            "doTitle": "Bebaskan Akses Kotak APAR & Hydrant",
+            "doText": "Jaga jarak bebas minimal 1 meter di depan panel listrik, box APAR, dan pintu keluar darurat.",
+            "doTip": "Zona garis zebra merah-putih dilarang ditumpuki barang.",
+            "dontTitle": "Menimbun Barang di Depan APAR",
+            "dontText": "Menaruh tumpukan palet kosong atau kardus tepat menutupi kotak pemadam kebakaran APAR.",
+            "dontWarning": "Menghambat penanganan darurat saat terjadi kebakaran."
+          }
+        ]
+      },
+      {
+        "id": "slide-5s-3",
+        "slideNumber": 3,
+        "slideType": "quiz_checkpoint",
+        "title": "Kuis Evaluasi 5S & Loading Dock",
+        "subtitle": "Jawab pertanyaan untuk memverifikasi pemahaman dan mengklaim reward +50 PTS",
+        "content": "Pilihlah tindakan yang benar saat menemukan ceceran oli forklift di lantai gudang.",
+        "audioNarrationText": "Pertanyaan evaluasi: Kapan pembersihan ceceran oli forklift di lantai loading dock wajib dilakukan?",
+        "quiz": {
+          "id": "q-5s-1",
+          "question": "Kapan ceceran oli forklift yang tumpah di lantai gudang WAJIB dibersihkan?",
+          "options": [
+            "Nanti di akhir shift sore saat semua pekerjaan selesai",
+            "Seketika saat itu juga (segera) menggunakan serbuk absorbant/majun agar tidak menyebabkan forklift tergelincir",
+            "Menunggu instruksi tertulis dari manajer operasional",
+            "Cukup ditutupi kardus bekas saja tanpa dibersihkan"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "Ceceran cairan oli di lantai gudang harus segera dibersihkan seketika (immediate action) menggunakan serbuk gergaji/absorbant dan kain majun karena oli dapat menghilangkan daya cengkeram ban forklift dan menyebabkan kecelakaan tergelincir fatal.",
+          "points": 50
+        }
+      }
+    ]
+  },
+  {
+    "id": "sop-out-06",
+    "code": "SOP-OUT-06",
+    "title": "Prosedur Segel Kontainer & Anti-ODOL Ekspedisi",
+    "description": "Prosedur pemasangan segel botol kontainer, verifikasi manifest muatan, dan pencegahan over-dimension over-load.",
+    "category": "Outbound & Ekspedisi",
+    "difficulty": "Intermediate",
+    "targetDivisions": ["EXP", "WFG", "ALL"],
+    "targetRoles": ["Admin", "Checker", "ALL"],
+    "estimatedMinutes": 3,
+    "pointsReward": 50,
+    "badgeIcon": "ShieldCheck",
+    "isMandatory": true,
+    "deadlineDays": 14,
+    "version": "v1.0",
+    "isActive": true,
+    "author": "Divisi Outbound & Transport PT DAM",
+    "createdAt": "2026-08-22T08:00:00Z",
+    "updatedAt": "2026-08-30T10:00:00Z",
+    "slides": [
+      {
+        "id": "slide-out-1",
+        "slideNumber": 1,
+        "slideType": "step_instruction",
+        "title": "Pemasangan Segel Keamanan Kontainer (Bottle Seal)",
+        "subtitle": "Kaidah penguncian pintu kontainer sebelum surat jalan diserahkan ke driver",
+        "content": "Segel kontainer bernomor seri unik adalah bukti legal integritas kargo selama proses pengiriman di jalan raya.",
+        "audioNarrationText": "Lakukan pemasangan segel kontainer dengan benar. Tutup pintu kiri terlebih dahulu, lalu rapatkan pintu kanan. Masukkan tangkai segel botol dan tekan hingga terdengar bunyi klik penguncian. Foto nomor seri segel secara jelas.",
+        "steps": [
+          {
+            "stepNumber": 1,
+            "title": "Tutup & Rapatkan Pintu Kontainer",
+            "description": "Tutup daun pintu kiri kontainer, lalu tutup pintu kanan. Pastikan kedua tuas pengunci besi terpasang pada pengaitnya.",
+            "iconName": "Lock",
+            "keyHighlight": "Kedua tuas terkunci rapat"
+          },
+          {
+            "stepNumber": 2,
+            "title": "Pasang High-Security Bottle Seal",
+            "description": "Masukkan pin segel besi melalui lubang pegangan pintu kanan bawah dan tekan mangkuk segel hingga berbunyi 'KLIK' terkunci permanen.",
+            "iconName": "ShieldCheck",
+            "keyHighlight": "Tarik kuat untuk memastikan terkunci"
+          },
+          {
+            "stepNumber": 3,
+            "title": "Dokumentasikan Foto & Catat di Surat Jalan",
+            "description": "Ambil foto close-up nomor seri segel dengan kamera HP. Tuliskan nomor seri segel yang sama persis pada lembar Surat Jalan Outbound.",
+            "iconName": "Camera",
+            "keyHighlight": "Nomor segel wajib identik"
+          }
+        ]
+      },
+      {
+        "id": "slide-out-2",
+        "slideNumber": 2,
+        "slideType": "dos_and_donts",
+        "title": "Pencegahan Over-Dimension & Over-Load (ODOL)",
+        "subtitle": "Kaidah distribusi berat muatan antar gandar armada truk",
+        "content": "Kelebihan muatan (ODOL) membahayakan pengemudi di jalan raya dan melanggar regulasi perhubungan darat.",
+        "audioNarrationText": "Perhatikan aturan pencegahan ODOL. Distribusikan berat muatan secara merata di sepanjang bak truk. Jangan menumpuk barang terberat hanya di bagian paling belakang karena dapat membuat setir depan terangkat dan hilang kendali.",
+        "dosAndDonts": [
+          {
+            "doTitle": "Distribusi Beban Merata",
+            "doText": "Tempatkan palet dengan beban terberat di bagian tengah (di atas gardan roda) dan seimbangkan antara sisi kiri dan kanan.",
+            "doTip": "Gunakan tali ratchet tie-down untuk mengikat palet.",
+            "dontTitle": "Menumpuk Beban Berat di Ekor Truk",
+            "dontText": "Menempatkan barang terberat hanya di bagian paling belakang pintu kontainer.",
+            "dontWarning": "Truk akan terangkat dan ban depan kehilangan cengkeraman kemudi."
+          },
+          {
+            "doTitle": "Patuhi JBB / Kapasitas Tonase Truk",
+            "doText": "Pastikan total berat muatan tidak melebihi Jumlah Berat yang Diizinkan (JBB) sesuai buku KIR armada.",
+            "doTip": "Timbang tara dan bruto di jembatan timbang sebelum armada berangkat.",
+            "dontTitle": "Memaksakan Muatan Berlebih",
+            "dontText": "Mengisi barang hingga melebihi batas tinggi bak truk atau melebihi tonase KIR resmi.",
+            "dontWarning": "Risiko rem blong, as roda patah, dan tilang jembatan timbang dishub."
+          }
+        ]
+      },
+      {
+        "id": "slide-out-3",
+        "slideNumber": 3,
+        "slideType": "quiz_checkpoint",
+        "title": "Kuis Evaluasi Outbound & Segel Kontainer",
+        "subtitle": "Jawab pertanyaan untuk memverifikasi pemahaman dan mengklaim reward +50 PTS",
+        "content": "Pilihlah jawaban yang benar terkait nomor segel kontainer.",
+        "audioNarrationText": "Pertanyaan evaluasi: Mengapa nomor seri segel botol kontainer wajib dicatat sama persis pada dokumen Surat Jalan Outbound?",
+        "quiz": {
+          "id": "q-out-1",
+          "question": "Mengapa nomor seri segel kontainer WAJIB dicatat sama persis pada dokumen Surat Jalan Outbound sebelum truk berangkat?",
+          "options": [
+            "Hanya untuk formalitas pengarsipan admin",
+            "Sebagai bukti legal bahwa isi kontainer utuh dan tidak pernah dibuka selama perjalanan hingga tiba di gudang pelanggan",
+            "Supaya supir bisa membeli segel pengganti di toko kelontong",
+            "Agar tarif tol truk menjadi lebih murah"
+          ],
+          "correctAnswerIndex": 1,
+          "explanation": "Nomor seri segel unik yang tercatat di Surat Jalan adalah jaminan legal bahwa kontainer tidak pernah dibuka, dimanipulasi, atau dicuri selama perjalanan dari pabrik hingga diterima dan diverifikasi oleh pelanggan.",
+          "points": 50
+        }
+      }
+    ]
+  }
+]

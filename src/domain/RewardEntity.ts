@@ -1,4 +1,11 @@
-import type { RewardItem } from '../types/assessment';
+import type { RewardItem, TierType } from '../types/assessment';
+
+export const TIER_LEVEL_MAP: Record<TierType, number> = {
+  'Novice Operational': 1,
+  'Pro Specialist': 2,
+  'Elite Logistician': 3,
+  'Legendary Champion': 4,
+};
 
 export class RewardEntity implements RewardItem {
   public id: string;
@@ -10,6 +17,8 @@ export class RewardEntity implements RewardItem {
   public availableStock: number;
   public monthlyStockLimit: number;
   public badgeTag?: string;
+  public minTier?: TierType;
+  public maxClaimsPerMonth?: number;
 
   constructor(item: RewardItem) {
     this.id = item.id;
@@ -21,6 +30,8 @@ export class RewardEntity implements RewardItem {
     this.availableStock = item.availableStock;
     this.monthlyStockLimit = item.monthlyStockLimit ?? Math.max(item.availableStock, 25);
     this.badgeTag = item.badgeTag;
+    this.minTier = item.minTier || 'Novice Operational';
+    this.maxClaimsPerMonth = item.maxClaimsPerMonth ?? 1;
   }
 
   /**
@@ -44,7 +55,10 @@ export class RewardEntity implements RewardItem {
       iconName: data.iconName || 'ShoppingBag',
       description: data.description.trim(),
       availableStock: Number(data.availableStock),
+      monthlyStockLimit: data.monthlyStockLimit,
       badgeTag: data.badgeTag?.trim() || undefined,
+      minTier: data.minTier || 'Novice Operational',
+      maxClaimsPerMonth: data.maxClaimsPerMonth ? Number(data.maxClaimsPerMonth) : 1,
     });
   }
 
@@ -80,7 +94,10 @@ export class RewardEntity implements RewardItem {
       iconName: updates.iconName !== undefined ? updates.iconName : this.iconName,
       description: updates.description !== undefined ? updates.description : this.description,
       availableStock: updates.availableStock !== undefined ? updates.availableStock : this.availableStock,
+      monthlyStockLimit: updates.monthlyStockLimit !== undefined ? updates.monthlyStockLimit : this.monthlyStockLimit,
       badgeTag: updates.badgeTag !== undefined ? updates.badgeTag : this.badgeTag,
+      minTier: updates.minTier !== undefined ? updates.minTier : this.minTier,
+      maxClaimsPerMonth: updates.maxClaimsPerMonth !== undefined ? updates.maxClaimsPerMonth : this.maxClaimsPerMonth,
     };
 
     const validationError = RewardEntity.validate(mergedData);
@@ -94,14 +111,31 @@ export class RewardEntity implements RewardItem {
     this.iconName = mergedData.iconName;
     this.description = mergedData.description.trim();
     this.availableStock = Number(mergedData.availableStock);
+    this.monthlyStockLimit = mergedData.monthlyStockLimit ? Number(mergedData.monthlyStockLimit) : this.monthlyStockLimit;
     this.badgeTag = mergedData.badgeTag ? mergedData.badgeTag.trim() : undefined;
+    this.minTier = mergedData.minTier || 'Novice Operational';
+    this.maxClaimsPerMonth = mergedData.maxClaimsPerMonth ? Number(mergedData.maxClaimsPerMonth) : 1;
   }
 
   /**
-   * Cek apakah user memiliki poin yang cukup dan stok tersedia untuk penukaran
+   * Cek apakah user memiliki poin yang cukup, tier mencukupi, dan stok tersedia untuk penukaran
    */
-  public canBeRedeemedBy(userPoints: number): boolean {
-    return userPoints >= this.pointsRequired && this.availableStock > 0;
+  public canBeRedeemedBy(userPoints: number, userTier?: TierType): boolean {
+    const pointsOk = userPoints >= this.pointsRequired;
+    const stockOk = this.availableStock > 0;
+    const tierOk = this.isTierEligible(userTier);
+    return pointsOk && stockOk && tierOk;
+  }
+
+  /**
+   * Cek apakah tier pekerja memenuhi syarat minimum tier item
+   */
+  public isTierEligible(userTier?: TierType): boolean {
+    if (!this.minTier || this.minTier === 'Novice Operational') return true;
+    if (!userTier) return false;
+    const userLevel = TIER_LEVEL_MAP[userTier] || 1;
+    const minLevel = TIER_LEVEL_MAP[this.minTier] || 1;
+    return userLevel >= minLevel;
   }
 
   /**
@@ -123,6 +157,9 @@ export class RewardEntity implements RewardItem {
     const validCategories = ['E-Wallet', 'Pulsa & Data', 'Safety Gear', 'Voucher & Perk'];
     if (data.category && !validCategories.includes(data.category)) {
       return 'Kategori reward tidak valid.';
+    }
+    if (data.maxClaimsPerMonth !== undefined && Number(data.maxClaimsPerMonth) < 1) {
+      return 'Batas klaim per bulan minimal 1.';
     }
     return null;
   }
@@ -148,7 +185,10 @@ export class RewardEntity implements RewardItem {
       iconName: this.iconName,
       description: this.description,
       availableStock: this.availableStock,
+      monthlyStockLimit: this.monthlyStockLimit,
       badgeTag: this.badgeTag,
+      minTier: this.minTier,
+      maxClaimsPerMonth: this.maxClaimsPerMonth,
     };
   }
 }

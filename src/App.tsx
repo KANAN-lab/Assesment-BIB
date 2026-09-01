@@ -37,6 +37,7 @@ import {
   resetAllMonthlyRewardQuotas,
   deleteRewardCatalogItem,
   fetchRedemptionHistory,
+  fulfillRedemption,
   completeWorkerQuiz,
   completeWorkerChecklist,
   insertRedemption,
@@ -58,12 +59,13 @@ import {
   logLoginAttempt,
 } from './lib/supabaseService';
 import { supabase } from './lib/supabaseClient';
+import { AtomicTransactionManager } from './lib/atomicService';
 
 import { WorkerProfile, RewardItem, RewardHistory, AuditInput, LeaderboardEntry, ScoreHistoryEntry, TierType, Announcement, WorkerBadge, Badge, IncidentReport } from './types/assessment';
 import { RoleEntity } from './domain/RoleEntity';
 import { WorkerEntity } from './domain/WorkerEntity';
 
-import { Zap, ShieldCheck, Flame, Coins, Trophy, CheckCircle2, AlertCircle, Loader2, Camera, ShieldAlert } from 'lucide-react';
+import { Zap, ShieldCheck, Flame, Coins, Trophy, CheckCircle2, AlertCircle, Loader2, Camera, ShieldAlert, BookOpen } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [activeView, setActiveView] = useState<'worker' | 'supervisor' | 'admin'>('worker');
@@ -485,31 +487,16 @@ export const App: React.FC = () => {
     }
   };
 
-  // Redeem Reward
-  const handleRedeemReward = async (item: RewardItem, redemptionCode: string) => {
+  // Redeem Reward (Atomic ACID Transaction)
+  const handleRedeemReward = async (item: RewardItem, _fallbackCode: string) => {
     if (!currentWorker) return;
 
-    const oldPoints = currentWorker.totalPoints;
-    setCurrentWorker((prev) =>
-      prev ? { ...prev, totalPoints: prev.totalPoints - item.pointsRequired } : null
-    );
-
     try {
-      const historyEntry: RewardHistory = {
-        id: `red-${Date.now()}`,
-        itemTitle: item.title,
-        pointsSpent: item.pointsRequired,
-        redeemedAt: new Date().toLocaleDateString('id-ID', {
-          day: 'numeric',
-          month: 'short',
-          year: 'numeric',
-          hour: '2-digit',
-          minute: '2-digit',
-        }),
-        redemptionCode: redemptionCode,
-      };
+      const result = await AtomicTransactionManager.redeemRewardAtomically(currentWorker.id, item.id);
 
-      await insertRedemption(currentWorker.id, historyEntry, item.id);
+      setCurrentWorker((prev) =>
+        prev ? { ...prev, totalPoints: result.remainingPoints } : null
+      );
 
       const [updatedCatalog, updatedHistory] = await Promise.all([
         fetchRewardCatalog(),
@@ -517,9 +504,25 @@ export const App: React.FC = () => {
       ]);
       setRewardCatalog(updatedCatalog);
       setRedemptionHistory(updatedHistory);
-    } catch (err) {
-      setCurrentWorker((prev) => (prev ? { ...prev, totalPoints: oldPoints } : null));
-      setError('Gagal melakukan penukaran reward. Poin telah dikembalikan.');
+
+      return result;
+    } catch (err: any) {
+      const msg = err.message || 'Gagal melakukan penukaran reward.';
+      setError(msg);
+      throw err;
+    }
+  };
+
+  // Fulfill Redemption (Admin / Supervisor)
+  const handleFulfillRedemption = async (redemptionId: string) => {
+    if (!currentWorker) return;
+    try {
+      await fulfillRedemption(redemptionId, currentWorker.id);
+      const updatedHistory = await fetchRedemptionHistory(currentWorker.id);
+      setRedemptionHistory(updatedHistory);
+    } catch (err: any) {
+      setError(err.message || 'Gagal menandai penyerahan voucher.');
+      throw err;
     }
   };
 
@@ -818,6 +821,15 @@ export const App: React.FC = () => {
                   </button>
 
                   <button
+                    onClick={() => setShowSopModal(true)}
+                    className="px-4 py-2.5 rounded-xl font-bold text-xs bg-purple-950/70 hover:bg-purple-900/80 border border-purple-500/40 text-purple-300 transition flex items-center gap-2"
+                    title="Buka Pustaka SOP Micro-Deck & K3 Academy"
+                  >
+                    <BookOpen className="w-3.5 h-3.5 text-purple-400" />
+                    SOP Micro-Deck
+                  </button>
+
+                  <button
                     onClick={() => setShowIncidentModal(true)}
                     className="px-4 py-2.5 rounded-xl font-bold text-xs bg-orange-950/70 hover:bg-orange-900/80 border border-orange-500/40 text-orange-300 transition flex items-center gap-2"
                     title="Laporkan Insiden / Near-Miss K3 Logistik"
@@ -859,6 +871,7 @@ export const App: React.FC = () => {
             {/* Reward Marketplace */}
             <RewardMarketplace
               userPoints={currentWorker.totalPoints}
+              userTier={currentWorker.tier}
               catalog={rewardCatalog}
               onRedeemReward={handleRedeemReward}
               redemptionHistory={redemptionHistory}
@@ -868,6 +881,7 @@ export const App: React.FC = () => {
               onRestockReward={handleRestockReward}
               onDeleteReward={handleDeleteReward}
               onResetMonthlyQuota={handleResetMonthlyQuota}
+              onFulfillRedemption={handleFulfillRedemption}
             />
 
             {/* Badge Showcase */}
@@ -1000,8 +1014,19 @@ export const App: React.FC = () => {
         />
       )}
 
-      {showSopModal && (
-        <SopLibraryModal onClose={() => setShowSopModal(false)} />
+      {showSopModal && currentWorker && (
+        <SopLibraryModal
+          workerId={currentWorker.id}
+          workerName={currentWorker.name}
+          workerDivision={currentWorker.division}
+          workerRole={currentWorker.role}
+          onClose={() => setShowSopModal(false)}
+          onRewardEarned={(points, message) => {
+            if (currentWorker) {
+              loadDataForWorker(currentWorker.id);
+            }
+          }}
+        />
       )}
 
       {showOnboarding && currentWorker && (
