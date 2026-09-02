@@ -68,8 +68,28 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
   const startTimeRef = useRef<number>(Date.now());
   const synthRef = useRef<SpeechSynthesis | null>(null);
 
-  const totalSlides = module.slides.length;
-  const currentSlide: SopSlide = module.slides[currentSlideIndex] || module.slides[0];
+  const fallbackSlides: SopSlide[] = [
+    {
+      id: 'slide-fb-1',
+      slideNumber: 1,
+      slideType: 'step_instruction',
+      title: module.title || 'Modul Standar Operasional',
+      subtitle: module.description || 'Pelajari panduan keselamatan operasional',
+      content: module.description || 'Patuhi seluruh rambu dan standar keselamatan kerja K3 selama bertugas di area gudang.',
+      steps: [
+        {
+          stepNumber: 1,
+          title: 'Patuhi Prosedur K3',
+          description: 'Gunakan APD lengkap dan pastikan area kerja dalam kondisi aman sebelum memulai shift.',
+          keyHighlight: 'Safety First',
+        }
+      ]
+    }
+  ];
+
+  const effectiveSlides: SopSlide[] = (module.slides && module.slides.length > 0) ? module.slides : fallbackSlides;
+  const totalSlides = effectiveSlides.length;
+  const currentSlide: SopSlide = effectiveSlides[currentSlideIndex] || effectiveSlides[0] || fallbackSlides[0];
   const isLastSlide = currentSlideIndex === totalSlides - 1;
 
   // Initialize Speech Synthesis
@@ -310,7 +330,7 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
         <div>
           {/* Segmented Story Progress Bar */}
           <div className="flex items-center gap-1.5 mb-3">
-            {module.slides.map((slide, idx) => (
+            {effectiveSlides.map((slide, idx) => (
               <div
                 key={slide.id || idx}
                 onClick={() => isAlreadyCompleted && setCurrentSlideIndex(idx)}
@@ -376,7 +396,7 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
           {/* Slide Category & Number Badge */}
           <div className="flex items-center justify-between">
             <span className="text-[10px] uppercase tracking-wider font-bold text-zinc-400 bg-zinc-900 px-2.5 py-1 rounded-md border border-zinc-800">
-              Slide {currentSlideIndex + 1} dari {totalSlides} • {currentSlide.slideType.replace('_', ' ').toUpperCase()}
+              Slide {currentSlideIndex + 1} dari {totalSlides} • {currentSlide?.slideType ? currentSlide.slideType.replace('_', ' ').toUpperCase() : 'PANDUAN'}
             </span>
             <div className="flex items-center gap-1 text-[11px] text-amber-400 font-bold">
               <Award className="w-3.5 h-3.5" />

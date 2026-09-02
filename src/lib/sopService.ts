@@ -27,27 +27,43 @@ export async function fetchAllSopModules(
         .order('code', { ascending: true });
 
       if (!error && data && data.length > 0) {
-        const parsed: SopModule[] = data.map((row: any) => ({
-          id: row.id,
-          code: row.code,
-          title: row.title,
-          description: row.description || '',
-          category: row.category,
-          difficulty: row.difficulty || 'Beginner',
-          targetDivisions: Array.isArray(row.target_divisions) ? row.target_divisions : ['ALL'],
-          targetRoles: Array.isArray(row.target_roles) ? row.target_roles : ['ALL'],
-          estimatedMinutes: row.estimated_minutes || 3,
-          pointsReward: row.points_reward || 50,
-          badgeIcon: row.badge_icon || 'BookOpen',
-          slides: Array.isArray(row.slides_data) ? row.slides_data : [],
-          isMandatory: !!row.is_mandatory,
-          deadlineDays: row.deadline_days || 14,
-          version: row.version || 'v1.0',
-          isActive: row.is_active !== false,
-          author: row.author || 'HSE & Ops Management',
-          createdAt: row.created_at,
-          updatedAt: row.updated_at,
-        }));
+        const parsed: SopModule[] = data.map((row: any) => {
+          const defaultMod = (defaultSopData as any[]).find(
+            (d: any) => d.id === row.id || d.code === row.code
+          );
+          const slides =
+            Array.isArray(row.slides_data) && row.slides_data.length > 0
+              ? row.slides_data
+              : (defaultMod?.slides || []);
+
+          return {
+            id: row.id,
+            code: row.code,
+            title: row.title,
+            description: row.description || defaultMod?.description || '',
+            category: row.category,
+            difficulty: row.difficulty || defaultMod?.difficulty || 'Beginner',
+            targetDivisions:
+              Array.isArray(row.target_divisions) && row.target_divisions.length > 0
+                ? row.target_divisions
+                : (defaultMod?.targetDivisions || ['ALL']),
+            targetRoles:
+              Array.isArray(row.target_roles) && row.target_roles.length > 0
+                ? row.target_roles
+                : (defaultMod?.targetRoles || ['ALL']),
+            estimatedMinutes: row.estimated_minutes || defaultMod?.estimatedMinutes || 3,
+            pointsReward: row.points_reward || defaultMod?.pointsReward || 50,
+            badgeIcon: row.badge_icon || defaultMod?.badgeIcon || 'BookOpen',
+            slides,
+            isMandatory: row.is_mandatory !== undefined ? !!row.is_mandatory : !!defaultMod?.isMandatory,
+            deadlineDays: row.deadline_days || defaultMod?.deadlineDays || 14,
+            version: row.version || defaultMod?.version || 'v1.0',
+            isActive: row.is_active !== false,
+            author: row.author || defaultMod?.author || 'HSE & Ops Management',
+            createdAt: row.created_at,
+            updatedAt: row.updated_at,
+          };
+        });
 
         // Cache locally for offline availability
         OfflineSopService.cacheModules(parsed);
