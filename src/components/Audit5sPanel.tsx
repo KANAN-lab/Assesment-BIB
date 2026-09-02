@@ -231,7 +231,7 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
             className="px-4 py-2 bg-teal-600 hover:bg-teal-500 text-white font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-teal-950"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Catat Audit 5R Baru</span>
+            <span>Catat Audit 5R Baru</span>
           </button>
         </div>
       </div>
@@ -809,13 +809,13 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
                   className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-teal-500 font-semibold"
                 >
                   <option value="" disabled>-- Pilih Tipe Wilayah --</option>
-                  <option value="loading_dock">🚛 Loading & Unloading Dock</option>
-                  <option value="racking_aisle">📦 Lorong Racking Rak</option>
-                  <option value="charging_bay">⚡ Ruang Charging MHE</option>
-                  <option value="staging_area">🏗️ Area Staging / Buffer</option>
-                  <option value="weighbridge_pos">⚖️ Pos Timbangan</option>
-                  <option value="office_area">🏢 Ruang Administrasi</option>
-                  <option value="other">📍 Wilayah Lainnya</option>
+                  <option value="loading_dock">Loading & Unloading Dock</option>
+                  <option value="racking_aisle">Lorong Racking Rak</option>
+                  <option value="charging_bay">Ruang Charging MHE</option>
+                  <option value="staging_area">Area Staging / Buffer</option>
+                  <option value="weighbridge_pos">Pos Timbangan</option>
+                  <option value="office_area">Ruang Administrasi</option>
+                  <option value="other">Wilayah Lainnya</option>
                 </select>
               </div>
 

@@ -1365,9 +1365,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
               <div className="flex gap-3 flex-wrap">
                 <select value={newAnnPriority} onChange={(e) => setNewAnnPriority(e.target.value as Announcement['priority'])}
                   className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500">
-                  <option value="info">ℹ️ Info</option>
-                  <option value="normal">📢 Normal</option>
-                  <option value="urgent">🚨 Urgent</option>
+                  <option value="info">Info</option>
+                  <option value="normal">Normal</option>
+                  <option value="urgent">Urgent</option>
                 </select>
                 <input type="datetime-local" value={newAnnExpiry} onChange={(e) => setNewAnnExpiry(e.target.value)}
                   className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-amber-500"
@@ -1450,10 +1450,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                 className="bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-orange-500 font-semibold"
               >
                 <option value="all">Semua Keparahan</option>
-                <option value="critical">🔴 Kritis (Critical)</option>
-                <option value="high">🟠 Tinggi (High)</option>
-                <option value="medium">🟡 Sedang (Medium)</option>
-                <option value="low">🟢 Rendah (Low)</option>
+                <option value="critical">Kritis (Critical)</option>
+                <option value="high">Tinggi (High)</option>
+                <option value="medium">Sedang (Medium)</option>
+                <option value="low">Rendah (Low)</option>
               </select>
 
               <select

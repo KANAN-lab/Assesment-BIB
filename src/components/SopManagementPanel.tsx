@@ -664,7 +664,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition shadow-md shadow-purple-900/30"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Buat Modul SOP Baru</span>
+            <span>Buat Modul SOP Baru</span>
           </button>
         </div>
       </div>

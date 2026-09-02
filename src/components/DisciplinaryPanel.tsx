@@ -237,7 +237,7 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
             className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow-lg shadow-rose-950"
           >
             <Plus className="w-4 h-4" />
-            <span>+ Terbitkan Sanksi Baru</span>
+            <span>Terbitkan Sanksi Baru</span>
           </button>
         </div>
       </div>
@@ -586,14 +586,14 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-rose-500 font-semibold"
               >
                 <option value="" disabled>-- Pilih Kategori Pelanggaran K3 --</option>
-                <option value="ppe_violation">🥾 Pelanggaran APD Wajib (Helm/Sepatu/Rompi/Harness)</option>
-                <option value="mhe_reckless">🚜 Operasional MHE / Forklift Ceroboh & Laju Tinggi</option>
-                <option value="sop_breach">⚠️ Penyimpangan SOP & Bypass Prosedur Keselamatan</option>
-                <option value="unauthorized_area">⛔ Masuk Area Terlarang / Staging Tanpa Izin</option>
-                <option value="hazard_negligence">🛢️ Pembiaran Bahaya / Tumpahan Cairan & Racking Rusak</option>
-                <option value="cellphone_in_staging">📱 Penggunaan Gadget / HP saat Mengoperasikan Alat</option>
-                <option value="late_absent">⏰ Mangkir Safety Briefing Pre-Shift / Terlambat</option>
-                <option value="other">📋 Pelanggaran Operasional Lainnya</option>
+                <option value="ppe_violation">Pelanggaran APD Wajib (Helm/Sepatu/Rompi/Harness)</option>
+                <option value="mhe_reckless">Operasional MHE / Forklift Ceroboh & Laju Tinggi</option>
+                <option value="sop_breach">Penyimpangan SOP & Bypass Prosedur Keselamatan</option>
+                <option value="unauthorized_area">Masuk Area Terlarang / Staging Tanpa Izin</option>
+                <option value="hazard_negligence">Pembiaran Bahaya / Tumpahan Cairan & Racking Rusak</option>
+                <option value="cellphone_in_staging">Penggunaan Gadget / HP saat Mengoperasikan Alat</option>
+                <option value="late_absent">Mangkir Safety Briefing Pre-Shift / Terlambat</option>
+                <option value="other">Pelanggaran Operasional Lainnya</option>
               </select>
             </div>
 

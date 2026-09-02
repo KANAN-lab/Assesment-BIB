@@ -16,7 +16,8 @@ import {
   Trash2,
   ShieldAlert,
   HelpCircle,
-  Settings2
+  Settings2,
+  ClipboardList
 } from 'lucide-react';
 import { HandoverManager } from '../lib/handoverService';
 import { ShiftHandoverEntity, HandoverStatus, HandoverCategory } from '../types/handover';
@@ -269,7 +270,8 @@ export function HandoverKanbanBoard() {
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
-              📋 Papan Serah Terima Shift
+              <ClipboardList className="w-5 h-5 text-indigo-400 shrink-0" />
+              <span>Papan Serah Terima Shift</span>
             </h2>
             <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-indigo-500/30">
               Tim Lapangan
@@ -377,8 +379,11 @@ export function HandoverKanbanBoard() {
       </div>
 
       {/* Auto-archive explanation footer */}
-      <div className="pt-2 flex items-center justify-between text-[11px] text-zinc-500">
-        <span>💡 Tugas yang diselesaikan lebih dari 24 jam otomatis dirapikan ke arsip.</span>
+      <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-[11px] text-zinc-500">
+        <span className="flex items-center gap-1.5">
+          <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <span>Tugas yang diselesaikan lebih dari 24 jam otomatis dirapikan ke arsip.</span>
+        </span>
         <span>Drag & drop aktif di PC • Tombol aksi instan di Mobile</span>
       </div>
     </div>

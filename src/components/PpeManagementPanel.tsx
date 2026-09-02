@@ -397,7 +397,7 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
             className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
           >
             <Package className="w-3.5 h-3.5 text-amber-400" />
-            <span>+ Master APD</span>
+            <span>Master APD</span>
           </button>
           <button
             onClick={handleOpenDistributeModal}
