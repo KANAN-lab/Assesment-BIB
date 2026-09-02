@@ -53,11 +53,156 @@ export async function fetchAllSopModules(
     console.warn('[SopService] Fallback to local default SOP data:', err);
   }
 
-  // Fallback to local seed + custom local modules
+  // Fallback to local seed + interactive demo modules + custom local modules
   const localCustom = getLocalCustomModules();
-  const combined = [...(defaultSopData as SopModule[]), ...localCustom];
+  const combined = [...(defaultSopData as SopModule[]), ...BUILT_IN_ADVANCED_MODULES, ...localCustom];
   return filterSopByTarget(combined, workerDivision, workerRole);
 }
+
+export const BUILT_IN_ADVANCED_MODULES: SopModule[] = [
+  {
+    id: 'sop-sim-wms-01',
+    code: 'SOP-SIM-01',
+    title: 'Simulasi WMS: Alur Putaway Palet via Handheld Scanner',
+    description: 'Modul simulasi interaktif langkah-demi-langkah penggunaan aplikasi WMS Handheld Scanner untuk konfirmasi putaway palet ke rak gudang.',
+    category: 'Warehouse & Staging',
+    difficulty: 'Intermediate',
+    presentationFormat: 'interactive_simulator',
+    targetDivisions: ['ALL', 'WFG', 'WRM'],
+    targetRoles: ['ALL', 'Operator Forklift', 'Checker'],
+    estimatedMinutes: 3,
+    pointsReward: 75,
+    badgeIcon: 'Smartphone',
+    isMandatory: false,
+    version: 'v1.0',
+    isActive: true,
+    author: 'WMS Solution & Ops Lead',
+    createdAt: '2026-09-01T00:00:00.000Z',
+    updatedAt: '2026-09-01T00:00:00.000Z',
+    slides: [
+      {
+        id: 'sim-s1',
+        slideNumber: 1,
+        slideType: 'interactive_simulator',
+        title: 'Langkah 1: Masuk ke Menu Putaway Inbound',
+        subtitle: 'Buka menu penerimaan barang untuk memulai alur penempatan stok.',
+        audioNarrationText: 'Pada layar utama terminal WMS, ketuk ikon menu Putaway berwarna biru untuk membuka daftar tugas penempatan barang.',
+        imageUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80',
+        simulatorConfig: {
+          taskInstruction: 'Tekan tombol menu [PUTAWAY STORAGE] di layar scanner untuk melanjutkan',
+          targetXPercent: 20,
+          targetYPercent: 40,
+          targetWidthPercent: 60,
+          targetHeightPercent: 20,
+          hintText: 'Ketuk area tombol menu tengah [PUTAWAY STORAGE] berbingkai hijau menyala.',
+          highlightLabel: '👉 [PUTAWAY STORAGE]',
+          successMessage: 'Bagus! Menu Putaway Storage berhasil dibuka.',
+        },
+      },
+      {
+        id: 'sim-s2',
+        slideNumber: 2,
+        slideType: 'interactive_simulator',
+        title: 'Langkah 2: Verifikasi & Konfirmasi Barcode Lokasi Rak',
+        subtitle: 'Pastikan barcode rak penyimpanan sesuai dengan sistem sebelum menyimpan fisik palet.',
+        audioNarrationText: 'Arahkan pemindai laser ke barcode tiang rak dan tekan tombol konfirmasi lokasi F4.',
+        imageUrl: 'https://images.unsplash.com/photo-1553413077-190dd305871c?auto=format&fit=crop&w=1200&q=80',
+        simulatorConfig: {
+          taskInstruction: 'Klik tombol hijau [F4 - CONFIRM LOCATION] di bagian bawah layar untuk mengunci posisi palet',
+          targetXPercent: 25,
+          targetYPercent: 70,
+          targetWidthPercent: 50,
+          targetHeightPercent: 18,
+          hintText: 'Cari tombol aksi utama [CONFIRM LOCATION] di baris bawah layar scanner.',
+          highlightLabel: '⚡ [F4] CONFIRM',
+          successMessage: 'Tepat! Lokasi rak RAK-A-04-02 berhasil terverifikasi.',
+        },
+      },
+      {
+        id: 'sim-s3',
+        slideNumber: 3,
+        slideType: 'quiz_checkpoint',
+        title: 'Evaluasi: Integritas Data Sistem WMS',
+        subtitle: 'Uji pemahaman prosedur saat terjadi selisih barcode.',
+        audioNarrationText: 'Jawab pertanyaan kuis berikut untuk menyelesaikan modul simulasi dan mengklaim poin reward Anda.',
+        quiz: {
+          id: 'q-sim-01',
+          question: 'Apa yang wajib dilakukan jika fisik palet ditaruh di rak A-02 tetapi sistem WMS merekomendasikan rak A-05?',
+          options: [
+            'Taruh saja di A-02 tanpa mengubah apapun di sistem scanner',
+            'Scan barcode rak aktual A-02 lalu pilih opsi Overwrite/Relocate di WMS agar data stok tetap sinkron',
+            'Matikan scanner dan selesaikan secara manual nanti sore',
+            'Tinggalkan palet di lorong jalan gudang'
+          ],
+          correctAnswerIndex: 1,
+          explanation: 'Setiap perpindahan fisik palet wajib di-scan ke barcode rak aktual di WMS untuk mencegah selisih stok (discrepancy) saat audit inventory.',
+          points: 75,
+        },
+      }
+    ]
+  },
+  {
+    id: 'sop-spot-01',
+    code: 'SOP-SPOT-01',
+    title: 'Spot-the-Mistake: Hazard Hunt Area Staging Palet',
+    description: 'Tantangan visual kejelian menemukan potensi bahaya K3 dan anomali susunan palet di area gudang dalam batas waktu tertentu.',
+    category: 'K3 & Safety',
+    difficulty: 'Intermediate',
+    presentationFormat: 'spot_the_mistake',
+    targetDivisions: ['ALL'],
+    targetRoles: ['ALL'],
+    estimatedMinutes: 2,
+    pointsReward: 60,
+    badgeIcon: 'ShieldAlert',
+    isMandatory: false,
+    version: 'v1.0',
+    isActive: true,
+    author: 'HSE Committee Lead',
+    createdAt: '2026-09-01T00:00:00.000Z',
+    updatedAt: '2026-09-01T00:00:00.000Z',
+    slides: [
+      {
+        id: 'spot-s1',
+        slideNumber: 1,
+        slideType: 'spot_the_mistake',
+        title: 'Tantangan 1: Inspeksi Kerapihan & Kestabilan Tumpukan Palet',
+        subtitle: 'Perhatikan susunan palet pada foto berikut dan temukan anomali K3 yang membahayakan.',
+        audioNarrationText: 'Amati gambar dengan seksama. Ketuk titik anomali atau tumpukan berbahaya yang dapat memicu kecelakaan kerja.',
+        imageUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80',
+        spotMistakeConfig: {
+          challengePrompt: '⚠️ Temukan 1 tumpukan muatan palet yang melebihi batas aman (Overhang) pada gambar!',
+          targetXPercent: 55,
+          targetYPercent: 35,
+          toleranceRadiusPercent: 18,
+          hazardName: 'Overhanging Pallet Load (> 10cm)',
+          explanation: 'Muatan kardus melebihi bibir palet kayu dan miring tanpa pengikat wrapping plastik berisiko fatal jatuh menimpa personel di sekitarnya.',
+          timeLimitSeconds: 25,
+        },
+      },
+      {
+        id: 'spot-s2',
+        slideNumber: 2,
+        slideType: 'quiz_checkpoint',
+        title: 'Evaluasi: Batas Toleransi Tumpukan Gudang',
+        subtitle: 'Konfirmasi pemahaman kaidah K3 penataan barang.',
+        audioNarrationText: 'Selesaikan kuis evaluasi kepatuhan untuk mengklaim poin.',
+        quiz: {
+          id: 'q-spot-01',
+          question: 'Berapakah batas maksimum kemiringan tumpukan palet yang diizinkan sebelum wajib ditata ulang?',
+          options: [
+            'Boleh miring hingga 45 derajat',
+            'Maksimum kemiringan 2 derajat atau tidak terlihat kasat mata (tegak lurus sempurna)',
+            'Tergantung berat jenis barang',
+            'Tidak ada aturan baku selama tidak menyentuh tiang'
+          ],
+          correctAnswerIndex: 1,
+          explanation: 'Tumpukan palet wajib tegak lurus sempurna dengan toleransi maksimal kemiringan sangat minim (2 derajat) untuk menjamin titik gravitasi stabil.',
+          points: 60,
+        },
+      }
+    ]
+  }
+];
 
 /**
  * Filter modules by division and role

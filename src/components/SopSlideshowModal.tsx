@@ -21,6 +21,7 @@ import {
   Clock,
   RotateCcw,
   Check,
+  FileText,
 } from 'lucide-react';
 import { SopModule, SopSlide } from '../types/sop';
 
@@ -53,6 +54,16 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
   const [aiAnswer, setAiAnswer] = useState<string | null>(null);
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
+
+  // Interactive Simulator States
+  const [simSuccess, setSimSuccess] = useState(false);
+  const [simHint, setSimHint] = useState<string | null>(null);
+  const [simShake, setSimShake] = useState(false);
+
+  // Spot-the-Mistake States
+  const [spotFound, setSpotFound] = useState(false);
+  const [spotTimer, setSpotTimer] = useState(25);
+  const [spotRevealed, setSpotRevealed] = useState(false);
 
   const startTimeRef = useRef<number>(Date.now());
   const synthRef = useRef<SpeechSynthesis | null>(null);
@@ -98,9 +109,90 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
     setExpandedFaqIndex(null);
     setShowAiExplainer(false);
     setAiAnswer(null);
+    setSimSuccess(false);
+    setSimHint(null);
+    setSimShake(false);
+    setSpotFound(false);
+    setSpotRevealed(false);
+    setSpotTimer(currentSlide.spotMistakeConfig?.timeLimitSeconds || 25);
 
     return () => clearInterval(interval);
-  }, [currentSlideIndex, isAlreadyCompleted]);
+  }, [currentSlideIndex, isAlreadyCompleted, currentSlide]);
+
+  // Spot-the-mistake countdown timer
+  useEffect(() => {
+    if (currentSlide.slideType !== 'spot_the_mistake' || spotFound || spotRevealed) return;
+
+    const timer = setInterval(() => {
+      setSpotTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          setSpotRevealed(true); // Auto-reveal when time expires
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [currentSlide, spotFound, spotRevealed]);
+
+  // Handle Simulator Screen Click
+  const handleSimulatorScreenClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (simSuccess || !currentSlide.simulatorConfig) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = ((e.clientX - rect.left) / rect.width) * 100;
+    const clickY = ((e.clientY - rect.top) / rect.height) * 100;
+
+    const cfg = currentSlide.simulatorConfig;
+    const isHit =
+      clickX >= cfg.targetXPercent &&
+      clickX <= cfg.targetXPercent + cfg.targetWidthPercent &&
+      clickY >= cfg.targetYPercent &&
+      clickY <= cfg.targetYPercent + cfg.targetHeightPercent;
+
+    if (isHit) {
+      setSimSuccess(true);
+      setSimHint(null);
+      import('canvas-confetti').then(({ default: confetti }) => {
+        confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+      }).catch(() => {});
+
+      // Auto advance after brief celebration if not last slide
+      if (!isLastSlide) {
+        setTimeout(() => {
+          setCurrentSlideIndex((prev) => Math.min(totalSlides - 1, prev + 1));
+        }, 1200);
+      }
+    } else {
+      setSimShake(true);
+      setSimHint(cfg.hintText || 'Bukan di area ini! Perhatikan petunjuk tugas di atas.');
+      setTimeout(() => setSimShake(false), 600);
+    }
+  };
+
+  // Handle Spot-the-Mistake Click
+  const handleSpotMistakeClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (spotFound || !currentSlide.spotMistakeConfig) return;
+
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = ((e.clientX - rect.left) / rect.width) * 100;
+    const clickY = ((e.clientY - rect.top) / rect.height) * 100;
+
+    const cfg = currentSlide.spotMistakeConfig;
+    const distance = Math.sqrt(
+      Math.pow(clickX - cfg.targetXPercent, 2) + Math.pow(clickY - cfg.targetYPercent, 2)
+    );
+
+    if (distance <= (cfg.toleranceRadiusPercent || 15)) {
+      setSpotFound(true);
+      setSpotRevealed(true);
+      import('canvas-confetti').then(({ default: confetti }) => {
+        confetti({ particleCount: 60, spread: 70, origin: { y: 0.6 } });
+      }).catch(() => {});
+    }
+  };
 
   // Handle Text-to-Speech
   const toggleSpeech = useCallback(() => {
@@ -396,10 +488,41 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
             </div>
           )}
 
-          {/* ─── FORMAT 4: interactive_hotspot ─── */}
+          {/* ─── FORMAT 4: interactive_hotspot (Canvas Overlay + Cards) ─── */}
           {currentSlide.slideType === 'interactive_hotspot' && currentSlide.hotspots && (
             <div className="space-y-3">
               <p className="text-xs text-zinc-400">{currentSlide.content}</p>
+              
+              {/* Visual Pin Overlay on Image */}
+              {currentSlide.imageUrl && (
+                <div className="relative rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-950 max-h-72 flex items-center justify-center select-none shadow-xl">
+                  <img
+                    src={currentSlide.imageUrl}
+                    alt={currentSlide.title}
+                    className="w-full h-full object-cover max-h-72"
+                  />
+                  {currentSlide.hotspots.map((hs) => (
+                    <button
+                      key={hs.id}
+                      onClick={() => setActiveHotspotId(activeHotspotId === hs.id ? null : hs.id)}
+                      style={{ left: `${hs.xPercent}%`, top: `${hs.yPercent}%` }}
+                      className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 flex items-center justify-center p-1.5 rounded-full transition-all duration-300 shadow-lg cursor-pointer ${
+                        activeHotspotId === hs.id
+                          ? 'bg-purple-500 ring-4 ring-purple-400/50 scale-125'
+                          : hs.status === 'critical'
+                          ? 'bg-rose-500 hover:scale-110 animate-bounce'
+                          : hs.status === 'check'
+                          ? 'bg-amber-500 hover:scale-110 animate-pulse'
+                          : 'bg-emerald-500 hover:scale-110'
+                      }`}
+                      title={hs.label}
+                    >
+                      <span className="w-3 h-3 rounded-full bg-white shadow-inner block" />
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 {currentSlide.hotspots.map((hs) => (
                   <div
@@ -421,6 +544,194 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
                   </div>
                 ))}
               </div>
+            </div>
+          )}
+
+          {/* ─── FORMAT 6: interactive_simulator (WMS / App Guided Click) ─── */}
+          {currentSlide.slideType === 'interactive_simulator' && currentSlide.simulatorConfig && (
+            <div className={`space-y-3 ${simShake ? 'animate-[shake_0.4s_ease-in-out]' : ''}`}>
+              <style>{`
+                @keyframes shake {
+                  0%, 100% { transform: translateX(0); }
+                  20%, 60% { transform: translateX(-8px); }
+                  40%, 80% { transform: translateX(8px); }
+                }
+              `}</style>
+              
+              {/* Task Instruction Banner */}
+              <div className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${
+                simSuccess
+                  ? 'bg-emerald-950/40 border-emerald-500 text-emerald-300'
+                  : 'bg-indigo-950/30 border-indigo-500/40 text-indigo-200'
+              }`}>
+                <div className="flex items-center gap-2 text-xs font-bold">
+                  <span className="p-1 rounded bg-indigo-500/20 text-indigo-400 shrink-0">🎮 SIMULATOR</span>
+                  <span>{currentSlide.simulatorConfig.taskInstruction}</span>
+                </div>
+                {simSuccess ? (
+                  <span className="px-2.5 py-1 rounded-full bg-emerald-500 text-black text-[10px] font-black uppercase tracking-wider animate-bounce">
+                    ✓ Sukses
+                  </span>
+                ) : (
+                  <span className="text-[10px] text-zinc-400 hidden sm:inline">
+                    Klik tombol yang tepat di layar
+                  </span>
+                )}
+              </div>
+
+              {/* Interactive Screenshot Click Canvas */}
+              <div
+                onClick={handleSimulatorScreenClick}
+                className="relative rounded-2xl overflow-hidden border-2 border-zinc-800 bg-zinc-950 cursor-crosshair select-none shadow-2xl group max-h-96 flex items-center justify-center"
+              >
+                <img
+                  src={currentSlide.imageUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
+                  alt="WMS Simulation Screen"
+                  className="w-full h-full object-cover max-h-96 pointer-events-none"
+                />
+
+                {/* Target Hit Box (With Pulsing Guide) */}
+                <div
+                  style={{
+                    left: `${currentSlide.simulatorConfig.targetXPercent}%`,
+                    top: `${currentSlide.simulatorConfig.targetYPercent}%`,
+                    width: `${currentSlide.simulatorConfig.targetWidthPercent}%`,
+                    height: `${currentSlide.simulatorConfig.targetHeightPercent}%`,
+                  }}
+                  className={`absolute z-20 rounded-xl border-2 transition-all flex items-center justify-center p-1 pointer-events-none ${
+                    simSuccess
+                      ? 'border-emerald-400 bg-emerald-500/30 shadow-[0_0_25px_rgba(16,185,129,0.7)] scale-105'
+                      : 'border-emerald-400/80 bg-emerald-500/15 animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                  }`}
+                >
+                  <span className="text-[10px] font-black text-emerald-300 bg-black/80 px-2 py-0.5 rounded shadow">
+                    {simSuccess ? '✓ TEPAT!' : (currentSlide.simulatorConfig.highlightLabel || 'KLIK DI SINI')}
+                  </span>
+                </div>
+
+                {/* Success Overlay Banner */}
+                {simSuccess && (
+                  <div className="absolute inset-0 bg-emerald-950/40 backdrop-blur-[2px] z-30 flex flex-col items-center justify-center p-4 text-center animate-fade-in pointer-events-none">
+                    <div className="w-12 h-12 rounded-full bg-emerald-500 text-black flex items-center justify-center font-black text-xl mb-2 shadow-xl animate-bounce">
+                      ✓
+                    </div>
+                    <h4 className="text-sm font-black text-white mb-1">
+                      {currentSlide.simulatorConfig.successMessage || 'Langkah Berhasil Diselesaikan!'}
+                    </h4>
+                    <p className="text-xs text-emerald-300">Beralih ke langkah berikutnya...</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Error / Hint Feedback Toast */}
+              {simHint && !simSuccess && (
+                <div className="p-3 bg-rose-950/50 border border-rose-500/40 rounded-xl text-xs text-rose-300 flex items-center gap-2 animate-fade-in">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>{simHint}</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ─── FORMAT 7: spot_the_mistake (Hazard Hunt / Anomaly Game) ─── */}
+          {currentSlide.slideType === 'spot_the_mistake' && currentSlide.spotMistakeConfig && (
+            <div className="space-y-3">
+              {/* Challenge Header & Timer */}
+              <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-950/20 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-xs font-bold text-amber-200">
+                  <span className="p-1 rounded bg-amber-500/20 text-amber-400 shrink-0">🔍 HAZARD HUNT</span>
+                  <span>{currentSlide.spotMistakeConfig.challengePrompt}</span>
+                </div>
+                <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-zinc-900 border border-zinc-700 text-xs font-mono font-black text-white shrink-0">
+                  <Clock className={`w-3.5 h-3.5 ${spotTimer <= 5 ? 'text-rose-500 animate-spin' : 'text-amber-400'}`} />
+                  <span className={spotTimer <= 5 ? 'text-rose-400 font-black' : ''}>{spotTimer}s</span>
+                </div>
+              </div>
+
+              {/* Photo Anomaly Click Area */}
+              <div
+                onClick={handleSpotMistakeClick}
+                className="relative rounded-2xl overflow-hidden border-2 border-zinc-800 bg-zinc-950 cursor-crosshair select-none shadow-2xl max-h-96 flex items-center justify-center group"
+              >
+                <img
+                  src={currentSlide.imageUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
+                  alt="Spot the mistake field photo"
+                  className="w-full h-full object-cover max-h-96 pointer-events-none"
+                />
+
+                {/* Revealed Hazard Highlight */}
+                {spotRevealed && (
+                  <div
+                    style={{
+                      left: `${currentSlide.spotMistakeConfig.targetXPercent}%`,
+                      top: `${currentSlide.spotMistakeConfig.targetYPercent}%`,
+                    }}
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none animate-fade-in"
+                  >
+                    <div className="w-20 h-20 rounded-full border-4 border-rose-500 bg-rose-500/30 animate-pulse shadow-[0_0_30px_rgba(244,63,94,0.8)] flex items-center justify-center">
+                      <span className="text-xl">⚠️</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Result Explanation Card */}
+              {spotRevealed ? (
+                <div className={`p-4 rounded-xl border space-y-2 animate-fade-in text-xs ${
+                  spotFound
+                    ? 'bg-emerald-950/30 border-emerald-500/40 text-emerald-200'
+                    : 'bg-rose-950/30 border-rose-500/40 text-rose-200'
+                }`}>
+                  <div className="flex items-center gap-2 font-bold">
+                    {spotFound ? <CheckCircle2 className="w-4 h-4 text-emerald-400" /> : <AlertTriangle className="w-4 h-4 text-rose-400" />}
+                    <span>{spotFound ? 'Kejelian Luar Biasa! Titik Anomali Ditemukan' : 'Waktu Habis! Ini Titik Bahayanya:'}</span>
+                  </div>
+                  <h5 className="font-bold text-white text-xs">
+                    ⚠️ {currentSlide.spotMistakeConfig.hazardName}
+                  </h5>
+                  <p className="text-[11px] text-zinc-300 leading-relaxed">
+                    {currentSlide.spotMistakeConfig.explanation}
+                  </p>
+                </div>
+              ) : (
+                <p className="text-[11px] text-zinc-400 text-center italic">
+                  💡 Ketuk langsung titik bahaya / kesalahan pada foto di atas sebelum waktu habis.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* ─── FORMAT 8: document_reader (PDF / Presentation Smart Viewer) ─── */}
+          {currentSlide.slideType === 'document_reader' && (
+            <div className="space-y-3 bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+              <div className="flex items-center justify-between text-xs pb-2 border-b border-zinc-800">
+                <span className="font-bold text-white flex items-center gap-1.5">
+                  <FileText className="w-4 h-4 text-blue-400" />
+                  {currentSlide.documentConfig?.fileName || 'Dokumen SOP Resmi'}
+                </span>
+                {currentSlide.documentConfig?.currentPage && (
+                  <span className="text-zinc-400 text-[10px]">
+                    Hal {currentSlide.documentConfig.currentPage} / {currentSlide.documentConfig.totalPdfPages || 1}
+                  </span>
+                )}
+              </div>
+
+              {currentSlide.imageUrl && (
+                <div className="rounded-xl overflow-hidden border border-zinc-800 bg-zinc-950">
+                  <img
+                    src={currentSlide.imageUrl}
+                    alt="Document page"
+                    className="w-full object-contain max-h-80 mx-auto"
+                  />
+                </div>
+              )}
+
+              {currentSlide.content && (
+                <div className="p-3 bg-zinc-950 rounded-lg text-xs text-zinc-300 leading-relaxed border border-zinc-800">
+                  <strong className="text-white block mb-1">Poin Kunci Dokumen:</strong>
+                  {currentSlide.content}
+                </div>
+              )}
             </div>
           )}
 
