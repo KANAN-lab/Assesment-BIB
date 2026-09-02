@@ -37,18 +37,20 @@ import {
   VIOLATION_META,
   CATEGORY_META,
 } from '../lib/disciplinaryService';
+import { fetchAllSopModules, fetchWorkerSopProgress } from '../lib/sopService';
 import { KaizenSuggestionEntity, KaizenCategory, KaizenStatus } from '../types/kaizen';
 import { IncidentReport, RewardHistory } from '../types/assessment';
 import { ShiftHandoverEntity } from '../types/handover';
 import { KudoEntity } from '../types/kudos';
 import { DisciplinaryActionEntity, SanctionStatus } from '../types/disciplinary';
+import { SopModule, WorkerSopProgress } from '../types/sop';
 
 interface WorkerHistoryCenterModalProps {
   isOpen: boolean;
   onClose: () => void;
   workerId: string;
   workerName: string;
-  initialTab?: 'kaizen' | 'incidents' | 'disciplinary' | 'handovers' | 'kudos' | 'rewards';
+  initialTab?: 'kaizen' | 'incidents' | 'disciplinary' | 'handovers' | 'kudos' | 'rewards' | 'sop';
 }
 
 const INCIDENT_STATUS_META: Record<string, { label: string; cls: string }> = {
@@ -72,7 +74,7 @@ export function WorkerHistoryCenterModal({
   workerName,
   initialTab = 'kaizen'
 }: WorkerHistoryCenterModalProps) {
-  const [activeTab, setActiveTab] = useState<'kaizen' | 'incidents' | 'disciplinary' | 'handovers' | 'kudos' | 'rewards'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'kaizen' | 'incidents' | 'disciplinary' | 'handovers' | 'kudos' | 'rewards' | 'sop'>(initialTab);
   const [loading, setLoading] = useState(false);
 
   // Data states
@@ -82,6 +84,7 @@ export function WorkerHistoryCenterModal({
   const [handovers, setHandovers] = useState<ShiftHandoverEntity[]>([]);
   const [kudos, setKudos] = useState<KudoEntity[]>([]);
   const [rewards, setRewards] = useState<RewardHistory[]>([]);
+  const [completedSops, setCompletedSops] = useState<{ sop: SopModule; progress: WorkerSopProgress }[]>([]);
 
   const loadTabData = async () => {
     setLoading(true);
@@ -89,6 +92,15 @@ export function WorkerHistoryCenterModal({
       if (activeTab === 'kaizen') {
         const data = await KaizenService.getSuggestionsByWorker(workerId);
         setKaizens(data);
+      } else if (activeTab === 'sop') {
+        const [allMods, progMap] = await Promise.all([
+          fetchAllSopModules(),
+          fetchWorkerSopProgress(workerId),
+        ]);
+        const completed = allMods
+          .filter((m) => progMap[m.id]?.isCompleted)
+          .map((m) => ({ sop: m, progress: progMap[m.id] }));
+        setCompletedSops(completed);
       } else if (activeTab === 'incidents') {
         const data = await fetchIncidentReports(workerId);
         setIncidents(data);
@@ -122,6 +134,7 @@ export function WorkerHistoryCenterModal({
 
   const tabs = [
     { key: 'kaizen', label: 'Ide Kaizen', icon: Lightbulb, count: kaizens.length },
+    { key: 'sop', label: 'SOP & K3 Academy', icon: BookOpen, count: completedSops.length },
     { key: 'incidents', label: 'Insiden K3', icon: ShieldAlert, count: incidents.length },
     { key: 'disciplinary', label: 'Catatan SP & Sanksi', icon: AlertOctagon, count: disciplinaryActions.length },
     { key: 'handovers', label: 'Serah Terima', icon: ArrowRightLeft, count: handovers.length },
@@ -262,7 +275,139 @@ export function WorkerHistoryCenterModal({
                 </div>
               )}
 
-              {/* TAB 2: INCIDENTS */}
+              {/* TAB: SOP & K3 ACADEMY */}
+              {activeTab === 'sop' && (
+                <div className="space-y-4">
+                  {/* Summary Metric Header */}
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                    <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3">
+                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">Modul Selesai</span>
+                      <div className="text-lg font-black text-emerald-400 mt-0.5 flex items-center gap-1.5">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        <span>{completedSops.length} Decks</span>
+                      </div>
+                      <span className="text-[10px] text-zinc-400">Terakreditasi K3</span>
+                    </div>
+
+                    <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3">
+                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">Total Poin Diraih</span>
+                      <div className="text-lg font-black text-amber-300 mt-0.5 flex items-center gap-1">
+                        <Award className="w-4 h-4 text-amber-400" />
+                        <span>+{completedSops.reduce((acc, c) => acc + (c.sop.pointsReward || 50), 0)} PTS</span>
+                      </div>
+                      <span className="text-[10px] text-amber-400/80">Klaim Terverifikasi</span>
+                    </div>
+
+                    <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3">
+                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">Benchmark Boost</span>
+                      <div className="text-lg font-black text-purple-300 mt-0.5 flex items-center gap-1">
+                        <Sparkles className="w-4 h-4 text-purple-400" />
+                        <span>+{(completedSops.length * 2.5).toFixed(1)} BIB</span>
+                      </div>
+                      <span className="text-[10px] text-purple-400/80">Pilar Kompetensi</span>
+                    </div>
+
+                    <div className="bg-zinc-900/90 border border-zinc-800 rounded-2xl p-3">
+                      <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-wider block">Rata-Rata Kuis</span>
+                      <div className="text-lg font-black text-cyan-300 mt-0.5 flex items-center gap-1">
+                        <CheckSquare className="w-4 h-4 text-cyan-400" />
+                        <span>
+                          {completedSops.length > 0
+                            ? Math.round(
+                                completedSops.reduce((acc, c) => acc + (c.progress.quizScore || 100), 0) /
+                                  completedSops.length
+                              )
+                            : 0}%
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-cyan-400/80">Evaluasi Pemahaman</span>
+                    </div>
+                  </div>
+
+                  {completedSops.length === 0 ? (
+                    <div className="py-16 text-center text-zinc-500 space-y-2.5 bg-zinc-900/40 rounded-2xl border border-zinc-800/80">
+                      <BookOpen className="w-10 h-10 mx-auto text-zinc-700 opacity-60" />
+                      <p className="text-sm font-bold text-zinc-400">Belum Ada Modul SOP yang Diselesaikan</p>
+                      <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+                        Buka menu <strong className="text-zinc-300">Pustaka SOP</strong> di dashboard untuk mempelajari standar keselamatan kerja operasional dan klaim reward <strong>+50 PTS</strong> per modul!
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {completedSops.map(({ sop, progress }) => (
+                        <div
+                          key={sop.id}
+                          className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-4 space-y-3 hover:border-zinc-700 transition"
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-mono text-[10px] font-bold text-zinc-400 bg-zinc-800/80 px-2 py-0.5 rounded border border-zinc-700">
+                                  {sop.code}
+                                </span>
+                                <span className="text-[10px] font-bold text-purple-300 bg-purple-950/60 px-2 py-0.5 rounded border border-purple-800/60">
+                                  {sop.category}
+                                </span>
+                                {sop.isMandatory && (
+                                  <span className="text-[10px] font-black text-amber-300 bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800/80 uppercase">
+                                    Wajib K3
+                                  </span>
+                                )}
+                                <span className="text-[10px] font-black text-emerald-300 bg-emerald-950/80 px-2 py-0.5 rounded border border-emerald-800/80 flex items-center gap-1">
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                                  Tuntas
+                                </span>
+                              </div>
+                              <h4 className="font-bold text-sm text-white">{sop.title}</h4>
+                            </div>
+
+                            <div className="flex items-center gap-2 sm:text-right">
+                              <div className="text-right">
+                                <span className="text-xs font-black text-amber-400 flex items-center gap-1 sm:justify-end">
+                                  <Award className="w-3.5 h-3.5 text-amber-400" />
+                                  +{sop.pointsReward || 50} PTS
+                                </span>
+                                <span className="text-[10px] text-zinc-500 block">
+                                  {progress.completedAt
+                                    ? new Date(progress.completedAt).toLocaleDateString('id-ID', {
+                                        day: 'numeric',
+                                        month: 'short',
+                                        year: 'numeric',
+                                        hour: '2-digit',
+                                        minute: '2-digit',
+                                      })
+                                    : 'Terverifikasi'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <p className="text-xs text-zinc-400 line-clamp-2 leading-relaxed">
+                            {sop.description}
+                          </p>
+
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-zinc-800/80 text-[11px] text-zinc-400">
+                            <div className="flex items-center gap-1.5">
+                              <Clock className="w-3.5 h-3.5 text-zinc-500 shrink-0" />
+                              <span>Waktu: {Math.max(1, Math.round(progress.timeSpentSeconds / 60))} menit</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <CheckSquare className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                              <span>Kuis: {progress.quizScore || 100}/100</span>
+                            </div>
+                            <div className="flex items-center gap-1.5">
+                              <BookOpen className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                              <span>Materi: {sop.slides?.length || 1} Slide</span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 3: INCIDENTS */}
               {activeTab === 'incidents' && (
                 <div className="space-y-3">
                   {incidents.length === 0 ? (
