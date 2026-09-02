@@ -8,6 +8,7 @@ import {
   Search, Flame, ShieldCheck, Award, ChevronRight,
   BarChart3, CheckCircle, AlertTriangle, Download,
   ShieldAlert, Clock, CheckCircle2, History, Loader2, AlertCircle,
+  Lightbulb, Sparkles
 } from 'lucide-react';
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, Tooltip as RechartsTooltip
@@ -18,6 +19,8 @@ import { ExecutivePDFReportGenerator } from '../lib/pdfReportService';
 import { CompetencyGapAnalysisModal } from './CompetencyGapAnalysisModal';
 import { SupervisorIncidentKanban } from './SupervisorIncidentKanban';
 import { SupervisorIncidentValidationModal } from './SupervisorIncidentValidationModal';
+import { KaizenKanbanBoard } from './KaizenKanbanBoard';
+import { KaizenService } from '../lib/kaizenService';
 import { SystemConfigService } from '../domain/SystemConfigService';
 import {
   fetchIncidentReports, updateIncidentCapaAndStatus,
@@ -26,12 +29,14 @@ import {
 
 interface SupervisorConsoleProps {
   workers: WorkerProfile[];
+  currentSupervisorId?: string;
   onUpdateWorkerScore: (auditData: { workerId: string; behaviorScore: number; integrityScore: number; benchmarkScore: number; notes: string; }) => void;
   onOpenMatrixAudit?: (worker: WorkerProfile) => void;
 }
 
 export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
   workers,
+  currentSupervisorId,
   onOpenMatrixAudit,
 }) => {
   // Hanya hitung staf operasional (keluarkan System Administrator & Supervisor)
@@ -39,10 +44,11 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
     return workers.filter((w) => RoleEntity.isOperationalWorker(w.role) && w.division.toUpperCase() !== 'SYSTEM');
   }, [workers]);
 
-  const [activeTab, setActiveTab] = useState<'team' | 'incidents' | 'audit-history'>('team');
+  const [activeTab, setActiveTab] = useState<'team' | 'incidents' | 'kaizen' | 'audit-history'>('team');
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>(operationalWorkers[0]?.id || '');
   const [search, setSearch] = useState('');
   const [isGapModalOpen, setIsGapModalOpen] = useState(false);
+  const [pendingKaizenCount, setPendingKaizenCount] = useState(0);
 
   // Incidents tab state
   const [incidents, setIncidents] = useState<IncidentReport[]>([]);
@@ -66,6 +72,14 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
       .then(setIncidents)
       .catch(() => {})
       .finally(() => setIncidentsLoading(false));
+
+    // Load pending Kaizen count for supervisor badge
+    KaizenService.getAllSuggestions()
+      .then(data => {
+        const pending = data.filter(k => k.status === 'Submitted' || k.status === 'Under Review').length;
+        setPendingKaizenCount(pending);
+      })
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -216,11 +230,12 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
     <div className="space-y-5 animate-fade-in">
 
       {/* ─ Tab Navigation ─ */}
-      <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1 w-fit">
+      <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1 w-fit flex-wrap">
         {[
-          { key: 'team',          label: 'Tim & Audit',     Icon: UserCheck,   count: 0, alert: false },
-          { key: 'incidents',     label: 'Kelola Insiden',  Icon: ShieldAlert, count: openIncidentsCount, alert: openIncidentsCount > 0 },
-          { key: 'audit-history', label: 'Riwayat Audit',   Icon: History,     count: 0, alert: false },
+          { key: 'team',          label: 'Tim & Audit',       Icon: UserCheck,   count: 0, alert: false },
+          { key: 'incidents',     label: 'Kelola Insiden',    Icon: ShieldAlert, count: openIncidentsCount, alert: openIncidentsCount > 0 },
+          { key: 'kaizen',        label: 'Approval Kaizen',   Icon: Lightbulb,   count: pendingKaizenCount, alert: pendingKaizenCount > 0 },
+          { key: 'audit-history', label: 'Riwayat Audit',     Icon: History,     count: 0, alert: false },
         ].map(({ key, label, Icon, count, alert }) => (
           <button
             key={key}
@@ -271,6 +286,29 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
               .finally(() => setIncidentsLoading(false));
           }}
         />
+      )}
+
+      {/* ─ KAIZEN APPROVAL & KANBAN TAB ─ */}
+      {activeTab === 'kaizen' && (
+        <div className="space-y-4 animate-in fade-in duration-300">
+          <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-black text-white flex items-center gap-2">
+                <Lightbulb className="w-4 h-4 text-amber-400" />
+                Pusat Approval & Peninjauan Ide Kaizen
+              </h3>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Tinjau usulan inovasi staf lapangan, validasi tindakan perbaikan, dan berikan reward poin prestasi langsung.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400 text-xs font-bold">
+                {pendingKaizenCount} Usulan Menunggu Review
+              </span>
+            </div>
+          </div>
+          <KaizenKanbanBoard currentUserId={currentSupervisorId} isAdmin={true} />
+        </div>
       )}
 
       {/* ─ AUDIT HISTORY TAB ─ */}
@@ -505,7 +543,7 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
               <div className="bg-zinc-950 p-2.5 rounded-xl border border-zinc-800/80">
                 <div className="text-[10px] text-zinc-500 font-bold mb-0.5">Personel Ter-audit</div>
                 <div className="text-xs font-black text-white">
-                  {operationalWorkers.filter(w => w.bibScores.totalScore > 0).length} <span className="text-[10px] font-normal text-zinc-500">/ {operationalWorkers.length} Staf</span>
+                  {operationalWorkers.filter(w => w.bibScores.totalScore > 0).length} <span className="text-[10px] font-normal text-zinc-500">/ {operationalWorkers.length} Operational</span>
                 </div>
               </div>
 
@@ -562,7 +600,7 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
                 <div>
                   <h3 className="text-sm font-bold text-white flex items-center gap-2">
                     <BarChart3 className="w-4 h-4 text-emerald-400" />
-                    Matrix Kompetensi Staf Operasional
+                    Matrix Kompetensi Operational Employee
                   </h3>
                   <p className="text-[11px] text-zinc-400 mt-0.5">
                     Role dideteksi: <span className="font-mono font-bold text-emerald-400">{roleKey}</span> · {activeCategories.length} Kategori Kompetensi Aktif

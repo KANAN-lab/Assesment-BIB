@@ -189,3 +189,26 @@ Gunakan **Lucide React** (`lucide-react`) exclusively. Tidak ada emoji sebagai i
 - ❌ `hover:scale-[1.02]` pada card/list-item — HANYA primary CTA jika benar-benar dibutuhkan
 - ❌ Animasi Flame `animate-pulse` tanpa fungsi
 - ❌ 3-card identical hero section (slop signature)
+
+---
+
+## 9. Mobile-Oriented Design Rules
+
+Aplikasi ini banyak digunakan di lapangan (oleh Worker/Supervisor) via mobile phone.
+
+- **Touch Targets**: Minimum ukuran tombol/area klik adalah `44px x 44px` (`min-h-[44px] min-w-[44px]`). Gunakan padding yang cukup (misal `py-3` pada tombol mobile).
+- **Bottom Navigation / Fixed Bottom Actions**: Untuk aksi utama di mobile (seperti "Submit" atau "Scan QR"), letakkan tombol secara fixed di bawah (`fixed bottom-0 w-full`) agar mudah dijangkau jempol.
+- **Scrollable Areas**: Gunakan `overflow-x-auto` dengan `snap-x` untuk daftar *badges*, *cards*, atau *tabs* yang banyak, hindari horizontal scroll bar yang terlihat (`scrollbar-hide`).
+- **Modals/Drawers di Mobile**: 
+  - Di layar kecil (`< sm`), modal sebaiknya berperilaku seperti *Bottom Sheet* / *Drawer* (muncul dari bawah, `rounded-t-2xl`, full width). 
+  - Di layar besar, modal tetap di tengah layar (centered).
+- **Responsive Typography**: Kurangi ukuran font heading di mobile (contoh: `text-xl` di mobile, `sm:text-2xl` di desktop) agar teks tidak terpotong.
+- **Input Fields**: Pastikan `<input>` memiliki `text-[16px]` minimal pada layar mobile (iOS Safari akan auto-zoom jika font-size input kurang dari 16px).
+- **Action Grid Symmetry (2-Column Mobile Balance)**:
+  - Menu aksi cepat di beranda worker harus dijaga simetris dalam format **2 kolom** (`grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:flex`).
+  - Pertahankan jumlah tombol genap (maksimal 8 tombol utama) agar tidak ada tombol 'ganjil' yang sendirian di baris bawah.
+  - Seluruh tombol aksi wajib memiliki `min-h-[44px]` dan label teks dengan `truncate` agar rapi dan seragam.
+- **Unified Personal Records & History Hub Pattern (Pusat Riwayat Terpadu)**:
+  - Hindari membuat tombol riwayat terpisah-pisah untuk setiap modul (contoh: "Riwayat Insiden", "Ide Saya", "Riwayat Handover", "Riwayat Kudo").
+  - Gabungkan seluruh riwayat dan arsip aktivitas personal pekerja ke dalam **SATU Modal Terpusat ber-Tab** (`WorkerHistoryCenterModal` / "Pusat Riwayat & Arsip").
+

@@ -158,10 +158,53 @@
 
 ## Open Issues (Perlu Verifikasi Runtime)
 
-- [ ] Verifikasi OTP email benar-benar terkirim (perlu test di environment nyata)
-- [ ] Verifikasi `findWorkerByIdentifier` tidak menghasilkan false positive email lagi
-- [ ] Verifikasi Approval Console menampilkan antrean setelah signup supervisor baru
-- [ ] Verifikasi supervisor tidak bisa login sebelum di-approve
+- [x] Verifikasi OTP email benar-benar terkirim (perlu test di environment nyata)
+- [x] Verifikasi `findWorkerByIdentifier` tidak menghasilkan false positive email lagi
+- [x] Verifikasi Approval Console menampilkan antrean setelah signup supervisor baru
+- [x] Verifikasi supervisor tidak bisa login sebelum di-approve
 
+---
+
+## Phase 9: Peer-to-Peer Recognition (Sistem "Kudos")
+
+- [x] **Data Layer & Types (`src/types/kudos.ts`)**: Definisikan tipe model `KudoEntity`, `KudoCategory` (Kerja Keras, Inisiatif, Teamwork, Safety First).
+- [x] **Database SQL Setup (`supabase_setup.sql`)**: Buat tabel `worker_kudos` (id, sender_id, receiver_id, category, message, points_awarded, created_at) beserta RLS policies.
+- [x] **Atomic RPC (`rpc_send_kudo`)**: Stored Procedure atomik untuk mencatat kudo, menambahkan poin (+10 PTS) ke penerima, dan mencatat ke `activity_log`.
+- [x] **Service Layer (`src/lib/kudoService.ts`)**: Class `KudoService` dengan method enkapsulasi `sendKudo()`, `getRecentKudos()`, dan mapping join data worker.
+- [x] **UI Component (`src/components/KudoModal.tsx`)**: Form interaktif apresiasi dengan dropdown pilihan worker dan pemilihan kategori animasi badge.
+- [x] **UI Component (`src/components/KudoWall.tsx`)**: Tembok Apresiasi feed real-time di bagian bawah dashboard worker.
+
+---
+
+## Phase 10: Shift Handover (Log Serah Terima Shift & Papan Kanban)
+
+- [x] **Data Layer & Types (`src/types/handover.ts`)**: Model `ShiftHandoverEntity`, enum `HandoverCategory` (MHE, Operasional, 5R, Dokumen, Infrastruktur, K3, Lainnya), `ConditionStatus`, dan `HandoverStatus`.
+- [x] **Database SQL Setup (`supabase_setup.sql`)**: Tabel `shift_handovers` (id, shift_date, shift_type, author_id, next_supervisor_id, handover_category, condition_status, status, notes, acknowledged_at, acknowledged_by).
+- [x] **Service Layer (`src/lib/handoverService.ts`)**: Class `HandoverManager` untuk pencatatan log, pembaruan status Kanban (`updateHandoverStatus`), riwayat handover, dan verifikasi acknowledgement.
+- [x] **Notifikasi Wajib Baca (`src/components/AcknowledgeHandoverModal.tsx`)**: Modal blocking saat login untuk mewajibkan penerima membaca dan mengonfirmasi catatan serah terima yang ditujukan padanya.
+- [x] **UI Form Input (`src/components/ShiftHandoverModal.tsx`)**: Form input serah terima multi-kategori (MHE, Operasional, 5R, dll) dan pemilihan skala kondisi.
+- [x] **Kanban Board Mobile-First (`src/components/HandoverKanbanBoard.tsx`)**: Papan visual 3 kolom (Tertunda, Proses, Selesai) dengan dukungan Desktop Drag & Drop, Mobile Tab Switcher, Touch Action Buttons, dan Auto-Archive 24 jam untuk semua user di beranda utama.
+
+---
+
+## Phase 11: "Kaizen" / Suggestion Box (Kotak Saran Inovasi)
+
+- [x] **Data Layer & Types (`src/types/kaizen.ts`)**: Model `KaizenSuggestionEntity`, enum `KaizenCategory` (Safety / K3, Efisiensi, 5R, Biaya, Layanan, Lainnya), dan enum `KaizenStatus` (Submitted, Under Review, Approved, Implemented, Rejected).
+- [x] **Database SQL Setup (`supabase_setup.sql`)**: Tabel `kaizen_suggestions` dengan RLS dan Stored Procedure atomik `rpc_approve_kaizen` untuk pencairan poin reward dan logging audit.
+- [x] **Service Layer (`src/lib/kaizenService.ts`)**: Class OOP `KaizenService` yang menangani pengajuan ide (`submitSuggestion`), penarikan data, review berhadiah poin (`reviewSuggestion`), dan riwayat worker.
+- [x] **UI Form Pengajuan (`src/components/KaizenSubmissionModal.tsx`)**: Form interaktif pekerja dengan pemilihan kategori visual, deskripsi masalah (sebelum), usulan solusi (sesudah), estimasi dampak, dan konfirmasi sukses.
+- [x] **UI Riwayat Pekerja (`src/components/WorkerKaizenHistoryModal.tsx`)**: Modal riwayat bagi pekerja untuk memantau status persetujuan, catatan feedback reviewer, dan total poin reward yang telah dikumpulkan.
+- [x] **Papan Kanban Manajemen (`src/components/KaizenKanbanBoard.tsx`)**: Papan Kanban 5 kolom bagi Admin/Supervisor dengan Drag & Drop, pencarian/filter kategori, modal review reward (+50, +100, +250, +500 PTS), dan navigasi ramah sentuhan (Mobile Tabs & Action Buttons).
+- [x] **Integrasi Aplikasi (`src/App.tsx`, `AdminConsole.tsx`, `SupervisorConsole.tsx`)**: Tombol akses `Kaizen Inovasi` & `Riwayat & Arsip` di menu aksi harian, Tab `Inovasi Kaizen` di Administrator Console, serta Tab khusus `Approval Kaizen` di Supervisor Console lengkap dengan counter badge usulan pending.
+
+---
+
+## Phase 12: Toolbox Talk / Safety Briefing Harian
+
+- [ ] **Data Layer & Types (`src/types/toolbox.ts`)**: Model `ToolboxBriefingEntity`, array relasi absensi `attendee_ids`.
+- [ ] **Database SQL Setup (`supabase_setup.sql`)**: Buat tabel `toolbox_briefings` (id, date, supervisor_id, topic, location, created_at) dan tabel many-to-many `toolbox_attendees`.
+- [ ] **Service Layer (`src/lib/toolboxService.ts`)**: OOP service `ToolboxSession` yang mencakup validasi presensi dan auto-distribusi poin K3 rutin ke seluruh partisipan yang hadir.
+- [ ] **UI Component (`src/components/ToolboxBriefingModal.tsx`)**: Form Supervisor untuk memilih topik K3 harian, dan checklist `Multi-Select` daftar pekerja yang hadir (berbasis shift).
+- [ ] **UI Component (`src/components/AttendanceQRScanner.tsx`)**: (Opsional) Integrasi scanner menggunakan pustaka seperti `html5-qrcode` agar Supervisor bisa melakukan _check-in_ kehadiran via pindai barcode kartu ID pekerja.
 
 

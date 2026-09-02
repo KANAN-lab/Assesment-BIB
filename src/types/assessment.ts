@@ -191,7 +191,13 @@ export type ActivityAction =
   | 'badge_awarded'
   | 'quiz_completed'
   | 'checklist_completed'
-  | 'incident_reported';
+  | 'incident_reported'
+  | 'kudo_sent'
+  | 'kudo_received'
+  | 'shift_handover'
+  | 'sop_completed'
+  | 'kaizen_submitted'
+  | 'kaizen_approved';
 
 export interface ActivityLog {
   id: string;

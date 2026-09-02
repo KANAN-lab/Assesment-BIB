@@ -299,7 +299,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 >
                   <UserCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                   <div>
-                    <div className="font-bold text-[11px]">Staf Logistik</div>
+                    <div className="font-bold text-[11px]">Operational Employee</div>
                     <div className="text-[9px] text-zinc-500">Langsung Aktif</div>
                   </div>
                 </button>
@@ -420,7 +420,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               ) : (
                 <>
                   <UserPlus className="w-4 h-4" />
-                  <span>Daftar Akun {accountType === 'supervisor' ? 'Supervisor' : 'Staf'}</span>
+                  <span>Daftar Akun {accountType === 'supervisor' ? 'Supervisor' : 'Operational User'}</span>
                 </>
               )}
             </button>

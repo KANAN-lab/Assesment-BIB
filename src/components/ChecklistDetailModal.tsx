@@ -18,10 +18,119 @@ export interface ChecklistItem {
 }
 
 export function getPreShiftChecklistForRole(role: string = '', division: string = ''): ChecklistItem[] {
-  const r = role.toLowerCase();
-  const d = division.toLowerCase();
+  const r = role.toLowerCase().trim();
+  const d = division.toLowerCase().trim();
 
-  if (r.includes('forklift') || r.includes('operator')) {
+  // 1. SYSTEM ADMINISTRATOR / IT SYSTEM
+  if (r.includes('system') || r.includes('administrator') || r.includes('sysadmin') || d.includes('system')) {
+    return [
+      {
+        id: 'sys-1',
+        category: 'Safety APD',
+        label: 'Kebersihan & Suhu AC Ruang Server IT (18°C - 22°C)',
+        description: 'Suhu ruang server terkontrol, ventilasi exhaust lancar, dan sensor suhu/kelembaban bekerja normal.',
+      },
+      {
+        id: 'sys-2',
+        category: 'Safety APD',
+        label: 'Manajemen Kabel Listrik Server & Bebas Bahaya Arus Pendek',
+        description: 'Semua kabel power terikat rapi di kabel tray, UPS cadangan online, dan tidak ada kabel terkelupas.',
+      },
+      {
+        id: 'sys-3',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Konektivitas Database Cloud & Latensi Supabase API',
+        description: 'Endpoint Supabase REST API dan Database Pooler merespons dalam batas latency wajar (<200ms).',
+      },
+      {
+        id: 'sys-4',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Verifikasi Eksekusi Daily Database Backup & Storage Space',
+        description: 'Snapshot snapshot harian berhasil dibuat dan sisa kapasitas database cloud >30%.',
+      },
+      {
+        id: 'sys-5',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Healthcheck Layanan Web App & SSL Certificate',
+        description: 'Aplikasi platform penilaian BIB online, sertifikat HTTPS valid, dan frontend bebas downtime.',
+      },
+      {
+        id: 'sys-6',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Monitoring Log Error & Antrean Transaksi Gagal',
+        description: 'Pemeriksaan log error aplikasi di console untuk memastikan tidak ada unhandled exceptions.',
+      },
+      {
+        id: 'sys-7',
+        category: 'Dokumen & Legal SOP',
+        label: 'Audit Log Akses Login & Pemantauan Upaya Login Ilegal',
+        description: 'Verifikasi rate limiting keamanan akun dan pemeriksaan anomali percobaan login berulang.',
+      },
+      {
+        id: 'sys-8',
+        category: 'Dokumen & Legal SOP',
+        label: 'Verifikasi Deployment Versioning & SOP Disaster Recovery',
+        description: 'Version hash aplikasi terverifikasi dan SOP prosedur pemulihan darurat sistem (DRP) siap aktif.',
+      },
+    ];
+  }
+
+  // 2. OPERATOR REACH TRUCK (High Bay Warehouse)
+  if (r.includes('reach') || r.includes('reachtruck')) {
+    return [
+      {
+        id: 'rt-1',
+        category: 'Safety APD',
+        label: 'APD Lengkap Operator Reach Truck (Helm, Rompi, Safety Shoes)',
+        description: 'Helm safety SNI dengan tali dagu terpasang kencang, rompi high-vis, dan safety shoes berujung baja.',
+      },
+      {
+        id: 'rt-2',
+        category: 'Safety APD',
+        label: 'Overhead Guard Protector & Sarung Tangan Anti-Slip',
+        description: 'Atap pelindung kabin (overhead guard) bebas retak benturan dan sarung tangan grip terpasang.',
+      },
+      {
+        id: 'rt-3',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Mekanisme Scissor Reach & Silinder Mast High-Bay',
+        description: 'Mast elevator naik-turun halus tanpa hentakan dan mekanisme jangkau (reach) maju-mundur presisi.',
+      },
+      {
+        id: 'rt-4',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Laser Height Pointer / Kamera Garpu (Fork Camera System)',
+        description: 'Laser pemandu posisi garpu dan monitor kamera kabin menampilkan gambar jelas pada top level racking.',
+      },
+      {
+        id: 'rt-5',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Tegangan Baterai Elektrik (State of Charge >80%) & Kabel Anderson',
+        description: 'Level daya baterai mencukupi untuk 1 shift penuh, soket konektor tidak panas/meleleh, dan air aki cukup.',
+      },
+      {
+        id: 'rt-6',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Sistem Kemudi 360°, Deadman Foot Pedal, & Rem Elektromagnetik',
+        description: 'Pedal deadman otomatis memutus tenaga saat kaki diangkat dan respons kemudi elektrik responsif.',
+      },
+      {
+        id: 'rt-7',
+        category: 'Dokumen & Legal SOP',
+        label: 'SIO (Surat Izin Operasi) Kemenaker Aktif & Logsheet Unit',
+        description: 'SIO Kelas II fisik/digital aktif dan form pre-use check Reach Truck telah diisi lengkap.',
+      },
+      {
+        id: 'rt-8',
+        category: 'Dokumen & Legal SOP',
+        label: 'Verifikasi Berat Muatan vs Tinggi Angkat Racking (>8 Meter)',
+        description: 'Memeriksa kapasitas batas angkat (derating chart) saat mengangkat palet ke level racking tertinggi.',
+      },
+    ];
+  }
+
+  // 3. OPERATOR FORKLIFT (Counterbalance Diesel / Electric)
+  if (r.includes('forklift') || r.includes('mhe')) {
     return [
       {
         id: 'fl-1',
@@ -38,13 +147,13 @@ export function getPreShiftChecklistForRole(role: string = '', division: string 
       {
         id: 'fl-3',
         category: 'Kondisi Peralatan & Sistem',
-        label: 'Sistem Hidrolik, Mast, & Rantai Elevator',
+        label: 'Sistem Hidrolik, Mast, & Rantai Elevator Garpu',
         description: 'Tidak ada kebocoran oli hidrolik pada silinder, rantai elevator tegang presisi, dan garpu (fork) tidak bengkok.',
       },
       {
         id: 'fl-4',
         category: 'Kondisi Peralatan & Sistem',
-        label: 'Pemeriksaan Ban, Rem Kaki, & Handbrake',
+        label: 'Pemeriksaan Ban, Rem Kaki, & Handbrake Parkir',
         description: 'Tekanan ban solid/pneumatik aman, minyak rem cukup, dan fungsi rem kaki/tangan responsif.',
       },
       {
@@ -74,7 +183,170 @@ export function getPreShiftChecklistForRole(role: string = '', division: string 
     ];
   }
 
-  if (r.includes('admin') && (d.includes('wfg') || r.includes('wfg'))) {
+  // 4. CHECKER WRM (Raw Material Inbound)
+  if (r.includes('checker') && (r.includes('wrm') || d.includes('wrm') || r.includes('raw'))) {
+    return [
+      {
+        id: 'chk-wrm-1',
+        category: 'Safety APD',
+        label: 'APD Area Raw Material (Helm, Rompi, Safety Shoes, Respirator)',
+        description: 'Helm safety, rompi high-vis, safety shoes, dan masker respirator partikel debu bahan baku.',
+      },
+      {
+        id: 'chk-wrm-2',
+        category: 'Safety APD',
+        label: 'Kacamata Pelindung (Safety Goggles) & Sarung Tangan Kimia',
+        description: 'Kacamata pelindung mata dan sarung tangan tahan bahan kimia untuk proses sampling bahan baku.',
+      },
+      {
+        id: 'chk-wrm-3',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Mobile Handheld Scanner Barcode Inbound WRM',
+        description: 'Scanner barcode terhubung ke database WMS Inbound, baterai penuh, dan sinkronisasi SKU normal.',
+      },
+      {
+        id: 'chk-wrm-4',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Alat Uji Tusuk Sampling & Moisture Tester Bahan Baku',
+        description: 'Alat tusuk sampling bersih steril dan alat ukur kadar air telah terkalibrasi akurat.',
+      },
+      {
+        id: 'chk-wrm-5',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Inspeksi Fisik Kemasan Jumbo Bag / Drum Bebas Bocor & Hama',
+        description: 'Kemasan bahan baku tidak sobek, tidak basah/lembab, dan bebas dari kontaminasi kutu/hama.',
+      },
+      {
+        id: 'chk-wrm-6',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Pengecekan Timbangan Lantai / Timbangan Sampling Inbound',
+        description: 'Timbangan sampel menunjukkan angka 0.00 saat kosong dan permukaan plat timbang bersih.',
+      },
+      {
+        id: 'chk-wrm-7',
+        category: 'Dokumen & Legal SOP',
+        label: 'Pencocokan PO Supplier vs Surat Jalan & Certificate of Analysis (CoA)',
+        description: 'Dokumen CoA produsen terlampir dan nomor Purchase Order (PO) sesuai dengan surat jalan suplier.',
+      },
+      {
+        id: 'chk-wrm-8',
+        category: 'Dokumen & Legal SOP',
+        label: 'Penempelan Stiker Batch / Label Status Karantina Inbound QC',
+        description: 'Label status Hijau (Pass) atau Merah (Karantina) siap ditempelkan pada setiap palet bahan baku.',
+      },
+    ];
+  }
+
+  // 5. CHECKER WFG (Finished Goods Outbound / Inbound)
+  if (r.includes('checker')) {
+    return [
+      {
+        id: 'chk-1',
+        category: 'Safety APD',
+        label: 'APD Loading Dock (Helm, Rompi, Safety Shoes, Sarung Tangan)',
+        description: 'APD helm safety, rompi high-vis, sepatu safety berujung besi, dan sarung tangan grip terpasang.',
+      },
+      {
+        id: 'chk-2',
+        category: 'Safety APD',
+        label: 'Peluit Safety Sinyal Manuver Truk & Masker Debu',
+        description: 'Peluit pengatur aba-aba manuver armada truk di dock loading dan masker debu tersedia.',
+      },
+      {
+        id: 'chk-3',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Mobile Handheld Scanner Barcode & Terminal WMS',
+        description: 'Handheld scanner terhubung ke sistem WMS, laser presisi, dan baterai cadangan siap.',
+      },
+      {
+        id: 'chk-4',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Papan Uji / Clipboard, Senter Inspection, & Meteran Dimensi',
+        description: 'Senter LED pemeriksaan fisik container dan alat ukur dimensi/volume barang tersedia.',
+      },
+      {
+        id: 'chk-5',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Kondisi Dock Leveler, Wheel Chock, & Pintu Roll Up Dock',
+        description: 'Plat Dock Leveler berfungsi normal, ganjal ban truk terpasang, dan pintu dock terkunci aman.',
+      },
+      {
+        id: 'chk-6',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Pembersihan Staging Area Loading Dock (5R)',
+        description: 'Lantai dock bebas dari kayu palet pecah, paku, plastik, atau genangan oli yang licin.',
+      },
+      {
+        id: 'chk-7',
+        category: 'Dokumen & Legal SOP',
+        label: 'Dokumen Packing List, Surat Jalan, & Checklist Loading',
+        description: 'Packing list penyesuaian SKU barang dan lembar inspeksi muat/bongkar siap diverifikasi.',
+      },
+      {
+        id: 'chk-8',
+        category: 'Dokumen & Legal SOP',
+        label: 'Stiker/Tag Merah Karantina (Quarantine Hold Tag)',
+        description: 'Stiker penandaan fisik barang rusak/cacat kemasan siap untuk pemisahan ke area karantina.',
+      },
+    ];
+  }
+
+  // 6. ADMIN WRM (Raw Material Inventory Admin)
+  if (r.includes('admin') && (r.includes('wrm') || d.includes('wrm') || r.includes('raw'))) {
+    return [
+      {
+        id: 'adm-wrm-1',
+        category: 'Safety APD',
+        label: 'Sepatu Safety & Rompi High-Vis saat Masuk Area Gudang WRM',
+        description: 'Wajib mengenakan safety shoes dan rompi reflektif saat berjalan ke area rak/staging raw material.',
+      },
+      {
+        id: 'adm-wrm-2',
+        category: 'Safety APD',
+        label: 'ID Card Badge & Ergonomi Meja Kerja Admin',
+        description: 'ID Card aktif terpasang, posisi monitor komputer sejajar mata, dan kursi ergonomis tertata.',
+      },
+      {
+        id: 'adm-wrm-3',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Konektivitas Modul Inbound WMS / SAP Raw Material',
+        description: 'Aplikasi ERP/WMS Raw Material online, sinkronisasi transaksi lancar, dan jaringan LAN stabil.',
+      },
+      {
+        id: 'adm-wrm-4',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Printer Cetak Bukti Penerimaan Barang (Goods Receipt Note / GRN)',
+        description: 'Ketersediaan kertas form GRN, tinta printer mencukupi, dan printer tidak mengalami paper jam.',
+      },
+      {
+        id: 'adm-wrm-5',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Docking Station Handheld Scanner WRM & Baterai Cadangan',
+        description: 'Tempat pengisian daya scanner berfungsi baik dan baterai scanner terisi penuh.',
+      },
+      {
+        id: 'adm-wrm-6',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Kerapihan 5R Dokumen Arsip PO & Surat Jalan Supplier',
+        description: 'Bindex map tertata rapi sesuai urutan nomor PO dan meja kerja bebas tumpukan kertas berserakan.',
+      },
+      {
+        id: 'adm-wrm-7',
+        category: 'Dokumen & Legal SOP',
+        label: 'Verifikasi Surat Jalan Supplier vs Outstanding Purchase Order (PO)',
+        description: 'Pemeriksaan kesesuaian kuantitas pesanan pada sistem sebelum penerimaan fisik disahkan.',
+      },
+      {
+        id: 'adm-wrm-8',
+        category: 'Dokumen & Legal SOP',
+        label: 'Form Berita Acara Selisih / Kerusakan Bahan Baku (BAK)',
+        description: 'Formulir klaim ketidaksesuaian tonase atau mutu bahan baku siap digunakan jika ada retur.',
+      },
+    ];
+  }
+
+  // 7. ADMIN WFG (Finished Goods Admin)
+  if (r.includes('admin') && (r.includes('wfg') || d.includes('wfg') || r.includes('finished'))) {
     return [
       {
         id: 'wfg-1',
@@ -109,7 +381,7 @@ export function getPreShiftChecklistForRole(role: string = '', division: string 
       {
         id: 'wfg-6',
         category: 'Kondisi Peralatan & Sistem',
-        label: 'Kebersihan & Kerapihan 5S Meja Kerja Admin',
+        label: 'Kebersihan & Kerapihan 5R Meja Kerja Admin',
         description: 'Meja kerja bebas tumpukan berkas acak, kabel komputer tertata aman tanpa bahaya tersandung.',
       },
       {
@@ -127,7 +399,62 @@ export function getPreShiftChecklistForRole(role: string = '', division: string 
     ];
   }
 
-  if (r.includes('ekspedisi') || (r.includes('admin') && (d.includes('ekspedisi') || r.includes('ekspedisi')))) {
+  // 8. ADMIN TIMBANGAN (Weighbridge Administrator)
+  if (r.includes('timbangan') || r.includes('timbang') || d.includes('timbangan') || d.includes('tim')) {
+    return [
+      {
+        id: 'tim-1',
+        category: 'Safety APD',
+        label: 'APD Area Timbangan (Helm, Safety Shoes, Rompi Reflektif)',
+        description: 'Helm safety, safety shoes, dan rompi reflektif untuk inspeksi fisik truk di platform jembatan timbang.',
+      },
+      {
+        id: 'tim-2',
+        category: 'Safety APD',
+        label: 'Masker Debu & Jas Hujan Reflektif Outdoor',
+        description: 'Masker pelindung debu dan jas hujan reflektif siap digunakan saat operasional malam/cuaca buruk.',
+      },
+      {
+        id: 'tim-3',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Kalibrasi Zero Balance Sensor Jembatan Timbangan (0.00 kg)',
+        description: 'Indikator timbangan menampilkan 0.00 kg saat kosong dan Load Cell bebas dari ganjalan batu/tanah.',
+      },
+      {
+        id: 'tim-4',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Kamera CCTV Plat Nomor Truk, Sensor Posisi, & Lampu Traffic',
+        description: 'Kamera ANPR pencatat plat nomor dan indikator lampu hijau/merah jembatan timbangan bekerja normal.',
+      },
+      {
+        id: 'tim-5',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Printer Cetak Tiket Timbang (Bruto / Tara / Netto)',
+        description: 'Printer nota berfungsi lancar, pita tinta jelas terbaca, dan stok kertas struk mencukupi.',
+      },
+      {
+        id: 'tim-6',
+        category: 'Kondisi Peralatan & Sistem',
+        label: 'Platform Jembatan Timbang Bebas Endapan Tanah & Sampah',
+        description: 'Permukaan platform timbangan dan celah bumper bersih dari tumpukan kerikil atau tanah liat.',
+      },
+      {
+        id: 'tim-7',
+        category: 'Dokumen & Legal SOP',
+        label: 'Pemeriksaan Surat Jalan Supplier & Sertifikat Uji Tera Metrologi',
+        description: 'Surat Jalan Inbound Supplier lengkap dan Dokumen Sertifikat Tera Resmi Timbangan masih berlaku.',
+      },
+      {
+        id: 'tim-8',
+        category: 'Dokumen & Legal SOP',
+        label: 'Form Berita Acara Kerusakan & Selisih Tonase (BAK)',
+        description: 'Form BAK siap untuk mencatat klaim jika selisih berat penimbangan melebihi batas toleransi SOP (1%).',
+      },
+    ];
+  }
+
+  // 9. ADMIN EKSPEDISI / TRANSPORT
+  if (r.includes('ekspedisi') || r.includes('expedisi') || r.includes('transport') || d.includes('ekspedisi')) {
     return [
       {
         id: 'eks-1',
@@ -180,149 +507,98 @@ export function getPreShiftChecklistForRole(role: string = '', division: string 
     ];
   }
 
-  if (r.includes('timbangan') || (r.includes('admin') && (d.includes('wrm') || r.includes('wrm')))) {
+  // 10. ADMIN GA (General Affairs / Fasilitas Gudang)
+  if (r.includes('ga') || r.includes('general') || d.includes('ga') || r.includes('fasilitas')) {
     return [
       {
-        id: 'wrm-1',
+        id: 'ga-1',
         category: 'Safety APD',
-        label: 'APD Area Timbangan (Helm, Safety Shoes, Respirator)',
-        description: 'APD helm, sepatu safety, dan masker debu/respirator siap digunakan saat inspeksi truk curah.',
+        label: 'Sepatu Safety & Rompi High-Vis Petugas GA',
+        description: 'Safety shoes berujung besi dan rompi reflektif untuk patroli inspeksi fasilitas gudang.',
       },
       {
-        id: 'wrm-2',
+        id: 'ga-2',
         category: 'Safety APD',
-        label: 'Rompi High-Vis & Jas Hujan Reflektif Outdoor',
-        description: 'Rompi reflektif untuk visibilitas malam/hujan di area terbuka jembatan timbangan WRM.',
+        label: 'Sarung Tangan Kerja & Kacamata Pelindung Inspeksi Fasilitas',
+        description: 'Sarung tangan mekanik dan pelindung mata untuk inspeksi utilitas dan panel kelistrikan.',
       },
       {
-        id: 'wrm-3',
+        id: 'ga-3',
         category: 'Kondisi Peralatan & Sistem',
-        label: 'Kalibrasi Zero Balance Sensor Jembatan Timbangan',
-        description: 'Indikator timbangan menampilkan 0.00 kg saat kosong dan Load Cell bebas dari sisa tanah/batu.',
+        label: 'Pemeriksaan Tekanan Jarum Tabung APAR & Kesiapan Hydrant',
+        description: 'Jarum indikator tekanan APAR berada di zona hijau, selang tidak retak, dan hydrant tidak terhalang.',
       },
       {
-        id: 'wrm-4',
+        id: 'ga-4',
         category: 'Kondisi Peralatan & Sistem',
-        label: 'Kamera CCTV Plat Nomor Truk & Lampu Traffic',
-        description: 'Kamera ANPR pencatat plat nomor dan indikator lampu hijau/merah jembatan timbangan normal.',
+        label: 'Pemeriksaan Penerangan Selasar, Lampu Emergency, & Exhaust Fan',
+        description: 'Lampu utama gudang menyala terang, emergency lamp berfungsi jika mati listrik, dan exhaust fan berputar.',
       },
       {
-        id: 'wrm-5',
+        id: 'ga-5',
         category: 'Kondisi Peralatan & Sistem',
-        label: 'Alat Uji Kadar Air / Moisture Tester Bahan Baku',
-        description: 'Alat ukur kadar air sampel bahan baku (WRM) telah terkalibrasi dan baterai terisi penuh.',
+        label: 'Inspeksi Panel Listrik Utama & Bebas Bau Hangus / Kabel Terbuka',
+        description: 'Pintu panel listrik tertutup rapat, kunci terpasang, dan tidak ada tanda korsleting atau bau sangit.',
       },
       {
-        id: 'wrm-6',
+        id: 'ga-6',
         category: 'Kondisi Peralatan & Sistem',
-        label: 'Printer Nota Penimbangan & Software Inbound WRM',
-        description: 'Printer cetak Struk Bruto/Tara/Netto berfungsi lancar dan kertas struk mencukupi.',
+        label: 'Kebersihan Toilet Karyawan & Kesiapan Tempat Sampah 5R',
+        description: 'Fasilitas sanitasi bersih, air mengalir lancar, dan tempat sampah organik/anorganik tertata.',
       },
       {
-        id: 'wrm-7',
+        id: 'ga-7',
         category: 'Dokumen & Legal SOP',
-        label: 'Pemeriksaan Surat Jalan Supplier & Sertifikat Uji Tera',
-        description: 'Surat Jalan Inbound Supplier lengkap dan Dokumen Sertifikat Tera Resmi Timbangan aktif.',
+        label: 'Jadwal Pemeliharaan Preventif Gedung & Pengecekan Bahan Bakar Genset',
+        description: 'Level solar tangki genset darurat >80% dan logbook perawatan berkala tercatat.',
       },
       {
-        id: 'wrm-8',
+        id: 'ga-8',
         category: 'Dokumen & Legal SOP',
-        label: 'Form Berita Acara Kerusakan & Selisih Tonase (BAK)',
-        description: 'Form BAK siap untuk mencatat klaim jika selisih berat penimbangan melebihi toleransi SOP (1%).',
+        label: 'Logbook Petugas Kebersihan / Keamanan & Form Lapor Kerusakan',
+        description: 'Absensi vendor fasilitas terisi dan form perbaikan fasilitas siap ditindaklanjuti.',
       },
     ];
   }
 
-  if (r.includes('checker')) {
-    return [
-      {
-        id: 'chk-1',
-        category: 'Safety APD',
-        label: 'APD Loading Dock (Helm, Rompi, Safety Shoes, Sarung Tangan)',
-        description: 'APD helm safety, rompi high-vis, sepatu safety berujung besi, dan sarung tangan grip terpasang.',
-      },
-      {
-        id: 'chk-2',
-        category: 'Safety APD',
-        label: 'Masker Filter & Peluit Safety Sinyal',
-        description: 'Masker debu dan peluit pengatur aba-aba manuver truk di area loading dock siap.',
-      },
-      {
-        id: 'chk-3',
-        category: 'Kondisi Peralatan & Sistem',
-        label: 'Mobile Handheld Scanner Barcode & Terminal WMS',
-        description: 'Handheld scanner terhubung ke sistem WMS, laser presisi, dan baterai cadangan siap.',
-      },
-      {
-        id: 'chk-4',
-        category: 'Kondisi Peralatan & Sistem',
-        label: 'Papan Uji / Clipboard, Senter Inspection, & Meteran',
-        description: 'Senter LED pemeriksaan fisik container dan alat ukur dimensi/volume barang tersedia.',
-      },
-      {
-        id: 'chk-5',
-        category: 'Kondisi Peralatan & Sistem',
-        label: 'Kondisi Dock Leveler & Pintu Roll Up Dock',
-        description: 'Plat Dock Leveler berfungsi naik-turun aman dan rantai pengaman dock terpasang.',
-      },
-      {
-        id: 'chk-6',
-        category: 'Kondisi Peralatan & Sistem',
-        label: 'Pembersihan Staging Area Loading Dock (5S)',
-        description: 'Lantai dock bebas dari kayu palet pecah, paku, plastik, atau genangan oli yang licin.',
-      },
-      {
-        id: 'chk-7',
-        category: 'Dokumen & Legal SOP',
-        label: 'Dokumen Packing List, Surat Jalan, & Checklist Unloading',
-        description: 'Packing list penyesuaian SKU barang dan lembar inspeksi pembongkaran siap diisi.',
-      },
-      {
-        id: 'chk-8',
-        category: 'Dokumen & Legal SOP',
-        label: 'Stiker/Tag Merah Karantina (Quarantine Hold Tag)',
-        description: 'Stiker penandaan fisik barang rusak/cacat kemasan siap untuk pemisahan ke area karantina.',
-      },
-    ];
-  }
-
-  if (r.includes('pic') || r.includes('supervisor') || r.includes('head')) {
+  // 11. PIC AREA / SUPERVISOR LOGISTIK / PENGELOLA
+  if (r.includes('pic') || r.includes('supervisor') || r.includes('head') || r.includes('pengawas') || r.includes('lead')) {
     return [
       {
         id: 'spv-1',
         category: 'Safety APD',
         label: 'APD Lengkap Pengawas Area Operasional Gudang',
-        description: 'Helm safety supervisor, rompi reflektif high-vis, sepatu safety, dan ID Card Pengawas.',
+        description: 'Helm safety putih supervisor, rompi reflektif high-vis, sepatu safety, dan ID Card Pengawas.',
       },
       {
         id: 'spv-2',
         category: 'Safety APD',
-        label: 'Alat P3K Portable & Peluit Darurat',
-        description: 'Kotak P3K mini portable lengkap dan alat komunikasi darurat siap di area kerja.',
+        label: 'Alat P3K Portable, Senter Inspeksi, & Peluit Darurat',
+        description: 'Kotak P3K mini portable lengkap, senter patroli, dan alat komunikasi darurat siap di area kerja.',
       },
       {
         id: 'spv-3',
         category: 'Kondisi Peralatan & Sistem',
-        label: 'Patroli 5S & Bebas Ganjalan Jalur Evakuasi / APAR',
-        description: 'Verifikasi seluruh lorong gudang, pintu darurat, dan titik APAR tidak terhalang palet.',
+        label: 'Patroli 5R: Bebas Ganjalan Jalur Evakuasi, Exit Door, & Titik APAR',
+        description: 'Verifikasi seluruh lorong gudang, pintu darurat, dan titik APAR tidak terhalang tumpukan palet.',
       },
       {
         id: 'spv-4',
         category: 'Kondisi Peralatan & Sistem',
-        label: 'Inspeksi Kesiapan Kunci & LOTO (Lockout/Tagout) MHE',
-        description: 'Sistem penguncian peralatan rusak terpasang tag penanda aman.',
+        label: 'Inspeksi Kesiapan Kunci MHE & Sistem LOTO (Lockout/Tagout)',
+        description: 'Kunci armada Forklift/Reach Truck terkontrol dan unit rusak terpasang label penanda LOTO aman.',
       },
       {
         id: 'spv-5',
         category: 'Kondisi Peralatan & Sistem',
-        label: 'Pemeriksaan Kebersihan & Ventilasi Exhaust Gudang Logistik',
-        description: 'Kipas exhaust gudang dan penerangan selasar berfungsi optimal untuk kenyamanan kerja.',
+        label: 'Pemeriksaan Kebersihan Lantai & Bebas Ceceran Oli / Bahaya Slip',
+        description: 'Lantai lorong gudang bebas dari tumpahan minyak/oli licin dan serpihan kayu palet tajam.',
       },
       {
         id: 'spv-6',
         category: 'Kondisi Peralatan & Sistem',
-        label: 'Kesiapan Aplikasi Console Supervisor & Tablet Audit BIB',
-        description: 'Tablet/laptop audit matriks kompetensi terhubung ke jaringan dan baterai penuh.',
+        label: 'Kesiapan Tablet Console Supervisor & Jaringan Audit BIB',
+        description: 'Tablet/laptop pengawasan terhubung ke jaringan dan baterai mencukupi untuk audit lapangan.',
       },
       {
         id: 'spv-7',
@@ -333,61 +609,61 @@ export function getPreShiftChecklistForRole(role: string = '', division: string 
       {
         id: 'spv-8',
         category: 'Dokumen & Legal SOP',
-        label: 'Form Laporan Insiden K3 / Near-Miss & Shift Logsheet',
+        label: 'Form Laporan Insiden K3 / Near-Miss & Shift Handover Log',
         description: 'Formulir investigasi cepat kecelakaan/hampir celaka siap jika terjadi keadaan darurat.',
       },
     ];
   }
 
-  // General Driver & Transport Checklist
+  // 12. DRIVER / PENGEMUDI ARMADA LOGISTIK (DEFAULT)
   return [
     {
-      id: 'gen-1',
+      id: 'drv-1',
       category: 'Safety APD',
-      label: 'APD Lengkap Driver & Rompi Reflektif',
-      description: 'Helm proyek/topi driver, sepatu safety/sepatu tertutup, dan rompi reflektif K3.',
+      label: 'APD Lengkap Driver & Rompi Reflektif K3',
+      description: 'Helm proyek/topi driver, sepatu safety/sepatu tertutup, dan rompi reflektif saat turun di dock.',
     },
     {
-      id: 'gen-2',
+      id: 'drv-2',
       category: 'Safety APD',
-      label: 'Kotak P3K & Segitiga Pengaman Darurat Armada',
-      description: 'Perlengkapan P3K dasar dan 2 buah segitiga pengaman darurat tersedia di kabin.',
+      label: 'Kotak P3K & 2 Buah Segitiga Pengaman Darurat Armada',
+      description: 'Perlengkapan P3K dasar dan segitiga pengaman darurat tersedia di dalam kabin truk.',
     },
     {
-      id: 'gen-3',
+      id: 'drv-3',
       category: 'Kondisi Peralatan & Sistem',
-      label: 'Pemeriksaan Ban, Tekanan Angin, & Ban Cadangan',
+      label: 'Pemeriksaan Ban, Tekanan Angin, & Kesiapan Ban Cadangan',
       description: 'Alur ban >2mm, tidak benjol, dan kondisi ban serep terisi angin aman.',
     },
     {
-      id: 'gen-4',
+      id: 'drv-4',
       category: 'Kondisi Peralatan & Sistem',
-      label: 'Fungsi Pengereman, Handbrake, & Minyak Rem',
-      description: 'Rem kaki responsif, minyak rem cukup, dan rem tangan mengunci sempurna.',
+      label: 'Fungsi Pengereman, Handbrake Parkir, & Minyak Rem',
+      description: 'Rem kaki responsif, minyak rem mencukupi, dan rem tangan mengunci roda dengan sempurna.',
     },
     {
-      id: 'gen-5',
+      id: 'drv-5',
       category: 'Kondisi Peralatan & Sistem',
-      label: 'Lampu Utama, Lampu Sein, Hazard, & Klakson',
-      description: 'Seluruh sistem penerangan dan sinyal berfungsi terang dan kaca lampu bersih.',
+      label: 'Lampu Utama, Lampu Sein, Lampu Mundur, Hazard, & Klakson',
+      description: 'Seluruh sistem penerangan dan sinyal berfungsi terang dan kaca spion/lampu bersih.',
     },
     {
-      id: 'gen-6',
+      id: 'drv-6',
       category: 'Kondisi Peralatan & Sistem',
-      label: 'Tali Strapping / Terpal / Kunci Pintu Boks Cargo',
-      description: 'Peralatan pengikat muatan dan kunci/segel kompartemen kargo dalam kondisi kuat.',
+      label: 'Tali Strapping / Webbing Ratchet / Terpal Boks Cargo',
+      description: 'Peralatan pengikat muatan dalam kondisi kuat, tidak lapuk/sobek, dan pintu kargo terkunci.',
     },
     {
-      id: 'gen-7',
+      id: 'drv-7',
       category: 'Dokumen & Legal SOP',
-      label: 'STNK, SIM, & SIO/KIR Kendaraan Aktif',
-      description: 'Membawa dokumen legal fisik kendaraan dan lisensi mengemudi yang masih berlaku.',
+      label: 'STNK Asli, SIM B Aktif, & Bukti Uji Berkala (KIR) Kendaraan',
+      description: 'Membawa dokumen legal fisik kendaraan dan lisensi mengemudi yang masih berlaku sah.',
     },
     {
-      id: 'gen-8',
+      id: 'drv-8',
       category: 'Dokumen & Legal SOP',
-      label: 'Form Pre-Shift Checklist & Surat Jalan Pengiriman',
-      description: 'Surat Jalan resmi terverifikasi dan aplikasi GPS/POD Mobile siap digunakan.',
+      label: 'Form Pre-Shift Checklist & Surat Jalan Pengiriman Resmi',
+      description: 'Surat Jalan resmi terverifikasi dan aplikasi GPS/POD Mobile siap digunakan untuk rute hari ini.',
     },
   ];
 }

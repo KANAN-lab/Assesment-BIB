@@ -28,6 +28,7 @@ import {
 import { BadgeManagementPanel } from './BadgeManagementPanel';
 import { QuizManagementPanel } from './QuizManagementPanel';
 import { SopManagementPanel } from './SopManagementPanel';
+import { KaizenKanbanBoard } from './KaizenKanbanBoard';
 import { SystemConfigService, FREQUENCY_OPTIONS } from '../domain/SystemConfigService';
 import { ExecutivePDFReportGenerator } from '../lib/pdfReportService';
 
@@ -168,7 +169,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   onRestockReward,
   onDeleteReward,
 }) => {
-  const [activeTab, setActiveTab] = useState<'workers' | 'approvals' | 'divisions' | 'roles' | 'matrix' | 'ai-quiz' | 'analytics' | 'announcements' | 'incidents' | 'activity' | 'rewards' | 'badges' | 'quiz' | 'config' | 'sop'>('workers');
+  const [activeTab, setActiveTab] = useState<'workers' | 'approvals' | 'divisions' | 'roles' | 'matrix' | 'ai-quiz' | 'analytics' | 'announcements' | 'incidents' | 'kaizen' | 'activity' | 'rewards' | 'badges' | 'quiz' | 'config' | 'sop'>('workers');
   const [quizMeta, setQuizMeta] = useState<QuizStatusMeta>(() => getQuizStatusMeta());
   const [refreshingQuiz, setRefreshingQuiz] = useState(false);
 
@@ -624,7 +625,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     {
       groupLabel: 'SDM & AKSES PEKERJA',
       tabs: [
-        { key: 'workers', label: 'Staf Operasional', icon: Users, badge: workers.length },
+        { key: 'workers', label: 'Operational Employee', icon: Users, badge: workers.length },
         { key: 'approvals', label: 'Approval Supervisor', icon: UserCheck, badge: pendingSupervisors.length, alert: pendingSupervisors.length > 0 },
         { key: 'activity', label: 'Log Aktivitas Sistem', icon: History },
       ]
@@ -634,6 +635,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
       tabs: [
         { key: 'rewards', label: 'Katalog Reward', icon: ShoppingBag, badge: rewardCatalog.length },
         { key: 'badges', label: 'Manajemen Badge', icon: Award },
+        { key: 'kaizen', label: 'Inovasi Kaizen', icon: Sparkles },
         { key: 'analytics', label: 'Executive Analytics', icon: BarChart2 },
         { key: 'incidents', label: 'Laporan Insiden', icon: ShieldAlert, badge: incidents.filter(i => i.status === 'open').length, alert: incidents.filter(i => i.status === 'open').length > 0 },
       ]
@@ -894,6 +896,14 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+
+      {/* ─── TAB: KAIZEN KANBAN ─── */}
+      {activeTab === 'kaizen' && (
+        <div className="animate-in fade-in duration-300">
+          <KaizenKanbanBoard currentUserId={currentAdminId} isAdmin={true} />
         </div>
       )}
 

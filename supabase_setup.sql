@@ -673,10 +673,23 @@ CREATE TABLE IF NOT EXISTS activity_log (
   id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   worker_id   TEXT REFERENCES workers(id) ON DELETE CASCADE,
   worker_name TEXT,
-  action      TEXT NOT NULL CHECK (action IN ('login', 'logout', 'password_reset', 'profile_update', 'badge_awarded', 'quiz_completed', 'checklist_completed', 'incident_reported')),
+  action      TEXT NOT NULL CHECK (action IN (
+    'login', 'logout', 'password_reset', 'profile_update', 'badge_awarded',
+    'quiz_completed', 'checklist_completed', 'incident_reported',
+    'kudo_sent', 'kudo_received', 'shift_handover', 'sop_completed'
+  )),
   detail      TEXT,
   ip_hint     TEXT,  -- optional, from browser hints
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE activity_log DROP CONSTRAINT IF EXISTS activity_log_action_check;
+ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
+  action IN (
+    'login', 'logout', 'password_reset', 'profile_update', 'badge_awarded',
+    'quiz_completed', 'checklist_completed', 'incident_reported',
+    'kudo_sent', 'kudo_received', 'shift_handover', 'sop_completed'
+  )
 );
 
 CREATE INDEX IF NOT EXISTS idx_activity_log_worker ON activity_log(worker_id, created_at DESC);
@@ -1016,9 +1029,188 @@ BEGIN
 END;
 $$;
 
+-- ─── 19. Phase 10: Shift Handover ──────────────────────────────────────────
 
+CREATE TABLE IF NOT EXISTS shift_handovers (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  shift_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  shift_type TEXT NOT NULL CHECK (shift_type IN ('Pagi', 'Siang', 'Malam')),
+  author_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  next_supervisor_id TEXT REFERENCES workers(id) ON DELETE SET NULL,
+  handover_category TEXT NOT NULL DEFAULT 'MHE & Peralatan' CHECK (handover_category IN ('MHE & Peralatan', 'Operasional & Target', 'Kebersihan & 5S', 'Administrasi & Dokumen', 'Infrastruktur Gudang', 'K3 & Insiden', 'Lainnya')),
+  condition_status TEXT NOT NULL DEFAULT 'Aman' CHECK (condition_status IN ('Aman', 'Perlu Perhatian', 'Urgent')),
+  status TEXT NOT NULL DEFAULT 'Tertunda' CHECK (status IN ('Tertunda', 'Proses', 'Selesai')),
+  notes TEXT,
+  acknowledged_at TIMESTAMPTZ,
+  acknowledged_by TEXT REFERENCES workers(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
 
+ALTER TABLE shift_handovers ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow read all for shift_handovers" ON shift_handovers FOR SELECT TO public USING (true);
+CREATE POLICY "Allow insert for shift_handovers" ON shift_handovers FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Allow update for shift_handovers" ON shift_handovers FOR UPDATE TO public USING (true) WITH CHECK (true);
 
+-- ─── 20. Phase 9: Peer-to-Peer Recognition (Kudos) ─────────────────────────
 
+CREATE TABLE IF NOT EXISTS worker_kudos (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  sender_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  receiver_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  category TEXT NOT NULL CHECK (category IN ('Kerja Keras', 'Inisiatif', 'Teamwork', 'Safety First')),
+  message TEXT NOT NULL,
+  points_awarded INTEGER NOT NULL DEFAULT 10,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
 
+ALTER TABLE worker_kudos ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow read all for worker_kudos" ON worker_kudos FOR SELECT TO public USING (true);
+CREATE POLICY "Allow insert for worker_kudos" ON worker_kudos FOR INSERT TO public WITH CHECK (true);
 
+-- Update activity_log constraint safely
+ALTER TABLE activity_log DROP CONSTRAINT IF EXISTS activity_log_action_check;
+ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
+  action IN (
+    'login', 'logout', 'password_reset', 'profile_update', 'badge_awarded',
+    'quiz_completed', 'checklist_completed', 'incident_reported',
+    'kudo_sent', 'kudo_received', 'shift_handover', 'sop_completed'
+  )
+);
+
+-- RPC for sending Kudos atomically
+CREATE OR REPLACE FUNCTION rpc_send_kudo(
+  p_sender_id TEXT,
+  p_receiver_id TEXT,
+  p_category TEXT,
+  p_message TEXT,
+  p_points INTEGER
+) RETURNS void AS $$
+BEGIN
+  -- 1. Insert kudo record
+  INSERT INTO worker_kudos (sender_id, receiver_id, category, message, points_awarded)
+  VALUES (p_sender_id, p_receiver_id, p_category, p_message, p_points);
+
+  -- 2. Add points to receiver
+  UPDATE workers
+  SET total_points = total_points + p_points,
+      updated_at = now()
+  WHERE id = p_receiver_id;
+
+  -- 3. Log activity for receiver (kudo_received)
+  INSERT INTO activity_log (worker_id, action, detail)
+  VALUES (p_receiver_id, 'kudo_received', 'Menerima Kudo (' || p_category || ') dari Rekan (+10 PTS)');
+
+  -- 4. Log activity for sender (kudo_sent, 0 points)
+  INSERT INTO activity_log (worker_id, action, detail)
+  VALUES (p_sender_id, 'kudo_sent', 'Memberikan Kudo ke Rekan');
+END;
+$$ LANGUAGE plpgsql;
+
+-- ─── 21. Phase 11: Kaizen / Suggestion Box (Kotak Saran Inovasi) ────────────
+
+CREATE TABLE IF NOT EXISTS kaizen_suggestions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  author_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  category TEXT NOT NULL CHECK (category IN ('Safety / K3', 'Efisiensi Operasional', '5R & Kebersihan', 'Penghematan Biaya', 'Kualitas Layanan', 'Lainnya')),
+  current_condition TEXT NOT NULL,
+  proposed_solution TEXT NOT NULL,
+  expected_impact TEXT,
+  photo_before_url TEXT,
+  photo_after_url TEXT,
+  status TEXT NOT NULL DEFAULT 'Submitted' CHECK (status IN ('Submitted', 'Under Review', 'Approved', 'Implemented', 'Rejected')),
+  reward_points INTEGER NOT NULL DEFAULT 0,
+  reviewer_id TEXT REFERENCES workers(id) ON DELETE SET NULL,
+  reviewer_feedback TEXT,
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE kaizen_suggestions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow read all for kaizen_suggestions" ON kaizen_suggestions FOR SELECT TO public USING (true);
+CREATE POLICY "Allow insert for kaizen_suggestions" ON kaizen_suggestions FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Allow update for kaizen_suggestions" ON kaizen_suggestions FOR UPDATE TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Allow delete for kaizen_suggestions" ON kaizen_suggestions FOR DELETE TO public USING (true);
+
+-- Update activity_log check constraint to include kaizen actions
+ALTER TABLE activity_log DROP CONSTRAINT IF EXISTS activity_log_action_check;
+ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
+  action IN (
+    'login', 'logout', 'password_reset', 'profile_update', 'badge_awarded',
+    'quiz_completed', 'checklist_completed', 'incident_reported',
+    'kudo_sent', 'kudo_received', 'shift_handover', 'sop_completed',
+    'kaizen_submitted', 'kaizen_approved'
+  )
+);
+
+-- RPC for approving Kaizen, awarding points, and logging activity atomically
+CREATE OR REPLACE FUNCTION rpc_approve_kaizen(
+  p_suggestion_id UUID,
+  p_reviewer_id TEXT,
+  p_new_status TEXT,
+  p_reward_points INTEGER,
+  p_feedback TEXT
+) RETURNS void AS $$
+DECLARE
+  v_author_id TEXT;
+  v_title TEXT;
+  v_prev_reward INTEGER;
+  v_effective_reward INTEGER;
+  v_point_diff INTEGER;
+BEGIN
+  -- 1. Ambil data author & previous reward
+  SELECT author_id, title, reward_points INTO v_author_id, v_title, v_prev_reward
+  FROM kaizen_suggestions
+  WHERE id = p_suggestion_id;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Kaizen suggestion dengan ID % tidak ditemukan', p_suggestion_id;
+  END IF;
+
+  -- 2. Tentukan poin reward efektif: Hanya status Approved & Implemented yang berhak mendapat poin
+  IF p_new_status IN ('Approved', 'Implemented') THEN
+    v_effective_reward := GREATEST(p_reward_points, 0);
+  ELSE
+    v_effective_reward := 0; -- Jika di-reject atau dikembalikan, poin di-reset ke 0 (Refund)
+  END IF;
+
+  -- 3. Hitung selisih poin reward (positif = penambahan, negatif = refund)
+  v_point_diff := v_effective_reward - COALESCE(v_prev_reward, 0);
+
+  -- 3. Update status saran Kaizen
+  UPDATE kaizen_suggestions
+  SET status = p_new_status,
+      reward_points = v_effective_reward,
+      reviewer_id = p_reviewer_id,
+      reviewer_feedback = p_feedback,
+      reviewed_at = now(),
+      updated_at = now()
+  WHERE id = p_suggestion_id;
+
+  -- 4. Lakukan penyesuaian saldo poin worker jika ada selisih (bisa topup atau refund)
+  IF v_point_diff <> 0 THEN
+    UPDATE workers
+    SET total_points = GREATEST(total_points + v_point_diff, 0),
+        updated_at = now()
+    WHERE id = v_author_id;
+
+    -- Catat log aktivitas untuk worker
+    IF v_point_diff > 0 THEN
+      INSERT INTO activity_log (worker_id, action, detail)
+      VALUES (
+        v_author_id,
+        'kaizen_approved',
+        'Inovasi Kaizen Disetujui: "' || SUBSTRING(v_title FROM 1 FOR 30) || '" (+' || v_point_diff || ' PTS)'
+      );
+    ELSE
+      INSERT INTO activity_log (worker_id, action, detail)
+      VALUES (
+        v_author_id,
+        'kaizen_approved',
+        'Refund / Penyesuaian Poin Kaizen: "' || SUBSTRING(v_title FROM 1 FOR 30) || '" (' || v_point_diff || ' PTS)'
+      );
+    END IF;
+  END IF;
+END;
+$$ LANGUAGE plpgsql;

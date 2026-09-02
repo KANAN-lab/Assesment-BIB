@@ -19,7 +19,8 @@ interface NavbarProps {
 const ROLE_MODES = [
   {
     key: 'worker',
-    label: 'Staf Logistik (Worker)',
+    label: 'Operational Employee (Worker)',
+    shortLabel: 'Operational',
     icon: UserCheck,
     badgeBg: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
     desc: 'Kinerja, Quest Harian & Rewards',
@@ -27,6 +28,7 @@ const ROLE_MODES = [
   {
     key: 'supervisor',
     label: 'Supervisor (Pengawas)',
+    shortLabel: 'Supervisor',
     icon: LayoutDashboard,
     badgeBg: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
     desc: 'Audit Matriks & Monitoring Tim',
@@ -34,6 +36,7 @@ const ROLE_MODES = [
   {
     key: 'admin',
     label: 'Administrator (System)',
+    shortLabel: 'Admin',
     icon: Settings,
     badgeBg: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
     desc: 'Kelola Divisi, Role & Matrix',
@@ -91,8 +94,8 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="hidden sm:block">
               <div className="flex items-center gap-2">
                 <span className="font-black text-base text-white tracking-tight">Gappy Assessment</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${activeMode.badgeBg}`}>
-                  {activeMode.label.split(' ')[0]}
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${(activeMode as any).badgeBg}`}>
+                  {(activeMode as any).shortLabel || activeMode.label.split(' ')[0]}
                 </span>
               </div>
             </div>
@@ -141,7 +144,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 <span className="text-zinc-500 hidden md:inline">Akses:</span>
                 <ActiveIcon className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="font-bold text-white">{activeMode.label.split(' ')[0]}</span>
+                <span className="font-bold text-white">{(activeMode as any).shortLabel || activeMode.label.split(' ')[0]}</span>
                 {userSystemRole !== 'worker' && (
                   <ChevronDown className={`w-3.5 h-3.5 text-zinc-400 transition-transform ${dropdownOpen ? 'rotate-180' : ''}`} />
                 )}

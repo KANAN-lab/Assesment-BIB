@@ -5,6 +5,7 @@ import { DailyQuestModal } from './components/DailyQuestModal';
 import { ChecklistDetailModal } from './components/ChecklistDetailModal';
 import { RewardMarketplace } from './components/RewardMarketplace';
 import { LeaderboardSection } from './components/LeaderboardSection';
+import { HandoverKanbanBoard } from './components/HandoverKanbanBoard';
 import { SupervisorConsole } from './components/SupervisorConsole';
 import { LoginModal } from './components/LoginModal';
 import { CompetencyAuditModal } from './components/CompetencyAuditModal';
@@ -23,6 +24,15 @@ import { OnboardingModal } from './components/OnboardingModal';
 import { PerformanceSummaryCard } from './components/PerformanceSummaryCard';
 import { WorkerCompetencyModal } from './components/WorkerCompetencyModal';
 import { WorkerIncidentHistory } from './components/WorkerIncidentHistory';
+import { KudoWall } from './components/KudoWall';
+import { KudoModal } from './components/KudoModal';
+import { ShiftHandoverModal } from './components/ShiftHandoverModal';
+import { AcknowledgeHandoverModal } from './components/AcknowledgeHandoverModal';
+import { KaizenSubmissionModal } from './components/KaizenSubmissionModal';
+import { WorkerHistoryCenterModal } from './components/WorkerHistoryCenterModal';
+import { ShiftHandoverEntity } from './types/handover';
+import { HandoverManager } from './lib/handoverService';
+
 
 import {
   fetchWorkerById,
@@ -65,7 +75,7 @@ import { WorkerProfile, RewardItem, RewardHistory, AuditInput, LeaderboardEntry,
 import { RoleEntity } from './domain/RoleEntity';
 import { WorkerEntity } from './domain/WorkerEntity';
 
-import { Zap, ShieldCheck, Flame, Coins, Trophy, CheckCircle2, AlertCircle, Loader2, Camera, ShieldAlert, BookOpen } from 'lucide-react';
+import { Zap, ShieldCheck, Flame, Coins, Trophy, CheckCircle2, AlertCircle, Loader2, Camera, ShieldAlert, BookOpen, Award, Sparkles, Lightbulb, History } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [activeView, setActiveView] = useState<'worker' | 'supervisor' | 'admin'>('worker');
@@ -84,10 +94,14 @@ export const App: React.FC = () => {
   const [workerBadges, setWorkerBadges] = useState<WorkerBadge[]>([]);
   const [allBadges, setAllBadges] = useState<Badge[]>([]);
   const [showIncidentModal, setShowIncidentModal] = useState(false);
-  const [showWorkerIncidentHistory, setShowWorkerIncidentHistory] = useState(false);
   const [showCompetencyModal, setShowCompetencyModal] = useState(false);
   const [showSopModal, setShowSopModal] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showKudoModal, setShowKudoModal] = useState(false);
+  const [showShiftHandoverModal, setShowShiftHandoverModal] = useState(false);
+  const [showKaizenModal, setShowKaizenModal] = useState(false);
+  const [showHistoryCenterModal, setShowHistoryCenterModal] = useState(false);
+  const [unacknowledgedHandovers, setUnacknowledgedHandovers] = useState<ShiftHandoverEntity[]>([]);
   const lastActiveRef = useRef<number>(Date.now());
 
   // ── Auth & UI state ──
@@ -160,10 +174,11 @@ export const App: React.FC = () => {
       setMatrixInitialScores(competencyScores);
       setScoreHistory(scoresHist);
 
-      // Load announcements & badges
+      // Load announcements & badges & unacknowledged handovers
       fetchAnnouncements(true).then(setAnnouncements).catch(() => {});
       fetchWorkerBadges(worker.id).then(setWorkerBadges).catch(() => {});
       fetchAllBadges().then(setAllBadges).catch(() => {});
+      HandoverManager.getUnacknowledgedHandovers(worker.id).then(setUnacknowledgedHandovers).catch(() => {});
 
       // Log login activity
       logActivity(worker.id, worker.name, 'login').catch(() => {});
@@ -355,6 +370,7 @@ export const App: React.FC = () => {
     setCurrentWorker(null);
     setAnnouncements([]);
     setWorkerBadges([]);
+    setUnacknowledgedHandovers([]);
     setShowLoginModal(true);
   };
 
@@ -790,61 +806,88 @@ export const App: React.FC = () => {
                   </div>
                 </div>
 
-                {/* Daily Actions */}
-                <div className="flex gap-2 flex-wrap">
+                {/* Daily Actions Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:flex xl:flex-wrap gap-2 w-full">
                   <button
                     onClick={() => setShowDailyQuizModal(true)}
                     disabled={currentWorker.dailyQuizCompleted}
-                    className={`px-4 py-2.5 rounded-xl font-bold text-xs transition flex items-center gap-2 ${
+                    className={`min-h-[44px] px-3.5 py-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 shadow-sm ${
                       currentWorker.dailyQuizCompleted
                         ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-default'
                         : 'bg-emerald-600 hover:bg-emerald-500 text-white'
                     }`}
                   >
-                    <Zap className={`w-3.5 h-3.5 ${currentWorker.dailyQuizCompleted ? 'text-zinc-700' : 'text-emerald-100'}`} />
-                    {currentWorker.dailyQuizCompleted ? 'Kuis Selesai' : 'Kuis Safety +50'}
-                    {currentWorker.dailyQuizCompleted && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
+                    <Zap className={`w-4 h-4 shrink-0 ${currentWorker.dailyQuizCompleted ? 'text-zinc-700' : 'text-emerald-100'}`} />
+                    <span className="truncate">{currentWorker.dailyQuizCompleted ? 'Kuis Selesai' : 'Kuis Safety +50'}</span>
+                    {currentWorker.dailyQuizCompleted && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
                   </button>
 
                   <button
                     onClick={() => setShowChecklistModal(true)}
                     disabled={currentWorker.preShiftChecklistDone}
-                    className={`px-4 py-2.5 rounded-xl font-bold text-xs transition flex items-center gap-2 ${
+                    className={`min-h-[44px] px-3.5 py-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 shadow-sm ${
                       currentWorker.preShiftChecklistDone
                         ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-default'
                         : 'bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200'
                     }`}
                   >
-                    <ShieldCheck className={`w-3.5 h-3.5 ${currentWorker.preShiftChecklistDone ? 'text-zinc-700' : 'text-cyan-400'}`} />
-                    {currentWorker.preShiftChecklistDone ? 'Checklist OK' : 'Pre-Shift +30'}
-                    {currentWorker.preShiftChecklistDone && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
+                    <ShieldCheck className={`w-4 h-4 shrink-0 ${currentWorker.preShiftChecklistDone ? 'text-zinc-700' : 'text-cyan-400'}`} />
+                    <span className="truncate">{currentWorker.preShiftChecklistDone ? 'Checklist OK' : 'Pre-Shift +30'}</span>
+                    {currentWorker.preShiftChecklistDone && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
                   </button>
 
                   <button
                     onClick={() => setShowSopModal(true)}
-                    className="px-4 py-2.5 rounded-xl font-bold text-xs bg-purple-950/70 hover:bg-purple-900/80 border border-purple-500/40 text-purple-300 transition flex items-center gap-2"
+                    className="min-h-[44px] px-3.5 py-2.5 rounded-xl font-bold text-xs bg-purple-950/70 hover:bg-purple-900/80 border border-purple-500/40 text-purple-300 transition flex items-center justify-center gap-2 shadow-sm"
                     title="Buka Pustaka SOP Micro-Deck & K3 Academy"
                   >
-                    <BookOpen className="w-3.5 h-3.5 text-purple-400" />
-                    SOP Micro-Deck
+                    <BookOpen className="w-4 h-4 text-purple-400 shrink-0" />
+                    <span className="truncate">SOP Micro-Deck</span>
                   </button>
 
                   <button
                     onClick={() => setShowIncidentModal(true)}
-                    className="px-4 py-2.5 rounded-xl font-bold text-xs bg-orange-950/70 hover:bg-orange-900/80 border border-orange-500/40 text-orange-300 transition flex items-center gap-2"
+                    className="min-h-[44px] px-3.5 py-2.5 rounded-xl font-bold text-xs bg-orange-950/70 hover:bg-orange-900/80 border border-orange-500/40 text-orange-300 transition flex items-center justify-center gap-2 shadow-sm"
                     title="Laporkan Insiden / Near-Miss K3 Logistik"
                   >
-                    <ShieldAlert className="w-3.5 h-3.5 text-orange-400" />
-                    Laporan Insiden K3
+                    <ShieldAlert className="w-4 h-4 text-orange-400 shrink-0" />
+                    <span className="truncate">Lapor Insiden K3</span>
                   </button>
 
                   <button
-                    onClick={() => setShowWorkerIncidentHistory(true)}
-                    className="px-3.5 py-2.5 rounded-xl font-bold text-xs bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 transition flex items-center gap-2"
-                    title="Lihat riwayat laporan insiden yang pernah dibuat"
+                    onClick={() => setShowKudoModal(true)}
+                    className="min-h-[44px] px-3.5 py-2.5 rounded-xl font-bold text-xs bg-sky-950/70 hover:bg-sky-900/80 border border-sky-500/40 text-sky-300 transition flex items-center justify-center gap-2 shadow-sm"
+                    title="Kirim Apresiasi ke Rekan Kerja"
                   >
-                    <ShieldAlert className="w-3.5 h-3.5 text-zinc-400" />
-                    Riwayat Saya
+                    <Award className="w-4 h-4 text-sky-400 shrink-0" />
+                    <span className="truncate">Beri Kudo</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowShiftHandoverModal(true)}
+                    className="min-h-[44px] px-3.5 py-2.5 rounded-xl font-bold text-xs bg-indigo-950/70 hover:bg-indigo-900/80 border border-indigo-500/40 text-indigo-300 transition flex items-center justify-center gap-2 shadow-sm"
+                    title="Catat Serah Terima (Handover) Antar Shift"
+                  >
+                    <AlertCircle className="w-4 h-4 text-indigo-400 shrink-0" />
+                    <span className="truncate">Serah Terima Shift</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowKaizenModal(true)}
+                    className="min-h-[44px] px-3.5 py-2.5 rounded-xl font-bold text-xs bg-amber-950/70 hover:bg-amber-900/80 border border-amber-500/40 text-amber-300 transition flex items-center justify-center gap-2 shadow-sm"
+                    title="Ajukan Ide Kaizen & Raih Reward Poin!"
+                  >
+                    <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span className="truncate">Kaizen Inovasi</span>
+                  </button>
+
+                  <button
+                    onClick={() => setShowHistoryCenterModal(true)}
+                    className="min-h-[44px] px-3.5 py-2.5 rounded-xl font-bold text-xs bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 transition flex items-center justify-center gap-2 shadow-sm"
+                    title="Pusat Riwayat Terpadu: Kaizen, Insiden, Handover, Kudo, & Reward"
+                  >
+                    <History className="w-4 h-4 text-indigo-400 shrink-0" />
+                    <span className="truncate">Riwayat & Arsip</span>
                   </button>
                 </div>
               </div>
@@ -852,6 +895,11 @@ export const App: React.FC = () => {
 
             {/* Announcement Banner */}
             {announcements.length > 0 && <AnnouncementBanner announcements={announcements} />}
+
+            {/* Shift Handover Kanban Board */}
+            <div className="mb-6">
+              <HandoverKanbanBoard />
+            </div>
 
             {/* Target & Performance Summary Card */}
             <PerformanceSummaryCard
@@ -889,11 +937,15 @@ export const App: React.FC = () => {
               <BadgeShowcase workerBadges={workerBadges} allBadges={allBadges} />
             )}
 
+            {/* Kudo Wall / Tembok Apresiasi (Paling Bawah) */}
+            <KudoWall />
+
           </div>
         ) : activeView === 'supervisor' ? (
           <div className="animate-fade-in">
             <SupervisorConsole
               workers={allWorkers}
+              currentSupervisorId={currentWorker?.id}
               onUpdateWorkerScore={handleUpdateWorkerScore}
               onOpenMatrixAudit={handleOpenMatrixAudit}
             />
@@ -998,11 +1050,12 @@ export const App: React.FC = () => {
         />
       )}
 
-      {showWorkerIncidentHistory && currentWorker && (
-        <WorkerIncidentHistory
+      {currentWorker && (
+        <WorkerHistoryCenterModal
+          isOpen={showHistoryCenterModal}
+          onClose={() => setShowHistoryCenterModal(false)}
           workerId={currentWorker.id}
           workerName={currentWorker.name}
-          onClose={() => setShowWorkerIncidentHistory(false)}
         />
       )}
 
@@ -1036,6 +1089,43 @@ export const App: React.FC = () => {
             localStorage.setItem('komar_onboarding_done', 'true');
             setShowOnboarding(false);
           }}
+        />
+      )}
+
+      {currentWorker && (
+        <KudoModal 
+          isOpen={showKudoModal} 
+          onClose={() => setShowKudoModal(false)} 
+          currentWorkerId={currentWorker.id} 
+        />
+      )}
+
+      {currentWorker && (
+        <ShiftHandoverModal
+          isOpen={showShiftHandoverModal}
+          onClose={() => setShowShiftHandoverModal(false)}
+          currentWorkerId={currentWorker.id}
+        />
+      )}
+
+      {currentWorker && (
+        <KaizenSubmissionModal
+          isOpen={showKaizenModal}
+          onClose={() => setShowKaizenModal(false)}
+          currentWorkerId={currentWorker.id}
+          onSubmitted={() => {
+            loadDataForWorker(currentWorker.id);
+          }}
+        />
+      )}
+
+
+
+      {currentWorker && unacknowledgedHandovers.length > 0 && (
+        <AcknowledgeHandoverModal
+          handovers={unacknowledgedHandovers}
+          currentWorkerId={currentWorker.id}
+          onAllAcknowledged={() => setUnacknowledgedHandovers([])}
         />
       )}
 

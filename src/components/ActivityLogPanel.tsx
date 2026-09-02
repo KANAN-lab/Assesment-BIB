@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, LogIn, LogOut, Key, Shield, BookOpen, CheckCircle2, ShieldAlert, User, RefreshCw } from 'lucide-react';
+import { Activity, LogIn, LogOut, Key, Shield, BookOpen, CheckCircle2, ShieldAlert, User, RefreshCw, Award, ArrowRightLeft, BookMarked } from 'lucide-react';
 import type { ActivityLog, ActivityAction } from '../types/assessment';
 
 interface ActivityLogPanelProps {
@@ -17,6 +17,12 @@ const ACTION_CONFIG: Record<ActivityAction, { icon: React.ReactNode; label: stri
   quiz_completed:       { icon: <BookOpen className="w-3.5 h-3.5" />,    label: 'Kuis Selesai',     color: 'text-cyan-400 bg-cyan-500/10' },
   checklist_completed:  { icon: <CheckCircle2 className="w-3.5 h-3.5" />,label: 'Checklist Selesai',color: 'text-green-400 bg-green-500/10' },
   incident_reported:    { icon: <ShieldAlert className="w-3.5 h-3.5" />, label: 'Laporan Insiden',  color: 'text-orange-400 bg-orange-500/10' },
+  kudo_sent:            { icon: <Award className="w-3.5 h-3.5" />,       label: 'Kirim Kudo',       color: 'text-sky-400 bg-sky-500/10' },
+  kudo_received:        { icon: <Award className="w-3.5 h-3.5" />,       label: 'Terima Kudo',      color: 'text-amber-400 bg-amber-500/10' },
+  shift_handover:       { icon: <ArrowRightLeft className="w-3.5 h-3.5" />, label: 'Handover Shift', color: 'text-indigo-400 bg-indigo-500/10' },
+  sop_completed:        { icon: <BookMarked className="w-3.5 h-3.5" />,  label: 'SOP Selesai',      color: 'text-purple-400 bg-purple-500/10' },
+  kaizen_submitted:     { icon: <Activity className="w-3.5 h-3.5" />,    label: 'Submit Kaizen',    color: 'text-amber-400 bg-amber-500/10' },
+  kaizen_approved:      { icon: <CheckCircle2 className="w-3.5 h-3.5" />,label: 'Kaizen Disetujui', color: 'text-emerald-400 bg-emerald-500/10' },
 };
 
 function formatTimeAgo(iso: string): string {
