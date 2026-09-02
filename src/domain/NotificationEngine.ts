@@ -20,6 +20,8 @@ export interface AppNotification {
  */
 export class NotificationEngine {
   private static STORAGE_KEY = 'gappy_app_notifications_v2';
+  private static INITIALIZED_KEY = 'gappy_notifications_init_flag_v2';
+  private static DELETED_KEY = 'gappy_deleted_notif_ids_v2';
 
   // Cross-tab broadcast channel
   private static channel: BroadcastChannel | null = (() => {
@@ -62,16 +64,57 @@ export class NotificationEngine {
   }
 
   /**
-   * Fetch all notifications stored locally
+   * Get tombstone set of deleted notification IDs to prevent resurrection
+   */
+  private static getDeletedIds(): Set<string> {
+    try {
+      const raw = localStorage.getItem(this.DELETED_KEY);
+      if (!raw) return new Set();
+      const parsed = JSON.parse(raw);
+      return new Set(Array.isArray(parsed) ? parsed : []);
+    } catch {
+      return new Set();
+    }
+  }
+
+  /**
+   * Mark a notification ID as permanently deleted
+   */
+  private static markDeletedId(id: string): void {
+    try {
+      const set = this.getDeletedIds();
+      set.add(id);
+      localStorage.setItem(this.DELETED_KEY, JSON.stringify(Array.from(set).slice(-300)));
+    } catch {
+      // Ignore
+    }
+  }
+
+  /**
+   * Fetch all notifications stored locally.
+   * FIX: Never resurrects defaults once initialized!
    */
   public static getAll(): AppNotification[] {
     try {
+      const isInit = localStorage.getItem(this.INITIALIZED_KEY);
       const raw = localStorage.getItem(this.STORAGE_KEY);
-      if (!raw) return this.getDefaultNotifications();
+      const deletedIds = this.getDeletedIds();
+
+      if (!isInit) {
+        // First run ever: seed default notifications
+        const defaults = this.getDefaultNotifications().filter((n) => !deletedIds.has(n.id));
+        this.saveAll(defaults);
+        localStorage.setItem(this.INITIALIZED_KEY, 'true');
+        return defaults;
+      }
+
+      if (!raw) return [];
       const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) && parsed.length > 0 ? parsed : this.getDefaultNotifications();
+      if (!Array.isArray(parsed)) return [];
+
+      return parsed.filter((n) => !deletedIds.has(n.id));
     } catch {
-      return this.getDefaultNotifications();
+      return [];
     }
   }
 
@@ -80,7 +123,10 @@ export class NotificationEngine {
    */
   private static saveAll(list: AppNotification[]): void {
     try {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(list.slice(0, 200)));
+      const deletedIds = this.getDeletedIds();
+      const cleanList = list.filter((n) => !deletedIds.has(n.id));
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(cleanList.slice(0, 200)));
+      localStorage.setItem(this.INITIALIZED_KEY, 'true');
     } catch (e) {
       console.warn('[NotificationEngine] Gagal menyimpan notifikasi lokal:', e);
     }
@@ -97,27 +143,32 @@ export class NotificationEngine {
         .order('created_at', { ascending: false })
         .limit(100);
 
-      if (error || !data || data.length === 0) {
+      if (error || !data) {
         return this.getAll();
       }
 
-      const remoteList: AppNotification[] = data.map((row: any) => ({
-        id: row.id,
-        recipientId: row.recipient_id,
-        recipientRole: row.recipient_role,
-        title: row.title,
-        message: row.message,
-        type: row.type,
-        isRead: Boolean(row.is_read),
-        createdAt: row.created_at,
-        metadata: row.metadata || {}
-      }));
+      const deletedIds = this.getDeletedIds();
+
+      const remoteList: AppNotification[] = data
+        .filter((row: any) => !deletedIds.has(row.id))
+        .map((row: any) => ({
+          id: row.id,
+          recipientId: row.recipient_id,
+          recipientRole: row.recipient_role,
+          title: row.title,
+          message: row.message,
+          type: row.type,
+          isRead: Boolean(row.is_read),
+          createdAt: row.created_at,
+          metadata: row.metadata || {}
+        }));
 
       const localList = this.getAll();
       const localMap = new Map(localList.map((n) => [n.id, n]));
 
       // Merge: preserve local isRead status if read locally
       for (const r of remoteList) {
+        if (deletedIds.has(r.id)) continue;
         if (localMap.has(r.id)) {
           const existing = localMap.get(r.id)!;
           localMap.set(r.id, { ...r, isRead: existing.isRead || r.isRead });
@@ -126,9 +177,9 @@ export class NotificationEngine {
         }
       }
 
-      const merged = Array.from(localMap.values()).sort(
-        (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-      );
+      const merged = Array.from(localMap.values())
+        .filter((n) => !deletedIds.has(n.id))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       this.saveAll(merged);
       this.notifyUpdate();
@@ -280,6 +331,7 @@ export class NotificationEngine {
    * Delete a specific notification by ID
    */
   public static deleteNotification(id: string): void {
+    this.markDeletedId(id);
     const list = this.getAll();
     const updated = list.filter((n) => n.id !== id);
     this.saveAll(updated);
@@ -294,8 +346,17 @@ export class NotificationEngine {
    * Clear all notifications for user or globally
    */
   public static clearAllNotifications(): void {
+    const currentList = this.getAll();
+    currentList.forEach((n) => this.markDeletedId(n.id));
     this.saveAll([]);
     this.notifyUpdate();
+
+    this.executeRemote(async () => {
+      const ids = currentList.map((n) => n.id);
+      if (ids.length > 0) {
+        await supabase.from('app_notifications').delete().in('id', ids);
+      }
+    });
   }
 
   /**
@@ -326,4 +387,5 @@ export class NotificationEngine {
     ];
   }
 }
+
 
