@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ShieldAlert,
   AlertTriangle,
@@ -774,9 +775,15 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
       )}
 
       {/* ─── MODAL: VERIFIKASI SELESAI RETRAINING ─── */}
-      {verifyingAction && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="card p-6 w-full max-w-md bg-zinc-950 border-cyan-500/30 space-y-4 shadow-2xl">
+      {verifyingAction && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+          onClick={() => setVerifyingAction(null)}
+        >
+          <div
+            className="card p-6 w-full max-w-md bg-zinc-950 border-cyan-500/30 space-y-4 shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <CheckCircle2 className="w-5 h-5 text-cyan-400" />
@@ -818,7 +825,8 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

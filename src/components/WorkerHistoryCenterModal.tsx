@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   History,
@@ -128,9 +129,15 @@ export function WorkerHistoryCenterModal({
     { key: 'rewards', label: 'Klaim Reward', icon: ShoppingBag, count: rewards.length },
   ] as const;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="relative w-full max-w-3xl max-h-[92vh] flex flex-col bg-zinc-950 border border-zinc-800 rounded-3xl shadow-2xl overflow-hidden">
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-3 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+      onClick={onClose}
+    >
+      <div
+        className="relative w-full max-w-3xl max-h-[88vh] sm:max-h-[90vh] m-auto flex flex-col bg-zinc-950 border border-zinc-800 rounded-3xl shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* Modal Header */}
         <div className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/70">
           <div className="flex items-center gap-3">
@@ -519,6 +526,7 @@ export function WorkerHistoryCenterModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

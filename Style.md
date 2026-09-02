@@ -212,3 +212,50 @@ Aplikasi ini banyak digunakan di lapangan (oleh Worker/Supervisor) via mobile ph
   - Hindari membuat tombol riwayat terpisah-pisah untuk setiap modul (contoh: "Riwayat Insiden", "Ide Saya", "Riwayat Handover", "Riwayat Kudo").
   - Gabungkan seluruh riwayat dan arsip aktivitas personal pekerja ke dalam **SATU Modal Terpusat ber-Tab** (`WorkerHistoryCenterModal` / "Pusat Riwayat & Arsip").
 
+---
+
+## 10. Standard Modal & Form Focus Protocol (Portaled Stacking Context)
+
+> [!IMPORTANT]
+> **Aturan Wajib Pembuatan Modal & Formulir Baru**:
+> Semua dialog modal, form input, dan popup interaktif **WAJIB** menggunakan `createPortal(..., document.body)` untuk mengisolasi modal dari stacking context, `overflow: hidden`, dan CSS transform parent container (terutama di sub-panel lazy load).
+
+### Template Standar Modal & Form:
+```tsx
+import { createPortal } from 'react-dom';
+
+return createPortal(
+  <div
+    className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-3 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+    onClick={onClose}
+  >
+    <div
+      className="relative w-full max-w-lg max-h-[88vh] sm:max-h-[90vh] m-auto bg-zinc-950 border border-zinc-800 rounded-3xl shadow-2xl overflow-hidden flex flex-col"
+      onClick={(e) => e.stopPropagation()} // Mencegah click backdrop menutup form saat user klik input
+    >
+      {/* Header */}
+      <div className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between bg-zinc-900/60 shrink-0">
+        <h3 className="font-bold text-white text-sm">Judul Form</h3>
+        <button onClick={onClose} className="text-zinc-500 hover:text-white p-1 rounded-lg">
+          <X className="w-5 h-5" />
+        </button>
+      </div>
+
+      {/* Body with Custom Scrollbar */}
+      <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto flex-1 custom-scrollbar">
+        {/* Form Inputs */}
+      </form>
+    </div>
+  </div>,
+  document.body
+);
+```
+
+### Checklist Verifikasi Form & Modal Baru:
+1. [ ] **React Portal**: Selalu di-portal ke `document.body`.
+2. [ ] **Layering / Stacking**: Gunakan `z-[9999]` dan `backdrop-blur-xl` dengan `bg-black/90`.
+3. [ ] **Scroll Safety**: Gunakan `overflow-y-auto min-h-screen` pada backdrop overlay dan `max-h-[88vh] sm:max-h-[90vh]` pada modal wrapper agar form tidak terpotong di layar HP.
+4. [ ] **Focus & Event Bubbling**: Pasang `onClick={(e) => e.stopPropagation()}` pada dialog card agar interaksi pada field input/select tidak memicu backdrop click.
+5. [ ] **Select / Input Styling**: Input wajib memiliki `text-white bg-zinc-950 border-zinc-800 focus:border-amber-500` (atau emerald) dan `<option className="bg-zinc-900 text-white">` agar terbaca jelas di semua browser/OS.
+
+

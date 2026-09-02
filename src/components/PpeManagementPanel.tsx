@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Shield,
   Plus,
@@ -882,9 +883,15 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
       )}
 
       {/* ─── MODAL 1: SERAH TERIMA APD BARU ─── */}
-      {isDistributeModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl animate-fade-in">
+      {isDistributeModalOpen && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+          onClick={() => setIsDistributeModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-lg max-h-[88vh] sm:max-h-[90vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950">
               <div className="flex items-center gap-2.5">
                 <HardHat className="w-5 h-5 text-amber-400" />
@@ -1028,13 +1035,20 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ─── MODAL 2: TAMBAH / EDIT MASTER APD ─── */}
-      {isMasterModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in">
+      {isMasterModalOpen && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+          onClick={() => setIsMasterModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-md max-h-[88vh] sm:max-h-[90vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950">
               <div className="flex items-center gap-2.5">
                 <Package className="w-5 h-5 text-amber-400" />
@@ -1176,13 +1190,20 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ─── MODAL 3: LAPOR APD RUSAK / HILANG ─── */}
-      {isDamageModalOpen && selectedDistForDamage && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in">
+      {isDamageModalOpen && selectedDistForDamage && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+          onClick={() => setIsDamageModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-md max-h-[88vh] sm:max-h-[90vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950">
               <div className="flex items-center gap-2.5">
                 <RotateCcw className="w-5 h-5 text-rose-400" />
@@ -1255,13 +1276,20 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ─── MODAL 4: REVIEW & PROSES TIKET RUSAK ─── */}
-      {isReviewModalOpen && selectedReportForReview && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-fade-in">
+      {isReviewModalOpen && selectedReportForReview && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+          onClick={() => setIsReviewModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-md max-h-[88vh] sm:max-h-[90vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950">
               <div className="flex items-center gap-2.5">
                 <CheckCircle2 className="w-5 h-5 text-emerald-400" />
@@ -1300,9 +1328,9 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-bold"
                   required
                 >
-                  <option value="replacement_issued">✅ Setujui & Terbitkan APD Pengganti Baru</option>
-                  <option value="repaired">🛠️ Telah Diperbaiki (Tidak Perlu Unit Baru)</option>
-                  <option value="rejected">❌ Tolak Permohonan</option>
+                  <option value="replacement_issued">Setujui & Terbitkan APD Pengganti Baru</option>
+                  <option value="repaired">Telah Diperbaiki (Tidak Perlu Unit Baru)</option>
+                  <option value="rejected">Tolak Permohonan</option>
                 </select>
               </div>
 
@@ -1351,7 +1379,8 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
