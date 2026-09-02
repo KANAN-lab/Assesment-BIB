@@ -951,6 +951,23 @@ CREATE POLICY "Allow all write sop_modules" ON sop_modules FOR ALL TO public USI
 DROP POLICY IF EXISTS "Allow all for worker_sop_progress" ON worker_sop_progress;
 CREATE POLICY "Allow all for worker_sop_progress" ON worker_sop_progress FOR ALL TO public USING (true) WITH CHECK (true);
 
+-- Ensure unique constraint on worker_sop_progress
+CREATE UNIQUE INDEX IF NOT EXISTS idx_worker_sop_progress_unique ON worker_sop_progress(worker_id, sop_id);
+
+-- Seed Standard SOP Modules
+INSERT INTO sop_modules (id, code, title, category, difficulty, points_reward, estimated_minutes, description, badge_icon, is_mandatory, is_active)
+VALUES
+  ('sop-mhe-01', 'SOP-MHE-01', 'Pengoperasian Forklift Aman di Area Gudang', 'Operasional MHE', 'Mandatory Compliance', 50, 3, 'Pedoman standar keselamatan pengoperasian forklift & reachtruck, pre-use inspection, manuver blind spot, dan batas angkat muatan.', 'Truck', true, true),
+  ('sop-wrh-02', 'SOP-WRH-02', 'Standar Susunan Palet & Interlocking Stacking', 'Warehouse & Staging', 'Beginner', 50, 3, 'Tata cara penyusunan palet barang finished goods, metode kuncian (interlocking), batas tinggi tumpukan, dan kriteria palet rusak.', 'Boxes', false, true),
+  ('sop-hse-03', 'SOP-HSE-03', 'Tanggap Darurat Kebakaran & Penggunaan APAR (PASS)', 'K3 & Safety', 'Mandatory Compliance', 50, 4, 'Protokol evakuasi keadaan darurat kebakaran, jalur evakuasi, titik kumpul (assembly point), dan teknik penggunaan APAR metode PASS.', 'ShieldAlert', true, true),
+  ('sop-inb-04', 'SOP-INB-04', 'Verifikasi Dokumen & Timbangan Truk Logistik', 'Inbound & Timbangan', 'Intermediate', 50, 3, 'Prosedur penerimaan barang dari vendor, pencocokan Surat Jalan dengan PO SAP, inspeksi fisik kemasan, dan protokol jembatan timbang.', 'Scale', false, true),
+  ('sop-5s-05', 'SOP-5S-05', 'Budaya 5S & Standar Staging Loading Dock', '5S & Continuous Improvement', 'Beginner', 50, 3, 'Penerapan Seiri, Seiton, Seiso, Seiketsu, Shitsuke di area loading dock, demarcasi garis kuning batas kerja, dan pemilahan sampah.', 'Sparkles', false, true),
+  ('sop-out-06', 'SOP-OUT-06', 'Prosedur Segel Kontainer & Anti-ODOL Ekspedisi', 'Outbound & Ekspedisi', 'Intermediate', 50, 3, 'Pemeriksaan 7-titik kontainer/truk boks, pemasangan security seal bernomor seri, checklist muatan anti-overload, dan Berita Acara keluar.', 'FileCheck', false, true)
+ON CONFLICT (id) DO UPDATE SET
+  title = EXCLUDED.title,
+  category = EXCLUDED.category,
+  points_reward = EXCLUDED.points_reward;
+
 -- RPC: Complete SOP Module & Atomic Award +50 PTS + BIB Benchmark Boost
 CREATE OR REPLACE FUNCTION rpc_complete_sop_module(
   p_worker_id TEXT,
@@ -976,6 +993,11 @@ BEGIN
     v_points := 50;
     v_sop_title := 'Modul SOP Logistik';
     v_sop_code := p_sop_id;
+
+    -- Self-heal: Pastikan ID modul ada di sop_modules agar tidak melanggar foreign key constraint (409)
+    INSERT INTO sop_modules (id, code, title, category, description, points_reward)
+    VALUES (p_sop_id, p_sop_id, v_sop_title, 'K3 & Safety', 'Modul Standar Operasional', v_points)
+    ON CONFLICT (id) DO NOTHING;
   END IF;
 
   SELECT EXISTS(SELECT 1 FROM workers WHERE id = p_worker_id) INTO v_worker_exists;
@@ -1037,13 +1059,18 @@ CREATE TABLE IF NOT EXISTS shift_handovers (
   shift_type TEXT NOT NULL CHECK (shift_type IN ('Pagi', 'Siang', 'Malam')),
   author_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
   next_supervisor_id TEXT REFERENCES workers(id) ON DELETE SET NULL,
-  handover_category TEXT NOT NULL DEFAULT 'MHE & Peralatan' CHECK (handover_category IN ('MHE & Peralatan', 'Operasional & Target', 'Kebersihan & 5S', 'Administrasi & Dokumen', 'Infrastruktur Gudang', 'K3 & Insiden', 'Lainnya')),
+  handover_category TEXT NOT NULL DEFAULT 'MHE & Peralatan' CHECK (handover_category IN ('MHE & Peralatan', 'Operasional & Target', 'Kebersihan & 5R', 'Kebersihan & 5S', 'Administrasi & Dokumen', 'Infrastruktur Gudang', 'K3 & Insiden', 'Lainnya')),
   condition_status TEXT NOT NULL DEFAULT 'Aman' CHECK (condition_status IN ('Aman', 'Perlu Perhatian', 'Urgent')),
   status TEXT NOT NULL DEFAULT 'Tertunda' CHECK (status IN ('Tertunda', 'Proses', 'Selesai')),
   notes TEXT,
   acknowledged_at TIMESTAMPTZ,
   acknowledged_by TEXT REFERENCES workers(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ DEFAULT now()
+);
+
+ALTER TABLE shift_handovers DROP CONSTRAINT IF EXISTS shift_handovers_handover_category_check;
+ALTER TABLE shift_handovers ADD CONSTRAINT shift_handovers_handover_category_check CHECK (
+  handover_category IN ('MHE & Peralatan', 'Operasional & Target', 'Kebersihan & 5R', 'Kebersihan & 5S', 'Administrasi & Dokumen', 'Infrastruktur Gudang', 'K3 & Insiden', 'Lainnya')
 );
 
 ALTER TABLE shift_handovers ENABLE ROW LEVEL SECURITY;
@@ -1057,10 +1084,16 @@ CREATE TABLE IF NOT EXISTS worker_kudos (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   sender_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
   receiver_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
-  category TEXT NOT NULL CHECK (category IN ('Kerja Keras', 'Inisiatif', 'Teamwork', 'Safety First')),
+  category TEXT NOT NULL CHECK (category IN ('Kerja Aman', 'Bantuan Hebat', 'Team Player', 'Inisiatif', 'Kerja Keras', 'Teamwork', 'Safety First')),
   message TEXT NOT NULL,
   points_awarded INTEGER NOT NULL DEFAULT 10,
   created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Ensure category check constraint matches all frontend types
+ALTER TABLE worker_kudos DROP CONSTRAINT IF EXISTS worker_kudos_category_check;
+ALTER TABLE worker_kudos ADD CONSTRAINT worker_kudos_category_check CHECK (
+  category IN ('Kerja Aman', 'Bantuan Hebat', 'Team Player', 'Inisiatif', 'Kerja Keras', 'Teamwork', 'Safety First')
 );
 
 ALTER TABLE worker_kudos ENABLE ROW LEVEL SECURITY;
@@ -1073,36 +1106,51 @@ ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
   action IN (
     'login', 'logout', 'password_reset', 'profile_update', 'badge_awarded',
     'quiz_completed', 'checklist_completed', 'incident_reported',
-    'kudo_sent', 'kudo_received', 'shift_handover', 'sop_completed'
+    'kudo_sent', 'kudo_received', 'shift_handover', 'sop_completed',
+    'kaizen_submitted', 'kaizen_approved', 'disciplinary_issued',
+    'disciplinary_retraining_completed', 'audit_5s_completed',
+    'sio_registered', 'ppe_distributed', 'ppe_damaged',
+    'notification_broadcast'
   )
 );
 
--- RPC for sending Kudos atomically
+-- Drop previous overloaded signatures if existing
+DROP FUNCTION IF EXISTS rpc_send_kudo(TEXT, TEXT, TEXT, TEXT, INTEGER);
+DROP FUNCTION IF EXISTS rpc_send_kudo(TEXT, TEXT, TEXT, TEXT);
+
+-- RPC for sending Kudos atomically with default points and JSONB return
 CREATE OR REPLACE FUNCTION rpc_send_kudo(
   p_sender_id TEXT,
   p_receiver_id TEXT,
   p_category TEXT,
-  p_message TEXT,
-  p_points INTEGER
-) RETURNS void AS $$
+  p_message TEXT DEFAULT '',
+  p_points INTEGER DEFAULT 10
+) RETURNS JSONB AS $$
+DECLARE
+  v_effective_points INTEGER := COALESCE(p_points, 10);
 BEGIN
   -- 1. Insert kudo record
   INSERT INTO worker_kudos (sender_id, receiver_id, category, message, points_awarded)
-  VALUES (p_sender_id, p_receiver_id, p_category, p_message, p_points);
+  VALUES (p_sender_id, p_receiver_id, p_category, p_message, v_effective_points);
 
   -- 2. Add points to receiver
   UPDATE workers
-  SET total_points = total_points + p_points,
+  SET total_points = total_points + v_effective_points,
       updated_at = now()
   WHERE id = p_receiver_id;
 
   -- 3. Log activity for receiver (kudo_received)
   INSERT INTO activity_log (worker_id, action, detail)
-  VALUES (p_receiver_id, 'kudo_received', 'Menerima Kudo (' || p_category || ') dari Rekan (+10 PTS)');
+  VALUES (p_receiver_id, 'kudo_received', 'Menerima Kudo (' || p_category || ') dari Rekan (+' || v_effective_points || ' PTS)');
 
   -- 4. Log activity for sender (kudo_sent, 0 points)
   INSERT INTO activity_log (worker_id, action, detail)
   VALUES (p_sender_id, 'kudo_sent', 'Memberikan Kudo ke Rekan');
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'message', 'Kudo apresiasi berhasil dikirim ke rekan kerja!'
+  );
 END;
 $$ LANGUAGE plpgsql;
 
