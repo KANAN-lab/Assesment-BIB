@@ -400,9 +400,11 @@ DO $$ BEGIN
   DROP POLICY IF EXISTS "Allow authenticated full system_settings" ON system_settings;
 END $$;
 
+DROP POLICY IF EXISTS "Allow public read system_settings" ON system_settings;
 CREATE POLICY "Allow public read system_settings" ON system_settings
   FOR SELECT USING (true);
 
+DROP POLICY IF EXISTS "Allow authenticated full system_settings" ON system_settings;
 CREATE POLICY "Allow authenticated full system_settings" ON system_settings
   FOR ALL USING (true);
 
@@ -481,11 +483,17 @@ DO $$ BEGIN
   DROP POLICY IF EXISTS "allow_anon_all_quiz_questions"    ON quiz_questions;
 END $$;
 
+DROP POLICY IF EXISTS "allow_anon_all_workers" ON workers;
 CREATE POLICY "allow_anon_all_workers"           ON workers                  FOR ALL TO public USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "allow_anon_all_reward_catalog" ON reward_catalog;
 CREATE POLICY "allow_anon_all_reward_catalog"    ON reward_catalog           FOR ALL TO public USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "allow_anon_all_redemption" ON redemption_history;
 CREATE POLICY "allow_anon_all_redemption"        ON redemption_history       FOR ALL TO public USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "allow_anon_all_competency_scores" ON worker_competency_scores;
 CREATE POLICY "allow_anon_all_competency_scores" ON worker_competency_scores FOR ALL TO public USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "allow_anon_all_score_history" ON score_history;
 CREATE POLICY "allow_anon_all_score_history"     ON score_history            FOR ALL TO public USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "allow_anon_all_quiz_questions" ON quiz_questions;
 CREATE POLICY "allow_anon_all_quiz_questions"    ON quiz_questions           FOR ALL TO public USING (true) WITH CHECK (true);
 
 -- ─── 7. Supabase Storage: Avatars Bucket Setup ────────────────
@@ -498,6 +506,7 @@ DO $$ BEGIN
   DROP POLICY IF EXISTS "Public Access to Avatars" ON storage.objects;
 END $$;
 
+DROP POLICY IF EXISTS "Public Access to Avatars" ON storage.objects;
 CREATE POLICY "Public Access to Avatars" ON storage.objects
   FOR ALL TO public
   USING (bucket_id = 'avatars')
@@ -1074,8 +1083,11 @@ ALTER TABLE shift_handovers ADD CONSTRAINT shift_handovers_handover_category_che
 );
 
 ALTER TABLE shift_handovers ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow read all for shift_handovers" ON shift_handovers;
 CREATE POLICY "Allow read all for shift_handovers" ON shift_handovers FOR SELECT TO public USING (true);
+DROP POLICY IF EXISTS "Allow insert for shift_handovers" ON shift_handovers;
 CREATE POLICY "Allow insert for shift_handovers" ON shift_handovers FOR INSERT TO public WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow update for shift_handovers" ON shift_handovers;
 CREATE POLICY "Allow update for shift_handovers" ON shift_handovers FOR UPDATE TO public USING (true) WITH CHECK (true);
 
 -- ─── 20. Phase 9: Peer-to-Peer Recognition (Kudos) ─────────────────────────
@@ -1097,7 +1109,9 @@ ALTER TABLE worker_kudos ADD CONSTRAINT worker_kudos_category_check CHECK (
 );
 
 ALTER TABLE worker_kudos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow read all for worker_kudos" ON worker_kudos;
 CREATE POLICY "Allow read all for worker_kudos" ON worker_kudos FOR SELECT TO public USING (true);
+DROP POLICY IF EXISTS "Allow insert for worker_kudos" ON worker_kudos;
 CREATE POLICY "Allow insert for worker_kudos" ON worker_kudos FOR INSERT TO public WITH CHECK (true);
 
 -- Update activity_log constraint safely
@@ -1176,9 +1190,13 @@ CREATE TABLE IF NOT EXISTS kaizen_suggestions (
 );
 
 ALTER TABLE kaizen_suggestions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow read all for kaizen_suggestions" ON kaizen_suggestions;
 CREATE POLICY "Allow read all for kaizen_suggestions" ON kaizen_suggestions FOR SELECT TO public USING (true);
+DROP POLICY IF EXISTS "Allow insert for kaizen_suggestions" ON kaizen_suggestions;
 CREATE POLICY "Allow insert for kaizen_suggestions" ON kaizen_suggestions FOR INSERT TO public WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow update for kaizen_suggestions" ON kaizen_suggestions;
 CREATE POLICY "Allow update for kaizen_suggestions" ON kaizen_suggestions FOR UPDATE TO public USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow delete for kaizen_suggestions" ON kaizen_suggestions;
 CREATE POLICY "Allow delete for kaizen_suggestions" ON kaizen_suggestions FOR DELETE TO public USING (true);
 
 -- Update activity_log check constraint to include kaizen actions
@@ -1286,9 +1304,13 @@ CREATE INDEX IF NOT EXISTS idx_mhe_licenses_expiry ON mhe_licenses(expiry_date A
 CREATE INDEX IF NOT EXISTS idx_mhe_licenses_status ON mhe_licenses(status);
 
 ALTER TABLE mhe_licenses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow read for mhe_licenses" ON mhe_licenses;
 CREATE POLICY "Allow read for mhe_licenses" ON mhe_licenses FOR SELECT TO public USING (true);
+DROP POLICY IF EXISTS "Allow insert for mhe_licenses" ON mhe_licenses;
 CREATE POLICY "Allow insert for mhe_licenses" ON mhe_licenses FOR INSERT TO public WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow update for mhe_licenses" ON mhe_licenses;
 CREATE POLICY "Allow update for mhe_licenses" ON mhe_licenses FOR UPDATE TO public USING (true) WITH CHECK (true);
+DROP POLICY IF EXISTS "Allow delete for mhe_licenses" ON mhe_licenses;
 CREATE POLICY "Allow delete for mhe_licenses" ON mhe_licenses FOR DELETE TO public USING (true);
 
 DROP TRIGGER IF EXISTS trg_mhe_licenses_updated_at ON mhe_licenses;
@@ -1348,15 +1370,21 @@ CREATE INDEX IF NOT EXISTS idx_ppe_distributions_replacement ON ppe_distribution
 CREATE INDEX IF NOT EXISTS idx_ppe_damage_worker ON ppe_damage_reports(worker_id);
 
 ALTER TABLE ppe_items ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow read for ppe_items" ON ppe_items;
 CREATE POLICY "Allow read for ppe_items" ON ppe_items FOR SELECT TO public USING (true);
+DROP POLICY IF EXISTS "Allow manage for ppe_items" ON ppe_items;
 CREATE POLICY "Allow manage for ppe_items" ON ppe_items FOR ALL TO public USING (true);
 
 ALTER TABLE ppe_distributions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow read for ppe_distributions" ON ppe_distributions;
 CREATE POLICY "Allow read for ppe_distributions" ON ppe_distributions FOR SELECT TO public USING (true);
+DROP POLICY IF EXISTS "Allow manage for ppe_distributions" ON ppe_distributions;
 CREATE POLICY "Allow manage for ppe_distributions" ON ppe_distributions FOR ALL TO public USING (true);
 
 ALTER TABLE ppe_damage_reports ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow read for ppe_damage_reports" ON ppe_damage_reports;
 CREATE POLICY "Allow read for ppe_damage_reports" ON ppe_damage_reports FOR SELECT TO public USING (true);
+DROP POLICY IF EXISTS "Allow manage for ppe_damage_reports" ON ppe_damage_reports;
 CREATE POLICY "Allow manage for ppe_damage_reports" ON ppe_damage_reports FOR ALL TO public USING (true);
 
 -- RPC: Distribute PPE & Decrement Stock Atomically
@@ -1449,7 +1477,9 @@ CREATE INDEX IF NOT EXISTS idx_disciplinary_status ON disciplinary_actions(statu
 CREATE INDEX IF NOT EXISTS idx_disciplinary_date ON disciplinary_actions(incident_date DESC);
 
 ALTER TABLE disciplinary_actions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow read for disciplinary_actions" ON disciplinary_actions;
 CREATE POLICY "Allow read for disciplinary_actions" ON disciplinary_actions FOR SELECT TO public USING (true);
+DROP POLICY IF EXISTS "Allow manage for disciplinary_actions" ON disciplinary_actions;
 CREATE POLICY "Allow manage for disciplinary_actions" ON disciplinary_actions FOR ALL TO public USING (true);
 
 DROP TRIGGER IF EXISTS trg_disciplinary_actions_updated_at ON disciplinary_actions;
@@ -1568,11 +1598,15 @@ CREATE INDEX IF NOT EXISTS idx_5s_records_date ON audit_5s_records(audit_date DE
 CREATE INDEX IF NOT EXISTS idx_5s_records_rating ON audit_5s_records(rating);
 
 ALTER TABLE warehouse_zones_5s ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow read for warehouse_zones_5s" ON warehouse_zones_5s;
 CREATE POLICY "Allow read for warehouse_zones_5s" ON warehouse_zones_5s FOR SELECT TO public USING (true);
+DROP POLICY IF EXISTS "Allow manage for warehouse_zones_5s" ON warehouse_zones_5s;
 CREATE POLICY "Allow manage for warehouse_zones_5s" ON warehouse_zones_5s FOR ALL TO public USING (true);
 
 ALTER TABLE audit_5s_records ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow read for audit_5s_records" ON audit_5s_records;
 CREATE POLICY "Allow read for audit_5s_records" ON audit_5s_records FOR SELECT TO public USING (true);
+DROP POLICY IF EXISTS "Allow manage for audit_5s_records" ON audit_5s_records;
 CREATE POLICY "Allow manage for audit_5s_records" ON audit_5s_records FOR ALL TO public USING (true);
 
 DROP TRIGGER IF EXISTS trg_warehouse_zones_5s_updated_at ON warehouse_zones_5s;
@@ -1672,7 +1706,9 @@ CREATE TABLE IF NOT EXISTS system_point_configs (
 );
 
 ALTER TABLE system_point_configs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow read for system_point_configs" ON system_point_configs;
 CREATE POLICY "Allow read for system_point_configs" ON system_point_configs FOR SELECT TO public USING (true);
+DROP POLICY IF EXISTS "Allow manage for system_point_configs" ON system_point_configs;
 CREATE POLICY "Allow manage for system_point_configs" ON system_point_configs FOR ALL TO public USING (true);
 
 -- Seed Default Config Row
