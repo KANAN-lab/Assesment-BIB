@@ -769,67 +769,88 @@ export const App: React.FC = () => {
         {activeView === 'worker' ? (
           <div className="space-y-6 animate-fade-in">
 
-            {/* Worker Profile Header */}
-            <div className="card p-5">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-5">
+            {/* Worker Profile & Action Command Banner */}
+            <div className="card-elevated p-4 sm:p-5 lg:p-6 border border-zinc-800/90 bg-gradient-to-br from-zinc-900/90 via-zinc-950 to-zinc-900/70 shadow-2xl relative overflow-hidden">
+              {/* Ambient background accents */}
+              <div className="absolute top-0 right-0 -mr-20 -mt-20 w-72 h-72 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-72 h-72 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
 
-                {/* Identity */}
-                <div className="flex items-center gap-4">
-                  <div
-                    className="relative shrink-0 group cursor-pointer"
-                    onClick={() => setShowProfilePicModal(true)}
-                    title="Klik untuk ganti foto profil"
-                  >
-                    <WorkerAvatar
-                      src={currentWorker.avatar}
-                      name={currentWorker.name}
-                      className="w-14 h-14 rounded-xl ring-1 ring-zinc-700 group-hover:ring-emerald-500 transition"
-                    />
-                    <div className="absolute inset-0 bg-black/40 rounded-xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition">
-                      <Camera className="w-4 h-4 text-white" />
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-center relative z-10">
+
+                {/* Left Column: Identity & Vital Stats (lg:col-span-5 xl:col-span-4) */}
+                <div className="lg:col-span-5 xl:col-span-4 flex flex-col justify-center space-y-3.5 pr-0 lg:pr-4 border-b lg:border-b-0 lg:border-r border-zinc-800/80 pb-4 lg:pb-0">
+                  <div className="flex items-center gap-3.5">
+                    <div
+                      className="relative shrink-0 group cursor-pointer"
+                      onClick={() => setShowProfilePicModal(true)}
+                      title="Klik untuk ganti foto profil"
+                    >
+                      <WorkerAvatar
+                        src={currentWorker.avatar}
+                        name={currentWorker.name}
+                        className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl ring-2 ring-zinc-700/80 group-hover:ring-emerald-500 transition shadow-lg"
+                      />
+                      <div className="absolute inset-0 bg-black/50 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition backdrop-blur-xs">
+                        <Camera className="w-5 h-5 text-white" />
+                      </div>
+                      <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-amber-500 rounded-lg flex items-center justify-center shadow-md">
+                        <Trophy className="w-3 h-3 text-zinc-950" />
+                      </div>
                     </div>
-                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-amber-500 rounded-md flex items-center justify-center shadow">
-                      <Trophy className="w-3 h-3 text-zinc-950" />
+
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className="text-base sm:text-lg font-black text-white truncate tracking-tight">{currentWorker.name}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                          currentWorker.tier.includes('Champion') ? 'tier-legendary' :
+                          currentWorker.tier.includes('Elite')    ? 'tier-elite' :
+                          currentWorker.tier.includes('Pro')      ? 'tier-pro' : 'tier-novice'
+                        }`}>{currentWorker.tier}</span>
+                      </div>
+                      <p className="text-xs text-zinc-400 font-mono">
+                        {currentWorker.employeeId} · {currentWorker.role}
+                      </p>
+                      <p className="text-[11px] text-zinc-500">
+                        Divisi: <strong className="text-zinc-300 font-semibold">{currentWorker.division}</strong>
+                      </p>
                     </div>
                   </div>
 
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-base font-black text-white">{currentWorker.name}</span>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                        currentWorker.tier.includes('Champion') ? 'tier-legendary' :
-                        currentWorker.tier.includes('Elite')    ? 'tier-elite' :
-                        currentWorker.tier.includes('Pro')      ? 'tier-pro' : 'tier-novice'
-                      }`}>{currentWorker.tier}</span>
+                  {/* 3 Vital Stats Pills */}
+                  <div className="grid grid-cols-3 gap-2 pt-1">
+                    <div className="bg-zinc-900/90 border border-zinc-800 p-2 rounded-xl text-center">
+                      <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider flex items-center justify-center gap-1">
+                        <Flame className="w-3 h-3 text-amber-400" /> Streak
+                      </div>
+                      <div className="text-xs sm:text-sm font-black text-amber-300 mt-0.5">{currentWorker.streakDays} <span className="text-[10px] font-normal text-zinc-500">Hari</span></div>
                     </div>
-                    <p className="text-xs text-zinc-500 mt-0.5">
-                      {currentWorker.employeeId} · {currentWorker.role} · {currentWorker.division}
-                    </p>
-                    <div className="flex items-center gap-3 mt-2 text-[11px]">
-                      <span className="text-amber-400 font-bold flex items-center gap-1">
-                        <Flame className="w-3 h-3" />{currentWorker.streakDays} hari
-                      </span>
-                      <span className="text-zinc-700">·</span>
-                      <span className="text-emerald-400 font-bold flex items-center gap-1">
-                        <Coins className="w-3 h-3" />{currentWorker.totalPoints.toLocaleString()} poin
-                      </span>
-                      <span className="text-zinc-700">·</span>
-                      <span className="font-bold text-white">
-                        BIB {currentWorker.bibScores.totalScore.toFixed(1)}
-                      </span>
+
+                    <div className="bg-zinc-900/90 border border-zinc-800 p-2 rounded-xl text-center">
+                      <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider flex items-center justify-center gap-1">
+                        <Coins className="w-3 h-3 text-emerald-400" /> Poin
+                      </div>
+                      <div className="text-xs sm:text-sm font-black text-emerald-400 mt-0.5">{currentWorker.totalPoints.toLocaleString()} <span className="text-[10px] font-normal text-zinc-500">PTS</span></div>
+                    </div>
+
+                    <div className="bg-zinc-900/90 border border-zinc-800 p-2 rounded-xl text-center">
+                      <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider flex items-center justify-center gap-1">
+                        <Award className="w-3 h-3 text-purple-400" /> Skor BIB
+                      </div>
+                      <div className="text-xs sm:text-sm font-black text-white mt-0.5">{currentWorker.bibScores.totalScore.toFixed(1)}</div>
                     </div>
                   </div>
                 </div>
 
-                {/* Daily Actions Grid */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:flex xl:flex-wrap gap-2 w-full">
+                {/* Right Column: 8 Quick Actions in a clean, symmetrical 4x2 grid (lg:col-span-7 xl:col-span-8) */}
+                <div className="lg:col-span-7 xl:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5">
+                  {/* 1. Kuis Safety */}
                   <button
                     onClick={() => setShowDailyQuizModal(true)}
                     disabled={currentWorker.dailyQuizCompleted}
-                    className={`min-h-[44px] px-3.5 py-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 shadow-sm ${
+                    className={`h-12 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 shadow-sm ${
                       currentWorker.dailyQuizCompleted
-                        ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-default'
-                        : 'bg-emerald-600 hover:bg-emerald-500 text-white'
+                        ? 'bg-zinc-900/80 border border-zinc-800 text-zinc-600 cursor-default'
+                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/50 hover:scale-[1.02] active:scale-[0.98]'
                     }`}
                   >
                     <Zap className={`w-4 h-4 shrink-0 ${currentWorker.dailyQuizCompleted ? 'text-zinc-700' : 'text-emerald-100'}`} />
@@ -837,13 +858,14 @@ export const App: React.FC = () => {
                     {currentWorker.dailyQuizCompleted && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
                   </button>
 
+                  {/* 2. Pre-Shift */}
                   <button
                     onClick={() => setShowChecklistModal(true)}
                     disabled={currentWorker.preShiftChecklistDone}
-                    className={`min-h-[44px] px-3.5 py-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 shadow-sm ${
+                    className={`h-12 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 shadow-sm ${
                       currentWorker.preShiftChecklistDone
-                        ? 'bg-zinc-900 border border-zinc-800 text-zinc-600 cursor-default'
-                        : 'bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200'
+                        ? 'bg-zinc-900/80 border border-zinc-800 text-zinc-600 cursor-default'
+                        : 'bg-zinc-850 hover:bg-zinc-800 border border-cyan-500/40 text-cyan-200 hover:scale-[1.02] active:scale-[0.98]'
                     }`}
                   >
                     <ShieldCheck className={`w-4 h-4 shrink-0 ${currentWorker.preShiftChecklistDone ? 'text-zinc-700' : 'text-cyan-400'}`} />
@@ -851,60 +873,67 @@ export const App: React.FC = () => {
                     {currentWorker.preShiftChecklistDone && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
                   </button>
 
+                  {/* 3. SOP Micro-Deck */}
                   <button
                     onClick={() => setShowSopModal(true)}
-                    className="min-h-[44px] px-3.5 py-2.5 rounded-xl font-bold text-xs bg-purple-950/70 hover:bg-purple-900/80 border border-purple-500/40 text-purple-300 transition flex items-center justify-center gap-2 shadow-sm"
+                    className="h-12 px-3 rounded-xl font-bold text-xs bg-purple-950/60 hover:bg-purple-900/80 border border-purple-500/40 text-purple-200 transition flex items-center justify-center gap-2 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
                     title="Buka Pustaka SOP Micro-Deck & K3 Academy"
                   >
                     <BookOpen className="w-4 h-4 text-purple-400 shrink-0" />
                     <span className="truncate">SOP Micro-Deck</span>
                   </button>
 
+                  {/* 4. Lapor Insiden K3 */}
                   <button
                     onClick={() => setShowIncidentModal(true)}
-                    className="min-h-[44px] px-3.5 py-2.5 rounded-xl font-bold text-xs bg-orange-950/70 hover:bg-orange-900/80 border border-orange-500/40 text-orange-300 transition flex items-center justify-center gap-2 shadow-sm"
+                    className="h-12 px-3 rounded-xl font-bold text-xs bg-orange-950/60 hover:bg-orange-900/80 border border-orange-500/40 text-orange-200 transition flex items-center justify-center gap-2 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
                     title="Laporkan Insiden / Near-Miss K3 Logistik"
                   >
                     <ShieldAlert className="w-4 h-4 text-orange-400 shrink-0" />
                     <span className="truncate">Lapor Insiden K3</span>
                   </button>
 
+                  {/* 5. Beri Kudo */}
                   <button
                     onClick={() => setShowKudoModal(true)}
-                    className="min-h-[44px] px-3.5 py-2.5 rounded-xl font-bold text-xs bg-sky-950/70 hover:bg-sky-900/80 border border-sky-500/40 text-sky-300 transition flex items-center justify-center gap-2 shadow-sm"
+                    className="h-12 px-3 rounded-xl font-bold text-xs bg-sky-950/60 hover:bg-sky-900/80 border border-sky-500/40 text-sky-200 transition flex items-center justify-center gap-2 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
                     title="Kirim Apresiasi ke Rekan Kerja"
                   >
                     <Award className="w-4 h-4 text-sky-400 shrink-0" />
                     <span className="truncate">Beri Kudo</span>
                   </button>
 
+                  {/* 6. Serah Terima Shift */}
                   <button
                     onClick={() => setShowShiftHandoverModal(true)}
-                    className="min-h-[44px] px-3.5 py-2.5 rounded-xl font-bold text-xs bg-indigo-950/70 hover:bg-indigo-900/80 border border-indigo-500/40 text-indigo-300 transition flex items-center justify-center gap-2 shadow-sm"
+                    className="h-12 px-3 rounded-xl font-bold text-xs bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-500/40 text-indigo-200 transition flex items-center justify-center gap-2 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
                     title="Catat Serah Terima (Handover) Antar Shift"
                   >
                     <AlertCircle className="w-4 h-4 text-indigo-400 shrink-0" />
                     <span className="truncate">Serah Terima Shift</span>
                   </button>
 
+                  {/* 7. Kaizen Inovasi */}
                   <button
                     onClick={() => setShowKaizenModal(true)}
-                    className="min-h-[44px] px-3.5 py-2.5 rounded-xl font-bold text-xs bg-amber-950/70 hover:bg-amber-900/80 border border-amber-500/40 text-amber-300 transition flex items-center justify-center gap-2 shadow-sm"
+                    className="h-12 px-3 rounded-xl font-bold text-xs bg-amber-950/60 hover:bg-amber-900/80 border border-amber-500/40 text-amber-200 transition flex items-center justify-center gap-2 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
                     title="Ajukan Ide Kaizen & Raih Reward Poin!"
                   >
                     <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
                     <span className="truncate">Kaizen Inovasi</span>
                   </button>
 
+                  {/* 8. Riwayat & Arsip */}
                   <button
                     onClick={() => setShowHistoryCenterModal(true)}
-                    className="min-h-[44px] px-3.5 py-2.5 rounded-xl font-bold text-xs bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-200 transition flex items-center justify-center gap-2 shadow-sm"
+                    className="h-12 px-3 rounded-xl font-bold text-xs bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 transition flex items-center justify-center gap-2 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
                     title="Pusat Riwayat Terpadu: Kaizen, Insiden, Handover, Kudo, & Reward"
                   >
                     <History className="w-4 h-4 text-indigo-400 shrink-0" />
                     <span className="truncate">Riwayat & Arsip</span>
                   </button>
                 </div>
+
               </div>
             </div>
 
