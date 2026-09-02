@@ -1669,7 +1669,8 @@ ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
     'kudo_sent', 'kudo_received', 'shift_handover', 'sop_completed',
     'kaizen_submitted', 'kaizen_approved', 'disciplinary_issued',
     'disciplinary_retraining_completed', 'audit_5s_completed',
-    'sio_registered', 'ppe_distributed', 'ppe_damaged'
+    'sio_registered', 'ppe_distributed', 'ppe_damaged',
+    'notification_broadcast'
   )
 );
 
