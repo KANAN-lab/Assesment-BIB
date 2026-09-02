@@ -12,8 +12,8 @@ export interface AppNotification {
 
 /**
  * OOP Notification Engine
- * Handles dispatching, querying, unread counting, and local persistence of notifications
- * for Workers and Supervisors.
+ * Handles dispatching, querying, unread counting, broadcast, and persistence of notifications
+ * for Workers, Supervisors, and System Administrators.
  */
 export class NotificationEngine {
   private static STORAGE_KEY = 'gappy_app_notifications_v2';
@@ -36,7 +36,7 @@ export class NotificationEngine {
    */
   private static saveAll(list: AppNotification[]): void {
     try {
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(list.slice(0, 100)));
+      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(list.slice(0, 150)));
     } catch (e) {
       console.warn('[NotificationEngine] Gagal menyimpan notifikasi:', e);
     }
@@ -61,15 +61,33 @@ export class NotificationEngine {
 
     // Trigger custom window event for real-time reactivity in UI
     window.dispatchEvent(new CustomEvent('gappy_notification_received', { detail: newNotif }));
+    window.dispatchEvent(new CustomEvent('gappy_notification_updated'));
 
     return newNotif;
   }
 
   /**
-   * Get filtered notifications for a specific user or role
+   * Broadcast a notification from Administrator console
+   */
+  public static broadcast(
+    title: string,
+    message: string,
+    recipientRole: 'all' | 'worker' | 'supervisor' | 'admin' = 'all',
+    type: 'system' | 'incident' | 'quiz' | 'reward' | 'audit' = 'system',
+    metadata?: Record<string, any>
+  ): AppNotification {
+    return this.addNotification({
+      recipientId: recipientRole,
+      recipientRole,
+      title,
+      message,
+      type,
+      metadata
+    });
+  }
+
   /**
    * Get filtered notifications for a specific user or role
-   * Menjamin hanya pemilik laporan yang menerima notifikasi pribadinya
    */
   public static getNotificationsForUser(userId?: string, role?: string, employeeId?: string): AppNotification[] {
     const all = this.getAll();
@@ -84,10 +102,9 @@ export class NotificationEngine {
         return false;
       }
 
-      // 3. Jika user adalah Staf Operasional Biasa (Worker)
-      // HANYA tampilkan jika notifikasi ditujukan khusus ke ID / NIP miliknya sendiri!
+      // 3. Jika user adalah Operational Employee (Worker)
       if (role === 'worker' || !role) {
-        if (n.recipientRole === 'supervisor' || n.recipientRole === 'admin') return false; // Blokir notif pengawas
+        if (n.recipientRole === 'supervisor' || n.recipientRole === 'admin') return false;
         if (userId && (n.recipientId === userId || n.recipientId === employeeId)) return true;
         return false;
       }
@@ -124,6 +141,24 @@ export class NotificationEngine {
       return allowedIds.has(n.id) ? { ...n, isRead: true } : n;
     });
     this.saveAll(updated);
+    window.dispatchEvent(new CustomEvent('gappy_notification_updated'));
+  }
+
+  /**
+   * Delete a specific notification by ID
+   */
+  public static deleteNotification(id: string): void {
+    const list = this.getAll();
+    const updated = list.filter((n) => n.id !== id);
+    this.saveAll(updated);
+    window.dispatchEvent(new CustomEvent('gappy_notification_updated'));
+  }
+
+  /**
+   * Clear all notifications for user or globally
+   */
+  public static clearAllNotifications(): void {
+    this.saveAll([]);
     window.dispatchEvent(new CustomEvent('gappy_notification_updated'));
   }
 

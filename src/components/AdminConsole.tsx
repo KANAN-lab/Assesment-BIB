@@ -12,7 +12,7 @@ import {
   Settings, UserCheck, Plus, Search, TableProperties,
   ShieldAlert, Award, FileSpreadsheet, Upload, Check, Trash2, Edit3,
   CheckCircle2, Building2, UserPlus, ChevronDown, Zap, RefreshCw, AlertTriangle, Key, Cpu, Clock, Sparkles, HelpCircle,
-  Megaphone, Activity, BarChart2, Download, X, Calendar, ToggleLeft, ToggleRight, ShoppingBag, PackageCheck, History, Coins, PackagePlus, Edit2, Loader2, AlertCircle, Users, ShieldCheck, ArrowRightLeft, ExternalLink, BookOpen
+  Megaphone, Activity, BarChart2, Download, X, Calendar, ToggleLeft, ToggleRight, ShoppingBag, PackageCheck, History, Coins, PackagePlus, Edit2, Loader2, AlertCircle, Users, ShieldCheck, ArrowRightLeft, ExternalLink, BookOpen, Bell
 } from 'lucide-react';
 import { WorkerAvatar } from './WorkerAvatar';
 import { CustomDataTable, DataTableColumn } from './CustomDataTable';
@@ -29,6 +29,7 @@ import { BadgeManagementPanel } from './BadgeManagementPanel';
 import { QuizManagementPanel } from './QuizManagementPanel';
 import { SopManagementPanel } from './SopManagementPanel';
 import { KaizenKanbanBoard } from './KaizenKanbanBoard';
+import { AdminNotificationPanel } from './AdminNotificationPanel';
 import { SystemConfigService, FREQUENCY_OPTIONS } from '../domain/SystemConfigService';
 import { ExecutivePDFReportGenerator } from '../lib/pdfReportService';
 
@@ -169,7 +170,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   onRestockReward,
   onDeleteReward,
 }) => {
-  const [activeTab, setActiveTab] = useState<'workers' | 'approvals' | 'divisions' | 'roles' | 'matrix' | 'ai-quiz' | 'analytics' | 'announcements' | 'incidents' | 'kaizen' | 'activity' | 'rewards' | 'badges' | 'quiz' | 'config' | 'sop'>('workers');
+  const [activeTab, setActiveTab] = useState<'workers' | 'approvals' | 'divisions' | 'roles' | 'matrix' | 'ai-quiz' | 'analytics' | 'announcements' | 'incidents' | 'kaizen' | 'activity' | 'rewards' | 'badges' | 'quiz' | 'config' | 'sop' | 'notifications'>('workers');
   const [quizMeta, setQuizMeta] = useState<QuizStatusMeta>(() => getQuizStatusMeta());
   const [refreshingQuiz, setRefreshingQuiz] = useState(false);
 
@@ -656,6 +657,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
         { key: 'ai-quiz', label: 'Gappy AI Engine', icon: Zap },
         { key: 'quiz', label: 'Bank Soal Quiz', icon: HelpCircle },
         { key: 'announcements', label: 'Pengumuman Tim', icon: Megaphone, badge: announcements.filter(a => a.isActive).length },
+        { key: 'notifications', label: 'Manajemen Notifikasi', icon: Bell },
       ]
     }
   ];
@@ -1803,6 +1805,11 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
             </div>
           </form>
         </div>
+      )}
+
+      {/* ─── TAB: MANAJEMEN NOTIFIKASI ─── */}
+      {activeTab === 'notifications' && (
+        <AdminNotificationPanel />
       )}
 
       {/* ─── MODAL: IMPORT MASSAL PEKERJA ─── */}
