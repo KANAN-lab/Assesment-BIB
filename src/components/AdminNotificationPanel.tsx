@@ -209,7 +209,9 @@ export const AdminNotificationPanel: React.FC = () => {
                 value={notifType}
                 onChange={(e) => setNotifType(e.target.value as any)}
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-xs text-zinc-200 focus:outline-none focus:border-amber-500 font-medium"
+                required
               >
+                <option value="" disabled>-- Pilih Kategori Notifikasi --</option>
                 <option value="system">📢 Pengumuman Sistem / Operasional</option>
                 <option value="incident">⚠️ Safety Alert / K3 Darurat</option>
                 <option value="quiz">⚡ Kuis K3 / Checkpoint</option>

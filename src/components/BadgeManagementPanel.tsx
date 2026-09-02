@@ -294,7 +294,9 @@ export const BadgeManagementPanel: React.FC = () => {
                     value={form.condition}
                     onChange={e => setForm(f => ({ ...f, condition: e.target.value }))}
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    required
                   >
+                    <option value="" disabled>-- Pilih Kondisi Pencapaian Badge --</option>
                     {CONDITION_OPTIONS.map(opt => (
                       <option key={opt.value} value={opt.value}>{opt.label}</option>
                     ))}

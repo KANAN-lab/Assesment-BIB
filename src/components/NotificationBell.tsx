@@ -11,7 +11,8 @@ import {
   Award,
   HelpCircle,
   Megaphone,
-  Filter
+  Filter,
+  Truck
 } from 'lucide-react';
 import { NotificationEngine, AppNotification } from '../domain/NotificationEngine';
 
@@ -61,7 +62,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
       window.removeEventListener('gappy_notification_updated', handleEvent);
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [currentUserId, currentEmployeeId, currentRole]);
+  }, [currentUserId, currentRole, currentEmployeeId]);
 
   const filteredNotifications = useMemo(() => {
     return notifications.filter((n) => {
@@ -92,6 +93,8 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
     switch (type) {
       case 'incident':
         return <ShieldAlert className="w-4 h-4 text-orange-400 shrink-0" />;
+      case 'license':
+        return <Truck className="w-4 h-4 text-amber-400 shrink-0" />;
       case 'quiz':
         return <Zap className="w-4 h-4 text-emerald-400 shrink-0" />;
       case 'reward':

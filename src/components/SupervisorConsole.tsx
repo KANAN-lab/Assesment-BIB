@@ -8,7 +8,7 @@ import {
   Search, Flame, ShieldCheck, Award, ChevronRight,
   BarChart3, CheckCircle, AlertTriangle, Download,
   ShieldAlert, Clock, CheckCircle2, History, Loader2, AlertCircle,
-  Lightbulb, Sparkles
+  Lightbulb, Sparkles, Truck, HardHat, FileText
 } from 'lucide-react';
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, Tooltip as RechartsTooltip
@@ -20,6 +20,11 @@ import { CompetencyGapAnalysisModal } from './CompetencyGapAnalysisModal';
 import { SupervisorIncidentKanban } from './SupervisorIncidentKanban';
 import { SupervisorIncidentValidationModal } from './SupervisorIncidentValidationModal';
 import { KaizenKanbanBoard } from './KaizenKanbanBoard';
+import { MheLicensePanel } from './MheLicensePanel';
+import { PpeManagementPanel } from './PpeManagementPanel';
+import { ExecutiveReportPanel } from './ExecutiveReportPanel';
+import { DisciplinaryPanel } from './DisciplinaryPanel';
+import { Audit5sPanel } from './Audit5sPanel';
 import { KaizenService } from '../lib/kaizenService';
 import { SystemConfigService } from '../domain/SystemConfigService';
 import {
@@ -44,7 +49,7 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
     return workers.filter((w) => RoleEntity.isOperationalWorker(w.role) && w.division.toUpperCase() !== 'SYSTEM');
   }, [workers]);
 
-  const [activeTab, setActiveTab] = useState<'team' | 'incidents' | 'kaizen' | 'audit-history'>('team');
+  const [activeTab, setActiveTab] = useState<'team' | 'incidents' | 'kaizen' | 'licenses' | 'ppe' | 'disciplinary' | 'audit-5s' | 'reports' | 'audit-history'>('team');
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>(operationalWorkers[0]?.id || '');
   const [search, setSearch] = useState('');
   const [isGapModalOpen, setIsGapModalOpen] = useState(false);
@@ -226,37 +231,185 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
     return 'text-rose-400';
   };
 
+  type SupervisorTabKey = 'team' | 'incidents' | 'kaizen' | 'licenses' | 'ppe' | 'disciplinary' | 'audit-5s' | 'reports' | 'audit-history';
+
+  interface SupervisorTabItem {
+    key: SupervisorTabKey;
+    label: string;
+    sublabel?: string;
+    icon: React.ComponentType<{ className?: string }>;
+    badge?: number;
+    alert?: boolean;
+  }
+
+  interface SupervisorTabGroup {
+    groupLabel: string;
+    tabs: SupervisorTabItem[];
+  }
+
+  const TAB_GROUPS: SupervisorTabGroup[] = [
+    {
+      groupLabel: 'PENILAIAN & AUDIT TIM',
+      tabs: [
+        { key: 'team', label: 'Tim & Matrix Audit', sublabel: 'Evaluasi Kompetensi BIB', icon: UserCheck },
+        { key: 'audit-history', label: 'Riwayat Sesi Audit', sublabel: 'Arsip Log Penilaian Skor', icon: History },
+      ],
+    },
+    {
+      groupLabel: 'K3, KESELAMATAN & DISIPLIN',
+      tabs: [
+        {
+          key: 'incidents',
+          label: 'Kelola Insiden K3',
+          sublabel: 'Validasi & Tindakan CAPA',
+          icon: ShieldAlert,
+          badge: openIncidentsCount,
+          alert: openIncidentsCount > 0,
+        },
+        { key: 'disciplinary', label: 'Konseling & Sanksi K3', sublabel: 'SP & Mandatory Retraining', icon: ShieldAlert },
+        { key: 'ppe', label: 'Inventaris & APD', sublabel: 'Distribusi & Tiket Rusak', icon: HardHat },
+      ],
+    },
+    {
+      groupLabel: 'OPERASIONAL & FASILITAS GUDANG',
+      tabs: [
+        { key: 'licenses', label: 'Pelacak SIO & Lisensi MHE', sublabel: 'Legalitas Operator Alat Berat', icon: Truck },
+        { key: 'audit-5s', label: 'Audit 5R Wilayah Gudang', sublabel: 'Housekeeping & Visual 5S', icon: Sparkles },
+        {
+          key: 'kaizen',
+          label: 'Approval Inovasi Kaizen',
+          sublabel: 'Kotak Usulan & Poin Reward',
+          icon: Lightbulb,
+          badge: pendingKaizenCount,
+          alert: pendingKaizenCount > 0,
+        },
+        { key: 'reports', label: 'Laporan Audit Eksekutif', sublabel: 'Cetak Berkas Resmi PDF', icon: FileText },
+      ],
+    },
+  ];
+
   return (
     <div className="space-y-5 animate-fade-in">
 
-      {/* ─ Tab Navigation ─ */}
-      <div className="flex items-center gap-1 bg-zinc-900 border border-zinc-800 rounded-xl p-1 w-fit flex-wrap">
-        {[
-          { key: 'team',          label: 'Tim & Audit',       Icon: UserCheck,   count: 0, alert: false },
-          { key: 'incidents',     label: 'Kelola Insiden',    Icon: ShieldAlert, count: openIncidentsCount, alert: openIncidentsCount > 0 },
-          { key: 'kaizen',        label: 'Approval Kaizen',   Icon: Lightbulb,   count: pendingKaizenCount, alert: pendingKaizenCount > 0 },
-          { key: 'audit-history', label: 'Riwayat Audit',     Icon: History,     count: 0, alert: false },
-        ].map(({ key, label, Icon, count, alert }) => (
-          <button
-            key={key}
-            onClick={() => setActiveTab(key as any)}
-            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-bold transition relative ${
-              activeTab === key
-                ? 'bg-emerald-600 text-white shadow-md'
-                : alert
-                ? 'bg-rose-950/60 text-rose-300 border border-rose-500/50 hover:bg-rose-900/60 animate-pulse'
-                : 'text-zinc-400 hover:text-white hover:bg-zinc-800'
-            }`}
-          >
-            <Icon className={`w-3.5 h-3.5 ${alert && activeTab !== key ? 'text-rose-400' : ''}`} />
-            <span>{label}</span>
-            {count > 0 && (
-              <span className="px-1.5 py-0.2 text-[9px] font-black rounded-full bg-rose-500 text-white shadow-sm shadow-rose-950 ml-0.5 font-mono">
-                {count}
+      {/* ─── EXECUTIVE SUPERVISOR NAVIGATION HEADER ─── */}
+      <div className="card p-5 space-y-4 bg-zinc-950 border-emerald-500/20 shadow-xl">
+        {/* Title & Supervisor Badge */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-zinc-800/80 pb-4">
+          <div className="flex items-center gap-3.5">
+            <div className="w-11 h-11 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl flex items-center justify-center shadow-inner shrink-0">
+              <UserCheck className="w-6 h-6 text-emerald-400" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <h2 className="text-base font-bold text-white">Supervisor Operational Console</h2>
+                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
+                  SUPERVISOR LEVEL
+                </span>
+              </div>
+              <p className="text-xs text-zinc-400 mt-0.5">
+                Pusat Kendali Penilaian Tim, Kepatuhan K3, Legalitas SIO MHE, Audit 5R, Approval Kaizen & Laporan Eksekutif
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-2 text-xs bg-zinc-900 px-3.5 py-1.5 rounded-xl border border-zinc-800 shrink-0">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span className="font-semibold text-zinc-300">
+                Staf Operasional: <strong className="text-white">{operationalWorkers.length} Personel</strong>
               </span>
-            )}
-          </button>
-        ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Desktop Categorized Grid Navigation (3-Column Layout) */}
+        <div className="hidden md:grid grid-cols-3 gap-3 pt-1">
+          {TAB_GROUPS.map((group, idx) => (
+            <div key={idx} className="bg-zinc-900/60 p-3 rounded-2xl border border-zinc-800/80 space-y-2 flex flex-col justify-start">
+              <div className="text-[10px] font-bold text-zinc-500 tracking-wider uppercase px-1">
+                {group.groupLabel}
+              </div>
+
+              <div className="space-y-1.5">
+                {group.tabs.map((t) => {
+                  const isActive = activeTab === t.key;
+                  const Icon = t.icon;
+
+                  return (
+                    <button
+                      key={t.key}
+                      onClick={() => setActiveTab(t.key)}
+                      className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs font-bold transition text-left ${
+                        isActive
+                          ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-950 ring-1 ring-emerald-400/40'
+                          : t.alert
+                          ? 'bg-rose-950/40 border border-rose-500/50 text-rose-300 hover:bg-rose-900/50 animate-pulse'
+                          : 'text-zinc-400 hover:text-white hover:bg-zinc-850 bg-zinc-950/60 border border-zinc-850'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className={`p-1.5 rounded-lg ${isActive ? 'bg-emerald-700/60 text-white' : 'bg-zinc-900 text-zinc-400'}`}>
+                          <Icon className="w-3.5 h-3.5 shrink-0" />
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-xs">{t.label}</div>
+                          {t.sublabel && (
+                            <div className={`text-[10px] font-normal truncate ${isActive ? 'text-emerald-100' : 'text-zinc-500'}`}>
+                              {t.sublabel}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {t.badge !== undefined && t.badge > 0 && (
+                        <span
+                          className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                            t.alert
+                              ? 'bg-rose-500 text-white font-black animate-pulse shadow-sm shadow-rose-950'
+                              : isActive
+                              ? 'bg-emerald-800 text-emerald-100'
+                              : 'bg-zinc-800 text-zinc-300 border border-zinc-700'
+                          }`}
+                        >
+                          {t.badge}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Mobile Horizontal Scrollable Tab Bar */}
+        <div className="md:hidden flex bg-zinc-900/90 border border-zinc-800 p-1.5 rounded-2xl overflow-x-auto gap-1.5 custom-scrollbar">
+          {TAB_GROUPS.flatMap((g) => g.tabs).map((t) => {
+            const isActive = activeTab === t.key;
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.key}
+                onClick={() => setActiveTab(t.key)}
+                className={`py-2 px-3.5 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-2 ${
+                  isActive
+                    ? 'bg-emerald-600 text-white shadow-md shadow-emerald-950'
+                    : t.alert
+                    ? 'bg-rose-950/40 text-rose-300 border border-rose-500/40 animate-pulse'
+                    : 'text-zinc-400 hover:text-white bg-zinc-950 border border-zinc-850'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-zinc-400'}`} />
+                <span>{t.label}</span>
+                {t.badge !== undefined && t.badge > 0 && (
+                  <span className="px-1.5 py-0.2 text-[9px] font-mono font-black rounded-full bg-rose-500 text-white">
+                    {t.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* ─ INCIDENTS KANBAN TAB ─ */}
@@ -309,6 +462,43 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
           </div>
           <KaizenKanbanBoard currentUserId={currentSupervisorId} isAdmin={true} />
         </div>
+      )}
+
+      {/* ─ SIO & MHE LICENSE TRACKER TAB ─ */}
+      {activeTab === 'licenses' && (
+        <MheLicensePanel workers={operationalWorkers} />
+      )}
+
+      {/* ─ INVENTARIS & DISTRIBUSI APD TAB ─ */}
+      {activeTab === 'ppe' && (
+        <PpeManagementPanel workers={operationalWorkers} isSupervisor={true} currentUserName="Supervisor Operasional" />
+      )}
+
+      {/* ─ LAPORAN AUDIT EKSEKUTIF TAB ─ */}
+      {activeTab === 'reports' && (
+        <ExecutiveReportPanel
+          workers={operationalWorkers}
+          incidents={incidents}
+          currentUserName="Supervisor Operasional"
+        />
+      )}
+
+      {/* ─ KONSELING & SANKSI K3 TAB ─ */}
+      {activeTab === 'disciplinary' && (
+        <DisciplinaryPanel
+          workers={operationalWorkers}
+          currentUserName="Supervisor Operasional"
+          isSupervisor={true}
+        />
+      )}
+
+      {/* ─ AUDIT 5R GUDANG TAB ─ */}
+      {activeTab === 'audit-5s' && (
+        <Audit5sPanel
+          workers={operationalWorkers}
+          currentUserName="Supervisor Operasional"
+          isSupervisor={true}
+        />
       )}
 
       {/* ─ AUDIT HISTORY TAB ─ */}

@@ -22,7 +22,6 @@ import {
   RotateCcw,
   Check,
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 import { SopModule, SopSlide } from '../types/sop';
 
 interface SopSlideshowModalProps {
@@ -176,11 +175,9 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
     setQuizSubmitted(true);
     if (isCorrect) {
       setQuizError(false);
-      try {
+      import('canvas-confetti').then(({ default: confetti }) => {
         confetti({ particleCount: 60, spread: 60, origin: { y: 0.7 } });
-      } catch (e) {
-        // Confetti fallback
-      }
+      }).catch(() => {});
     } else {
       setQuizError(true);
     }

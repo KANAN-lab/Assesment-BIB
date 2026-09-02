@@ -12,7 +12,7 @@ import {
   Settings, UserCheck, Plus, Search, TableProperties,
   ShieldAlert, Award, FileSpreadsheet, Upload, Check, Trash2, Edit3,
   CheckCircle2, Building2, UserPlus, ChevronDown, Zap, RefreshCw, AlertTriangle, Key, Cpu, Clock, Sparkles, HelpCircle,
-  Megaphone, Activity, BarChart2, Download, X, Calendar, ToggleLeft, ToggleRight, ShoppingBag, PackageCheck, History, Coins, PackagePlus, Edit2, Loader2, AlertCircle, Users, ShieldCheck, ArrowRightLeft, ExternalLink, BookOpen, Bell
+  Megaphone, Activity, BarChart2, Download, X, Calendar, ToggleLeft, ToggleRight, ShoppingBag, PackageCheck, History, Coins, PackagePlus, Edit2, Loader2, AlertCircle, Users, ShieldCheck, ArrowRightLeft, ExternalLink, BookOpen, Bell, Truck, HardHat, FileText
 } from 'lucide-react';
 import { WorkerAvatar } from './WorkerAvatar';
 import { CustomDataTable, DataTableColumn } from './CustomDataTable';
@@ -30,6 +30,12 @@ import { QuizManagementPanel } from './QuizManagementPanel';
 import { SopManagementPanel } from './SopManagementPanel';
 import { KaizenKanbanBoard } from './KaizenKanbanBoard';
 import { AdminNotificationPanel } from './AdminNotificationPanel';
+import { MheLicensePanel } from './MheLicensePanel';
+import { PpeManagementPanel } from './PpeManagementPanel';
+import { ExecutiveReportPanel } from './ExecutiveReportPanel';
+import { DisciplinaryPanel } from './DisciplinaryPanel';
+import { Audit5sPanel } from './Audit5sPanel';
+import { SystemConfigPanel } from './SystemConfigPanel';
 import { SystemConfigService, FREQUENCY_OPTIONS } from '../domain/SystemConfigService';
 import { ExecutivePDFReportGenerator } from '../lib/pdfReportService';
 
@@ -170,7 +176,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   onRestockReward,
   onDeleteReward,
 }) => {
-  const [activeTab, setActiveTab] = useState<'workers' | 'approvals' | 'divisions' | 'roles' | 'matrix' | 'ai-quiz' | 'analytics' | 'announcements' | 'incidents' | 'kaizen' | 'activity' | 'rewards' | 'badges' | 'quiz' | 'config' | 'sop' | 'notifications'>('workers');
+  const [activeTab, setActiveTab] = useState<'workers' | 'approvals' | 'divisions' | 'roles' | 'matrix' | 'ai-quiz' | 'analytics' | 'announcements' | 'incidents' | 'kaizen' | 'activity' | 'rewards' | 'badges' | 'quiz' | 'config' | 'sop' | 'notifications' | 'licenses' | 'ppe' | 'reports' | 'disciplinary' | 'audit-5s'>('workers');
   const [quizMeta, setQuizMeta] = useState<QuizStatusMeta>(() => getQuizStatusMeta());
   const [refreshingQuiz, setRefreshingQuiz] = useState(false);
 
@@ -627,6 +633,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
       groupLabel: 'SDM & AKSES PEKERJA',
       tabs: [
         { key: 'workers', label: 'Operational Employee', icon: Users, badge: workers.length },
+        { key: 'disciplinary', label: 'Konseling & Sanksi K3', icon: ShieldAlert },
+        { key: 'licenses', label: 'Pelacak SIO & Lisensi MHE', icon: Truck },
+        { key: 'ppe', label: 'Inventaris & Distribusi APD', icon: HardHat },
         { key: 'approvals', label: 'Approval Supervisor', icon: UserCheck, badge: pendingSupervisors.length, alert: pendingSupervisors.length > 0 },
         { key: 'activity', label: 'Log Aktivitas Sistem', icon: History },
       ]
@@ -634,6 +643,8 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     {
       groupLabel: 'PERFORMANSI & REWARD',
       tabs: [
+        { key: 'reports', label: 'Laporan Audit Eksekutif', icon: FileText },
+        { key: 'audit-5s', label: 'Audit Standar 5R / 5S', icon: CheckCircle2 },
         { key: 'rewards', label: 'Katalog Reward', icon: ShoppingBag, badge: rewardCatalog.length },
         { key: 'badges', label: 'Manajemen Badge', icon: Award },
         { key: 'kaizen', label: 'Inovasi Kaizen', icon: Sparkles },
@@ -1685,131 +1696,48 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
 
       {/* ─── TAB: ATURAN & CONFIG SYSTEM ─── */}
       {activeTab === 'config' && (
-        <div className="card p-5 space-y-5">
-          <div className="border-b border-zinc-800 pb-3">
-            <h3 className="text-sm font-bold text-white flex items-center gap-2">
-              <Settings className="w-4 h-4 text-purple-400" />
-              Aturan & Pengaturan Tata Kelola System (Governance Config)
-            </h3>
-            <p className="text-xs text-zinc-400 mt-0.5">
-              Konfigurasi kebijakan frekuensi audit supervisor, poin reward aktivitas, dan aturan sistem platform.
-            </p>
-          </div>
-
-          <form
-            onSubmit={(e) => {
-              e.preventDefault();
-              showToast('Pengaturan tata kelola sistem berhasil diperbarui & disimpan!');
-            }}
-            className="space-y-5 max-w-2xl"
-          >
-            {/* Config 1: Frekuensi Audit Matrix */}
-            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <label className="text-xs font-bold text-white block">
-                    1. Kebijakan Frekuensi Penilaian Matrix Supervisor
-                  </label>
-                  <p className="text-[11px] text-zinc-500 mt-0.5">
-                    Menentukan batas cooldown interval waktu audit rutin pekerja oleh Supervisor.
-                  </p>
-                </div>
-                <span className="text-[10px] font-mono font-bold bg-purple-500/10 text-purple-300 border border-purple-500/20 px-2 py-0.5 rounded">
-                  {SystemConfigService.getConfig().auditFrequencyLabel}
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2 pt-1">
-                {FREQUENCY_OPTIONS.map((opt) => {
-                  const currentConfig = SystemConfigService.getConfig();
-                  const isSelected = currentConfig.auditFrequencyDays === opt.days;
-
-                  return (
-                    <button
-                      key={opt.days}
-                      type="button"
-                      onClick={() => {
-                        SystemConfigService.updateConfig({ auditFrequencyDays: opt.days });
-                        showToast(`Frekuensi audit diset ke ${opt.label}`);
-                      }}
-                      className={`p-3 rounded-xl border text-left text-xs transition flex items-center justify-between ${
-                        isSelected
-                          ? 'bg-purple-600/20 border-purple-500 text-white font-bold ring-1 ring-purple-500/30'
-                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-850'
-                      }`}
-                    >
-                      <span>{opt.label}</span>
-                      {isSelected && <CheckCircle2 className="w-4 h-4 text-purple-400 shrink-0" />}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Config 2: Points Rewards Configuration */}
-            <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 space-y-3">
-              <label className="text-xs font-bold text-white block">
-                2. Skema Poin Reward Aktivitas Pekerja (PTS)
-              </label>
-
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div>
-                  <label className="block text-[11px] text-zinc-400 mb-1">Insiden Valid (Supervisor Approved)</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={SystemConfigService.getConfig().incidentValidRewardPoints}
-                    onChange={(e) => {
-                      SystemConfigService.updateConfig({ incidentValidRewardPoints: Number(e.target.value) });
-                    }}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs font-bold text-amber-400 font-mono focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] text-zinc-400 mb-1">Kuis Safety Harian</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={SystemConfigService.getConfig().dailyQuizRewardPoints}
-                    onChange={(e) => {
-                      SystemConfigService.updateConfig({ dailyQuizRewardPoints: Number(e.target.value) });
-                    }}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs font-bold text-emerald-400 font-mono focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] text-zinc-400 mb-1">Pre-Shift Inspection</label>
-                  <input
-                    type="number"
-                    min="0"
-                    value={SystemConfigService.getConfig().preShiftRewardPoints}
-                    onChange={(e) => {
-                      SystemConfigService.updateConfig({ preShiftRewardPoints: Number(e.target.value) });
-                    }}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs font-bold text-cyan-400 font-mono focus:outline-none focus:border-purple-500"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <button
-                type="submit"
-                className="px-5 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl shadow-lg shadow-purple-950 transition flex items-center gap-2"
-              >
-                <CheckCircle2 className="w-4 h-4" />
-                Simpan Konfigurasi Tata Kelola System
-              </button>
-            </div>
-          </form>
-        </div>
+        <SystemConfigPanel onToast={showToast} />
       )}
 
       {/* ─── TAB: MANAJEMEN NOTIFIKASI ─── */}
       {activeTab === 'notifications' && (
         <AdminNotificationPanel />
+      )}
+
+      {/* ─── TAB: PELACAK SIO & LISENSI MHE ─── */}
+      {activeTab === 'licenses' && (
+        <MheLicensePanel workers={workers} />
+      )}
+
+      {/* ─── TAB: INVENTARIS & DISTRIBUSI APD ─── */}
+      {activeTab === 'ppe' && (
+        <PpeManagementPanel workers={workers} currentUserName="System Administrator" />
+      )}
+
+      {/* ─── TAB: LAPORAN AUDIT EKSEKUTIF ─── */}
+      {activeTab === 'reports' && (
+        <ExecutiveReportPanel
+          workers={workers}
+          incidents={incidents}
+          rewardCatalog={rewardCatalog}
+          currentUserName="System Administrator"
+        />
+      )}
+
+      {/* ─── TAB: KONSELING & SANKSI K3 ─── */}
+      {activeTab === 'disciplinary' && (
+        <DisciplinaryPanel
+          workers={workers}
+          currentUserName="System Administrator"
+        />
+      )}
+
+      {/* ─── TAB: AUDIT STANDAR 5R / 5S ─── */}
+      {activeTab === 'audit-5s' && (
+        <Audit5sPanel
+          workers={workers}
+          currentUserName="System Administrator"
+        />
       )}
 
       {/* ─── MODAL: IMPORT MASSAL PEKERJA ─── */}

@@ -358,7 +358,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 value={selectedDivCode}
                 onChange={(e) => handleDivisionChange(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                required
               >
+                <option value="" disabled>-- Pilih Divisi Operasional --</option>
                 {divisions.map((d) => (
                   <option key={d.id} value={d.code}>
                     {d.code} — {d.description}
@@ -375,7 +377,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   value={selectedRoleName}
                   onChange={(e) => setSelectedRoleName(e.target.value)}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  required
                 >
+                  <option value="" disabled>-- Pilih Role Operasional --</option>
                   {availableRolesForDivision.map((r) => (
                     <option key={r.id} value={r.name}>
                       {r.name}

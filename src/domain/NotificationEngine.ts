@@ -4,7 +4,7 @@ export interface AppNotification {
   recipientRole: 'worker' | 'supervisor' | 'admin' | 'all';
   title: string;
   message: string;
-  type: 'incident' | 'quiz' | 'reward' | 'audit' | 'system';
+  type: 'incident' | 'quiz' | 'reward' | 'audit' | 'system' | 'license';
   isRead: boolean;
   createdAt: string;
   metadata?: Record<string, any>;
@@ -24,10 +24,10 @@ export class NotificationEngine {
   public static getAll(): AppNotification[] {
     try {
       const raw = localStorage.getItem(this.STORAGE_KEY);
-      if (!raw) return this.getDefaultNotifications();
+      if (!raw) return [];
       return JSON.parse(raw);
     } catch {
-      return this.getDefaultNotifications();
+      return [];
     }
   }
 

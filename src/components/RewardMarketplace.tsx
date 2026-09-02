@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import confetti from 'canvas-confetti';
 import { RewardItem, RewardHistory, TierType } from '../types/assessment';
 import { RewardEntity, TIER_LEVEL_MAP } from '../domain/RewardEntity';
 import { PaginationControls } from './PaginationControls';
@@ -176,12 +175,14 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
     try {
       const res: any = await onRedeemReward(selectedReward, generatedCode);
       
-      confetti({
-        particleCount: 120,
-        spread: 80,
-        origin: { y: 0.6 },
-        colors: ['#10b981', '#34d399', '#f59e0b', '#06b6d4'],
-      });
+      import('canvas-confetti').then(({ default: confetti }) => {
+        confetti({
+          particleCount: 120,
+          spread: 80,
+          origin: { y: 0.6 },
+          colors: ['#10b981', '#34d399', '#f59e0b', '#06b6d4'],
+        });
+      }).catch(() => {});
 
       setClaimedCode(res?.voucherCode || res?.redemptionCode || generatedCode);
       setClaimedExpiry(res?.expiryDate ? new Date(res.expiryDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }) : expiryDateStr);
@@ -962,7 +963,9 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                     value={formCategory}
                     onChange={(e) => setFormCategory(e.target.value as RewardItem['category'])}
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    required
                   >
+                    <option value="" disabled>-- Pilih Kategori Reward --</option>
                     <option value="E-Wallet">E-Wallet</option>
                     <option value="Pulsa & Data">Pulsa & Data</option>
                     <option value="Safety Gear">Safety Gear</option>

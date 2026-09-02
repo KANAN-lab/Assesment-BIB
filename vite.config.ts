@@ -13,6 +13,7 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         cleanupOutdatedCaches: true,
+        maximumFileSizeToCacheInBytes: 6 * 1024 * 1024, // 6 MiB
       },
       manifest: {
         name: 'BIB Logistics Assessment Platform',
@@ -31,6 +32,22 @@ export default defineConfig({
       },
     }),
   ],
+  build: {
+    chunkSizeWarningLimit: 1600,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          pdf: ['jspdf', 'jspdf-autotable'],
+          icons: ['lucide-react'],
+          charts: ['recharts'],
+          supabase: ['@supabase/supabase-js'],
+          ai: ['@google/generative-ai'],
+          confetti: ['canvas-confetti'],
+          dateFns: ['date-fns'],
+        },
+      },
+    },
+  },
   server: {
     port: 3000,
     host: true,

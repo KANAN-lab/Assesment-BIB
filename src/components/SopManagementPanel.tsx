@@ -488,7 +488,9 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                         value={formCategory}
                         onChange={(e) => setFormCategory(e.target.value as SopCategory)}
                         className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                        required
                       >
+                        <option value="" disabled>-- Pilih Kategori SOP --</option>
                         <option value="K3 & Safety">K3 & Safety</option>
                         <option value="Operasional MHE">Operasional MHE</option>
                         <option value="Warehouse & Staging">Warehouse & Staging</option>
@@ -505,7 +507,9 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                         value={formDifficulty}
                         onChange={(e) => setFormDifficulty(e.target.value as SopDifficulty)}
                         className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                        required
                       >
+                        <option value="" disabled>-- Pilih Tingkat Kesulitan --</option>
                         <option value="Beginner">Beginner</option>
                         <option value="Intermediate">Intermediate</option>
                         <option value="Advanced">Advanced</option>

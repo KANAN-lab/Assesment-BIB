@@ -17,7 +17,6 @@ import {
   Award,
   User
 } from 'lucide-react';
-import imageCompression from 'browser-image-compression';
 import type { IncidentReport } from '../types/assessment';
 import { createIncidentReport } from '../lib/supabaseService';
 import { uploadFileToGoogleDrive, GDRIVE_TARGET_FOLDER_ID, GDRIVE_FOLDER_URL } from '../lib/googleDriveService';
@@ -48,7 +47,7 @@ const SEVERITY_OPTIONS: { value: IncidentReport['severity']; label: string; colo
 export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
   workerId, workerName, onClose, onSuccess,
 }) => {
-  const [incidentType, setIncidentType] = useState<IncidentReport['incidentType']>('near_miss');
+  const [incidentType, setIncidentType] = useState<IncidentReport['incidentType'] | ''>('');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState<IncidentReport['severity']>('low');
@@ -86,6 +85,7 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
         fileType: 'image/jpeg',
       };
 
+      const { default: imageCompression } = await import('browser-image-compression');
       const compressedBlob = await imageCompression(file, options);
       const compKb = Math.round(compressedBlob.size / 1024);
       setCompressedSizeKb(compKb);
@@ -111,6 +111,10 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!incidentType) {
+      setError('Silakan pilih jenis insiden K3 terlebih dahulu.');
+      return;
+    }
     if (!location.trim() || !description.trim()) {
       setError('Lokasi dan deskripsi wajib diisi.');
       return;
@@ -275,10 +279,14 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
                   <select
                     value={incidentType}
                     onChange={(e) => setIncidentType(e.target.value as IncidentReport['incidentType'])}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-orange-500 font-semibold"
+                    className={`w-full bg-zinc-950 border rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-orange-500 font-semibold ${
+                      !incidentType ? 'text-zinc-500 border-zinc-800' : 'text-white border-orange-500/50'
+                    }`}
+                    required
                   >
+                    <option value="" disabled>-- Pilih Jenis Insiden K3 --</option>
                     {INCIDENT_TYPES.map((t) => (
-                      <option key={t.value} value={t.value}>{t.label}</option>
+                      <option key={t.value} value={t.value} className="text-white bg-zinc-900">{t.label}</option>
                     ))}
                   </select>
                 </div>

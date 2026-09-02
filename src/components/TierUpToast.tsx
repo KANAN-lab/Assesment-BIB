@@ -1,5 +1,4 @@
 import React, { useEffect } from 'react';
-import confetti from 'canvas-confetti';
 import { TrendingUp, Star, X } from 'lucide-react';
 import type { TierType } from '../types/assessment';
 
@@ -21,12 +20,14 @@ export const TierUpToast: React.FC<TierUpToastProps> = ({ oldTier, newTier, poin
   const config = TIER_CONFIG[newTier] ?? TIER_CONFIG['Novice Operational'];
 
   useEffect(() => {
-    // Confetti burst
-    confetti({
-      particleCount: 120,
-      spread: 80,
-      origin: { x: 0.5, y: 0.8 },
-      colors: ['#f59e0b', '#10b981', '#6366f1', '#fff'],
+    // Dynamic import confetti — only loaded when tier-up event fires
+    import('canvas-confetti').then(({ default: confetti }) => {
+      confetti({
+        particleCount: 120,
+        spread: 80,
+        origin: { x: 0.5, y: 0.8 },
+        colors: ['#f59e0b', '#10b981', '#6366f1', '#fff'],
+      });
     });
 
     const timer = setTimeout(onDismiss, 6000);

@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Navbar } from './components/Navbar';
 import { BibRadarChart } from './components/BibRadarChart';
-import { DailyQuestModal } from './components/DailyQuestModal';
-import { ChecklistDetailModal } from './components/ChecklistDetailModal';
+const DailyQuestModal = React.lazy(() => import('./components/DailyQuestModal').then(m => ({ default: m.DailyQuestModal })));
+const ChecklistDetailModal = React.lazy(() => import('./components/ChecklistDetailModal').then(m => ({ default: m.ChecklistDetailModal })));
 import { RewardMarketplace } from './components/RewardMarketplace';
 import { LeaderboardSection } from './components/LeaderboardSection';
 import { HandoverKanbanBoard } from './components/HandoverKanbanBoard';
-import { SupervisorConsole } from './components/SupervisorConsole';
+const SupervisorConsole = React.lazy(() => import('./components/SupervisorConsole').then(m => ({ default: m.SupervisorConsole })));
 import { LoginModal } from './components/LoginModal';
-import { CompetencyAuditModal } from './components/CompetencyAuditModal';
-import { AdminConsole } from './components/AdminConsole';
-import { ProfilePictureModal } from './components/ProfilePictureModal';
+const CompetencyAuditModal = React.lazy(() => import('./components/CompetencyAuditModal').then(m => ({ default: m.CompetencyAuditModal })));
+const AdminConsole = React.lazy(() => import('./components/AdminConsole').then(m => ({ default: m.AdminConsole })));
+const ProfilePictureModal = React.lazy(() => import('./components/ProfilePictureModal').then(m => ({ default: m.ProfilePictureModal })));
 import { ScoreHistoryChart } from './components/ScoreHistoryChart';
 import { TierUpToast } from './components/TierUpToast';
 import { FirstTimePasswordModal } from './components/FirstTimePasswordModal';
@@ -18,18 +18,18 @@ import { LazySkeletonBoundary } from './components/LazySkeletonBoundary';
 import { WorkerAvatar } from './components/WorkerAvatar';
 import { AnnouncementBanner } from './components/AnnouncementBanner';
 import { BadgeShowcase } from './components/BadgeShowcase';
-import { IncidentReportModal } from './components/IncidentReportModal';
-import { SopLibraryModal } from './components/SopLibraryModal';
-import { OnboardingModal } from './components/OnboardingModal';
+const IncidentReportModal = React.lazy(() => import('./components/IncidentReportModal').then(m => ({ default: m.IncidentReportModal })));
+const SopLibraryModal = React.lazy(() => import('./components/SopLibraryModal').then(m => ({ default: m.SopLibraryModal })));
+const OnboardingModal = React.lazy(() => import('./components/OnboardingModal').then(m => ({ default: m.OnboardingModal })));
 import { PerformanceSummaryCard } from './components/PerformanceSummaryCard';
-import { WorkerCompetencyModal } from './components/WorkerCompetencyModal';
+const WorkerCompetencyModal = React.lazy(() => import('./components/WorkerCompetencyModal').then(m => ({ default: m.WorkerCompetencyModal })));
 import { WorkerIncidentHistory } from './components/WorkerIncidentHistory';
 import { KudoWall } from './components/KudoWall';
-import { KudoModal } from './components/KudoModal';
-import { ShiftHandoverModal } from './components/ShiftHandoverModal';
-import { AcknowledgeHandoverModal } from './components/AcknowledgeHandoverModal';
-import { KaizenSubmissionModal } from './components/KaizenSubmissionModal';
-import { WorkerHistoryCenterModal } from './components/WorkerHistoryCenterModal';
+const KudoModal = React.lazy(() => import('./components/KudoModal').then(m => ({ default: m.KudoModal })));
+const ShiftHandoverModal = React.lazy(() => import('./components/ShiftHandoverModal').then(m => ({ default: m.ShiftHandoverModal })));
+const AcknowledgeHandoverModal = React.lazy(() => import('./components/AcknowledgeHandoverModal').then(m => ({ default: m.AcknowledgeHandoverModal })));
+const KaizenSubmissionModal = React.lazy(() => import('./components/KaizenSubmissionModal').then(m => ({ default: m.KaizenSubmissionModal })));
+const WorkerHistoryCenterModal = React.lazy(() => import('./components/WorkerHistoryCenterModal').then(m => ({ default: m.WorkerHistoryCenterModal })));
 import { ShiftHandoverEntity } from './types/handover';
 import { HandoverManager } from './lib/handoverService';
 
@@ -943,26 +943,40 @@ export const App: React.FC = () => {
           </div>
         ) : activeView === 'supervisor' ? (
           <div className="animate-fade-in">
-            <SupervisorConsole
-              workers={allWorkers}
-              currentSupervisorId={currentWorker?.id}
-              onUpdateWorkerScore={handleUpdateWorkerScore}
-              onOpenMatrixAudit={handleOpenMatrixAudit}
-            />
+            <React.Suspense fallback={
+              <div className="flex items-center justify-center py-24 text-zinc-500 gap-3 text-sm">
+                <svg className="animate-spin w-5 h-5 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <span>Memuat Supervisor Console...</span>
+              </div>
+            }>
+              <SupervisorConsole
+                workers={allWorkers}
+                currentSupervisorId={currentWorker?.id}
+                onUpdateWorkerScore={handleUpdateWorkerScore}
+                onOpenMatrixAudit={handleOpenMatrixAudit}
+              />
+            </React.Suspense>
           </div>
         ) : (
           <div className="animate-fade-in">
-            <AdminConsole
-              workers={allWorkers}
-              currentAdminId={currentWorker?.id}
-              onApproveWorker={handleApproveWorker}
-              onRejectWorker={handleRejectWorker}
-              rewardCatalog={rewardCatalog}
-              onCreateReward={handleCreateReward}
-              onUpdateReward={handleUpdateReward}
-              onRestockReward={handleRestockReward}
-              onDeleteReward={handleDeleteReward}
-            />
+            <React.Suspense fallback={
+              <div className="flex items-center justify-center py-24 text-zinc-500 gap-3 text-sm">
+                <svg className="animate-spin w-5 h-5 text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <span>Memuat Administrator Console...</span>
+              </div>
+            }>
+              <AdminConsole
+                workers={allWorkers}
+                currentAdminId={currentWorker?.id}
+                onApproveWorker={handleApproveWorker}
+                onRejectWorker={handleRejectWorker}
+                rewardCatalog={rewardCatalog}
+                onCreateReward={handleCreateReward}
+                onUpdateReward={handleUpdateReward}
+                onRestockReward={handleRestockReward}
+                onDeleteReward={handleDeleteReward}
+              />
+            </React.Suspense>
           </div>
         )}
 
@@ -981,153 +995,153 @@ export const App: React.FC = () => {
       </footer>
 
       {/* Modals & Notifications */}
-      {showDailyQuizModal && currentWorker && (
-        <DailyQuestModal
-          workerDivision={currentWorker.division}
-          workerRole={currentWorker.role}
-          workerId={currentWorker.id}
-          workerName={currentWorker.name}
-          workerTier={currentWorker.tier}
-          onClose={() => setShowDailyQuizModal(false)}
-          onCompleteQuiz={handleCompleteQuiz}
-        />
-      )}
+      <React.Suspense fallback={null}>
+        {showDailyQuizModal && currentWorker && (
+          <DailyQuestModal
+            workerDivision={currentWorker.division}
+            workerRole={currentWorker.role}
+            workerId={currentWorker.id}
+            workerName={currentWorker.name}
+            workerTier={currentWorker.tier}
+            onClose={() => setShowDailyQuizModal(false)}
+            onCompleteQuiz={handleCompleteQuiz}
+          />
+        )}
 
-      {showChecklistModal && currentWorker && (
-        <ChecklistDetailModal
-          streakDays={currentWorker.streakDays}
-          workerRole={currentWorker.role}
-          workerDivision={currentWorker.division}
-          onClose={() => setShowChecklistModal(false)}
-          onCompleteChecklist={handleCompleteChecklist}
-        />
-      )}
+        {showChecklistModal && currentWorker && (
+          <ChecklistDetailModal
+            streakDays={currentWorker.streakDays}
+            workerRole={currentWorker.role}
+            workerDivision={currentWorker.division}
+            onClose={() => setShowChecklistModal(false)}
+            onCompleteChecklist={handleCompleteChecklist}
+          />
+        )}
 
-      {showProfilePicModal && currentWorker && (
-        <ProfilePictureModal
-          currentAvatar={currentWorker.avatar}
-          workerName={currentWorker.name}
-          workerId={currentWorker.id}
-          onClose={() => setShowProfilePicModal(false)}
-          onSaveAvatar={handleSaveAvatar}
-        />
-      )}
+        {showProfilePicModal && currentWorker && (
+          <ProfilePictureModal
+            currentAvatar={currentWorker.avatar}
+            workerName={currentWorker.name}
+            workerId={currentWorker.id}
+            onClose={() => setShowProfilePicModal(false)}
+            onSaveAvatar={handleSaveAvatar}
+          />
+        )}
 
-      {tierUpData && (
-        <TierUpToast
-          oldTier={tierUpData.oldTier}
-          newTier={tierUpData.newTier}
-          pointsAwarded={tierUpData.pointsAwarded}
-          onDismiss={() => setTierUpData(null)}
-        />
-      )}
+        {tierUpData && (
+          <TierUpToast
+            oldTier={tierUpData.oldTier}
+            newTier={tierUpData.newTier}
+            pointsAwarded={tierUpData.pointsAwarded}
+            onDismiss={() => setTierUpData(null)}
+          />
+        )}
 
-      {matrixAuditWorker && (
-        <CompetencyAuditModal
-          worker={matrixAuditWorker}
-          initialScores={matrixInitialScores}
-          onClose={() => setMatrixAuditWorker(null)}
-          onSaveScores={handleSaveMatrixScores}
-        />
-      )}
+        {matrixAuditWorker && (
+          <CompetencyAuditModal
+            worker={matrixAuditWorker}
+            initialScores={matrixInitialScores}
+            onClose={() => setMatrixAuditWorker(null)}
+            onSaveScores={handleSaveMatrixScores}
+          />
+        )}
 
-      {currentWorker && currentWorker.mustChangePassword && (
-        <FirstTimePasswordModal
-          worker={currentWorker}
-          onSuccess={(updatedWorker) => setCurrentWorker(updatedWorker)}
-        />
-      )}
+        {currentWorker && currentWorker.mustChangePassword && (
+          <FirstTimePasswordModal
+            worker={currentWorker}
+            onSuccess={(updatedWorker) => setCurrentWorker(updatedWorker)}
+          />
+        )}
 
-      {showIncidentModal && currentWorker && (
-        <IncidentReportModal
-          workerId={currentWorker.id}
-          workerName={currentWorker.name}
-          onClose={() => setShowIncidentModal(false)}
-          onSuccess={(report) => {
-            setShowIncidentModal(false);
-            logActivity(currentWorker.id, currentWorker.name, 'incident_reported', `Jenis: ${report.incidentType} · Lokasi: ${report.location}`).catch(() => {});
-          }}
-        />
-      )}
+        {showIncidentModal && currentWorker && (
+          <IncidentReportModal
+            workerId={currentWorker.id}
+            workerName={currentWorker.name}
+            onClose={() => setShowIncidentModal(false)}
+            onSuccess={(report) => {
+              setShowIncidentModal(false);
+              logActivity(currentWorker.id, currentWorker.name, 'incident_reported', `Jenis: ${report.incidentType} · Lokasi: ${report.location}`).catch(() => {});
+            }}
+          />
+        )}
 
-      {currentWorker && (
-        <WorkerHistoryCenterModal
-          isOpen={showHistoryCenterModal}
-          onClose={() => setShowHistoryCenterModal(false)}
-          workerId={currentWorker.id}
-          workerName={currentWorker.name}
-        />
-      )}
+        {currentWorker && (
+          <WorkerHistoryCenterModal
+            isOpen={showHistoryCenterModal}
+            onClose={() => setShowHistoryCenterModal(false)}
+            workerId={currentWorker.id}
+            workerName={currentWorker.name}
+          />
+        )}
 
-      {showCompetencyModal && currentWorker && (
-        <WorkerCompetencyModal
-          worker={currentWorker}
-          competencyScores={matrixInitialScores}
-          onClose={() => setShowCompetencyModal(false)}
-        />
-      )}
+        {showCompetencyModal && currentWorker && (
+          <WorkerCompetencyModal
+            worker={currentWorker}
+            competencyScores={matrixInitialScores}
+            onClose={() => setShowCompetencyModal(false)}
+          />
+        )}
 
-      {showSopModal && currentWorker && (
-        <SopLibraryModal
-          workerId={currentWorker.id}
-          workerName={currentWorker.name}
-          workerDivision={currentWorker.division}
-          workerRole={currentWorker.role}
-          onClose={() => setShowSopModal(false)}
-          onRewardEarned={(points, message) => {
-            if (currentWorker) {
+        {showSopModal && currentWorker && (
+          <SopLibraryModal
+            workerId={currentWorker.id}
+            workerName={currentWorker.name}
+            workerDivision={currentWorker.division}
+            workerRole={currentWorker.role}
+            onClose={() => setShowSopModal(false)}
+            onRewardEarned={(points, message) => {
+              if (currentWorker) {
+                loadDataForWorker(currentWorker.id);
+              }
+            }}
+          />
+        )}
+
+        {showOnboarding && currentWorker && (
+          <OnboardingModal
+            workerName={currentWorker.name}
+            onClose={() => {
+              localStorage.setItem('komar_onboarding_done', 'true');
+              setShowOnboarding(false);
+            }}
+          />
+        )}
+
+        {currentWorker && (
+          <KudoModal 
+            isOpen={showKudoModal} 
+            onClose={() => setShowKudoModal(false)} 
+            currentWorkerId={currentWorker.id} 
+          />
+        )}
+
+        {currentWorker && (
+          <ShiftHandoverModal
+            isOpen={showShiftHandoverModal}
+            onClose={() => setShowShiftHandoverModal(false)}
+            currentWorkerId={currentWorker.id}
+          />
+        )}
+
+        {currentWorker && (
+          <KaizenSubmissionModal
+            isOpen={showKaizenModal}
+            onClose={() => setShowKaizenModal(false)}
+            currentWorkerId={currentWorker.id}
+            onSubmitted={() => {
               loadDataForWorker(currentWorker.id);
-            }
-          }}
-        />
-      )}
+            }}
+          />
+        )}
 
-      {showOnboarding && currentWorker && (
-        <OnboardingModal
-          workerName={currentWorker.name}
-          onClose={() => {
-            localStorage.setItem('komar_onboarding_done', 'true');
-            setShowOnboarding(false);
-          }}
-        />
-      )}
-
-      {currentWorker && (
-        <KudoModal 
-          isOpen={showKudoModal} 
-          onClose={() => setShowKudoModal(false)} 
-          currentWorkerId={currentWorker.id} 
-        />
-      )}
-
-      {currentWorker && (
-        <ShiftHandoverModal
-          isOpen={showShiftHandoverModal}
-          onClose={() => setShowShiftHandoverModal(false)}
-          currentWorkerId={currentWorker.id}
-        />
-      )}
-
-      {currentWorker && (
-        <KaizenSubmissionModal
-          isOpen={showKaizenModal}
-          onClose={() => setShowKaizenModal(false)}
-          currentWorkerId={currentWorker.id}
-          onSubmitted={() => {
-            loadDataForWorker(currentWorker.id);
-          }}
-        />
-      )}
-
-
-
-      {currentWorker && unacknowledgedHandovers.length > 0 && (
-        <AcknowledgeHandoverModal
-          handovers={unacknowledgedHandovers}
-          currentWorkerId={currentWorker.id}
-          onAllAcknowledged={() => setUnacknowledgedHandovers([])}
-        />
-      )}
+        {currentWorker && unacknowledgedHandovers.length > 0 && (
+          <AcknowledgeHandoverModal
+            handovers={unacknowledgedHandovers}
+            currentWorkerId={currentWorker.id}
+            onAllAcknowledged={() => setUnacknowledgedHandovers([])}
+          />
+        )}
+      </React.Suspense>
 
     </div>
   );

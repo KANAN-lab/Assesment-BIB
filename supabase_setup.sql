@@ -1214,3 +1214,462 @@ BEGIN
   END IF;
 END;
 $$ LANGUAGE plpgsql;
+
+-- ─── 22. Phase 12: MHE & SIO Licenses Tracker (Lisensi Alat Berat) ──────────
+
+CREATE TABLE IF NOT EXISTS mhe_licenses (
+  id TEXT PRIMARY KEY,
+  worker_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  license_type TEXT NOT NULL,
+  license_number TEXT NOT NULL,
+  sio_category TEXT NOT NULL,
+  issued_date DATE NOT NULL,
+  expiry_date DATE NOT NULL,
+  issuing_authority TEXT NOT NULL,
+  document_url TEXT,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'expiring_soon', 'expired')),
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_mhe_licenses_worker ON mhe_licenses(worker_id);
+CREATE INDEX IF NOT EXISTS idx_mhe_licenses_expiry ON mhe_licenses(expiry_date ASC);
+CREATE INDEX IF NOT EXISTS idx_mhe_licenses_status ON mhe_licenses(status);
+
+ALTER TABLE mhe_licenses ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow read for mhe_licenses" ON mhe_licenses FOR SELECT TO public USING (true);
+CREATE POLICY "Allow insert for mhe_licenses" ON mhe_licenses FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "Allow update for mhe_licenses" ON mhe_licenses FOR UPDATE TO public USING (true) WITH CHECK (true);
+CREATE POLICY "Allow delete for mhe_licenses" ON mhe_licenses FOR DELETE TO public USING (true);
+
+DROP TRIGGER IF EXISTS trg_mhe_licenses_updated_at ON mhe_licenses;
+CREATE TRIGGER trg_mhe_licenses_updated_at
+  BEFORE UPDATE ON mhe_licenses
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- ─── 23. Phase 13: PPE Management & Lifecycle (Inventaris APD) ─────────────
+
+CREATE TABLE IF NOT EXISTS ppe_items (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  category TEXT NOT NULL,
+  standard_code TEXT NOT NULL,
+  standard_lifetime_days INTEGER NOT NULL DEFAULT 180,
+  stock_quantity INTEGER NOT NULL DEFAULT 0,
+  minimum_stock_threshold INTEGER NOT NULL DEFAULT 5,
+  unit TEXT NOT NULL DEFAULT 'Pcs',
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS ppe_distributions (
+  id TEXT PRIMARY KEY,
+  worker_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  worker_name TEXT NOT NULL,
+  worker_division TEXT NOT NULL,
+  ppe_item_id TEXT NOT NULL REFERENCES ppe_items(id) ON DELETE CASCADE,
+  ppe_item_name TEXT NOT NULL,
+  serial_or_batch_number TEXT,
+  distribution_date DATE NOT NULL,
+  expected_replacement_date DATE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'expiring_soon', 'expired_replaced', 'damaged_lost')),
+  condition_notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS ppe_damage_reports (
+  id TEXT PRIMARY KEY,
+  distribution_id TEXT NOT NULL REFERENCES ppe_distributions(id) ON DELETE CASCADE,
+  worker_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  damage_type TEXT NOT NULL,
+  incident_description TEXT NOT NULL,
+  photo_url TEXT,
+  status TEXT NOT NULL DEFAULT 'reported' CHECK (status IN ('reported', 'verified', 'replaced', 'rejected')),
+  reviewed_by TEXT REFERENCES workers(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_ppe_items_category ON ppe_items(category);
+CREATE INDEX IF NOT EXISTS idx_ppe_distributions_worker ON ppe_distributions(worker_id);
+CREATE INDEX IF NOT EXISTS idx_ppe_distributions_status ON ppe_distributions(status);
+CREATE INDEX IF NOT EXISTS idx_ppe_distributions_replacement ON ppe_distributions(expected_replacement_date ASC);
+CREATE INDEX IF NOT EXISTS idx_ppe_damage_worker ON ppe_damage_reports(worker_id);
+
+ALTER TABLE ppe_items ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow read for ppe_items" ON ppe_items FOR SELECT TO public USING (true);
+CREATE POLICY "Allow manage for ppe_items" ON ppe_items FOR ALL TO public USING (true);
+
+ALTER TABLE ppe_distributions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow read for ppe_distributions" ON ppe_distributions FOR SELECT TO public USING (true);
+CREATE POLICY "Allow manage for ppe_distributions" ON ppe_distributions FOR ALL TO public USING (true);
+
+ALTER TABLE ppe_damage_reports ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow read for ppe_damage_reports" ON ppe_damage_reports FOR SELECT TO public USING (true);
+CREATE POLICY "Allow manage for ppe_damage_reports" ON ppe_damage_reports FOR ALL TO public USING (true);
+
+-- RPC: Distribute PPE & Decrement Stock Atomically
+CREATE OR REPLACE FUNCTION rpc_distribute_ppe(
+  p_worker_id TEXT,
+  p_worker_name TEXT,
+  p_worker_division TEXT,
+  p_ppe_item_id TEXT,
+  p_serial TEXT,
+  p_replacement_date DATE,
+  p_notes TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_item_name TEXT;
+  v_curr_stock INTEGER;
+  v_dist_id TEXT;
+BEGIN
+  SELECT name, stock_quantity INTO v_item_name, v_curr_stock
+  FROM ppe_items
+  WHERE id = p_ppe_item_id FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Item APD tidak ditemukan.';
+  END IF;
+
+  IF v_curr_stock <= 0 THEN
+    RAISE EXCEPTION 'Stok APD % habis.', v_item_name;
+  END IF;
+
+  UPDATE ppe_items
+  SET stock_quantity = stock_quantity - 1,
+      updated_at = now()
+  WHERE id = p_ppe_item_id;
+
+  v_dist_id := 'dist_' || gen_random_uuid()::text;
+
+  INSERT INTO ppe_distributions (
+    id, worker_id, worker_name, worker_division, ppe_item_id, ppe_item_name,
+    serial_or_batch_number, distribution_date, expected_replacement_date, status, condition_notes
+  ) VALUES (
+    v_dist_id, p_worker_id, p_worker_name, p_worker_division, p_ppe_item_id, v_item_name,
+    p_serial, CURRENT_DATE, p_replacement_date, 'active', p_notes
+  );
+
+  INSERT INTO activity_log (worker_id, action, detail)
+  VALUES (p_worker_id, 'ppe_distributed', 'Penerimaan Distribusi APD: ' || v_item_name);
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'distribution_id', v_dist_id,
+    'remaining_stock', v_curr_stock - 1,
+    'message', 'Distribusi APD berhasil dicatat.'
+  );
+END;
+$$;
+
+-- ─── 24. Phase 15: Disciplinary Actions & SP K3 (Pembinaan & Sanksi) ────────
+
+CREATE TABLE IF NOT EXISTS disciplinary_actions (
+  id TEXT PRIMARY KEY,
+  worker_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  worker_name TEXT NOT NULL,
+  worker_division TEXT NOT NULL,
+  worker_role TEXT NOT NULL,
+  document_ref_number TEXT UNIQUE NOT NULL,
+  violation_level TEXT NOT NULL CHECK (violation_level IN ('coaching_verbal', 'written_warning_1', 'written_warning_2', 'written_warning_3', 'suspension', 'remedial_evaluation')),
+  violation_category TEXT NOT NULL,
+  incident_date DATE NOT NULL,
+  location TEXT,
+  description TEXT NOT NULL,
+  action_plan TEXT,
+  point_deduction INTEGER NOT NULL DEFAULT 0,
+  issued_by TEXT NOT NULL,
+  expiry_date DATE NOT NULL,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'in_retraining', 'resolved', 'appealed')),
+  mandatory_retraining_sop_id TEXT,
+  mandatory_retraining_sop_title TEXT,
+  is_retraining_completed BOOLEAN NOT NULL DEFAULT false,
+  retraining_completed_at TIMESTAMPTZ,
+  resolution_notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_disciplinary_worker ON disciplinary_actions(worker_id);
+CREATE INDEX IF NOT EXISTS idx_disciplinary_status ON disciplinary_actions(status);
+CREATE INDEX IF NOT EXISTS idx_disciplinary_date ON disciplinary_actions(incident_date DESC);
+
+ALTER TABLE disciplinary_actions ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow read for disciplinary_actions" ON disciplinary_actions FOR SELECT TO public USING (true);
+CREATE POLICY "Allow manage for disciplinary_actions" ON disciplinary_actions FOR ALL TO public USING (true);
+
+DROP TRIGGER IF EXISTS trg_disciplinary_actions_updated_at ON disciplinary_actions;
+CREATE TRIGGER trg_disciplinary_actions_updated_at
+  BEFORE UPDATE ON disciplinary_actions
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- RPC: Issue Disciplinary Action & Deduct Points Atomically
+CREATE OR REPLACE FUNCTION rpc_issue_disciplinary_action(
+  p_worker_id TEXT,
+  p_worker_name TEXT,
+  p_worker_division TEXT,
+  p_worker_role TEXT,
+  p_doc_ref TEXT,
+  p_level TEXT,
+  p_category TEXT,
+  p_incident_date DATE,
+  p_location TEXT,
+  p_description TEXT,
+  p_action_plan TEXT,
+  p_point_deduction INTEGER,
+  p_issued_by TEXT,
+  p_expiry_date DATE,
+  p_mandatory_sop_id TEXT,
+  p_mandatory_sop_title TEXT
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_action_id TEXT;
+  v_initial_status TEXT;
+BEGIN
+  v_action_id := 'disc_' || gen_random_uuid()::text;
+  v_initial_status := CASE WHEN p_mandatory_sop_id IS NOT NULL AND p_mandatory_sop_id <> '' THEN 'in_retraining' ELSE 'active' END;
+
+  INSERT INTO disciplinary_actions (
+    id, worker_id, worker_name, worker_division, worker_role, document_ref_number,
+    violation_level, violation_category, incident_date, location, description, action_plan,
+    point_deduction, issued_by, expiry_date, status, mandatory_retraining_sop_id,
+    mandatory_retraining_sop_title, is_retraining_completed
+  ) VALUES (
+    v_action_id, p_worker_id, p_worker_name, p_worker_division, p_worker_role, p_doc_ref,
+    p_level, p_category, p_incident_date, p_location, p_description, p_action_plan,
+    p_point_deduction, p_issued_by, p_expiry_date, v_initial_status, p_mandatory_sop_id,
+    p_mandatory_sop_title, false
+  );
+
+  -- Deduct Points from Worker balance if deduction > 0
+  IF p_point_deduction > 0 THEN
+    UPDATE workers
+    SET total_points = GREATEST(0, total_points - p_point_deduction),
+        updated_at = now()
+    WHERE id = p_worker_id;
+  END IF;
+
+  INSERT INTO activity_log (worker_id, action, detail)
+  VALUES (p_worker_id, 'disciplinary_issued', 'Penerbitan Sanksi ' || p_doc_ref || ' (-' || p_point_deduction || ' PTS)');
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'action_id', v_action_id,
+    'document_ref', p_doc_ref,
+    'points_deducted', p_point_deduction,
+    'message', 'Surat sanksi / Berita Acara berhasil diterbitkan secara resmi.'
+  );
+END;
+$$;
+
+-- ─── 25. Phase 16: Audit Standar 5R / 5S Wilayah Gudang ────────────────────
+
+CREATE TABLE IF NOT EXISTS warehouse_zones_5s (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  zone_type TEXT NOT NULL,
+  division TEXT NOT NULL,
+  pic_worker_id TEXT REFERENCES workers(id) ON DELETE SET NULL,
+  pic_worker_name TEXT NOT NULL,
+  last_audit_score NUMERIC(5,2) NOT NULL DEFAULT 0,
+  badge_rating TEXT NOT NULL DEFAULT 'Perlu Perbaikan' CHECK (badge_rating IN ('Gold', 'Silver', 'Bronze', 'Perlu Perbaikan')),
+  last_audited_date DATE,
+  is_active BOOLEAN NOT NULL DEFAULT true,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS audit_5s_records (
+  id TEXT PRIMARY KEY,
+  zone_id TEXT NOT NULL REFERENCES warehouse_zones_5s(id) ON DELETE CASCADE,
+  zone_name TEXT NOT NULL,
+  zone_type TEXT NOT NULL,
+  division TEXT NOT NULL,
+  auditor_id TEXT REFERENCES workers(id) ON DELETE SET NULL,
+  auditor_name TEXT NOT NULL,
+  pic_worker_name TEXT NOT NULL,
+  audit_date DATE NOT NULL,
+  ringkas_score NUMERIC(5,2) NOT NULL DEFAULT 0,
+  rapi_score NUMERIC(5,2) NOT NULL DEFAULT 0,
+  resik_score NUMERIC(5,2) NOT NULL DEFAULT 0,
+  rawat_score NUMERIC(5,2) NOT NULL DEFAULT 0,
+  rajin_score NUMERIC(5,2) NOT NULL DEFAULT 0,
+  total_score NUMERIC(5,2) NOT NULL DEFAULT 0,
+  rating TEXT NOT NULL CHECK (rating IN ('Gold', 'Silver', 'Bronze', 'Perlu Perbaikan')),
+  reward_points_awarded INTEGER NOT NULL DEFAULT 0,
+  findings_notes TEXT,
+  corrective_actions TEXT,
+  photo_urls JSONB NOT NULL DEFAULT '[]'::jsonb,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_5s_zones_division ON warehouse_zones_5s(division);
+CREATE INDEX IF NOT EXISTS idx_5s_records_zone ON audit_5s_records(zone_id);
+CREATE INDEX IF NOT EXISTS idx_5s_records_date ON audit_5s_records(audit_date DESC);
+CREATE INDEX IF NOT EXISTS idx_5s_records_rating ON audit_5s_records(rating);
+
+ALTER TABLE warehouse_zones_5s ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow read for warehouse_zones_5s" ON warehouse_zones_5s FOR SELECT TO public USING (true);
+CREATE POLICY "Allow manage for warehouse_zones_5s" ON warehouse_zones_5s FOR ALL TO public USING (true);
+
+ALTER TABLE audit_5s_records ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow read for audit_5s_records" ON audit_5s_records FOR SELECT TO public USING (true);
+CREATE POLICY "Allow manage for audit_5s_records" ON audit_5s_records FOR ALL TO public USING (true);
+
+DROP TRIGGER IF EXISTS trg_warehouse_zones_5s_updated_at ON warehouse_zones_5s;
+CREATE TRIGGER trg_warehouse_zones_5s_updated_at
+  BEFORE UPDATE ON warehouse_zones_5s
+  FOR EACH ROW
+  EXECUTE FUNCTION update_updated_at_column();
+
+-- RPC: Submit 5S Audit Session & Award PIC Points Atomically
+CREATE OR REPLACE FUNCTION rpc_submit_5s_audit(
+  p_zone_id TEXT,
+  p_auditor_id TEXT,
+  p_auditor_name TEXT,
+  p_audit_date DATE,
+  p_ringkas NUMERIC,
+  p_rapi NUMERIC,
+  p_resik NUMERIC,
+  p_rawat NUMERIC,
+  p_rajin NUMERIC,
+  p_total NUMERIC,
+  p_rating TEXT,
+  p_points_reward INTEGER,
+  p_findings TEXT,
+  p_corrective TEXT,
+  p_photos JSONB
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+AS $$
+DECLARE
+  v_zone_name TEXT;
+  v_zone_type TEXT;
+  v_division TEXT;
+  v_pic_name TEXT;
+  v_pic_id TEXT;
+  v_record_id TEXT;
+BEGIN
+  SELECT name, zone_type, division, pic_worker_name, pic_worker_id
+  INTO v_zone_name, v_zone_type, v_division, v_pic_name, v_pic_id
+  FROM warehouse_zones_5s
+  WHERE id = p_zone_id FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Zona 5R tidak ditemukan.';
+  END IF;
+
+  v_record_id := 'audit5s_' || gen_random_uuid()::text;
+
+  INSERT INTO audit_5s_records (
+    id, zone_id, zone_name, zone_type, division, auditor_id, auditor_name,
+    pic_worker_name, audit_date, ringkas_score, rapi_score, resik_score,
+    rawat_score, rajin_score, total_score, rating, reward_points_awarded,
+    findings_notes, corrective_actions, photo_urls
+  ) VALUES (
+    v_record_id, p_zone_id, v_zone_name, v_zone_type, v_division, p_auditor_id, p_auditor_name,
+    v_pic_name, p_audit_date, p_ringkas, p_rapi, p_resik, p_rawat, p_rajin, p_total,
+    p_rating, p_points_reward, p_findings, p_corrective, COALESCE(p_photos, '[]'::jsonb)
+  );
+
+  -- Update Zone Master record
+  UPDATE warehouse_zones_5s
+  SET last_audit_score = p_total,
+      badge_rating = p_rating,
+      last_audited_date = p_audit_date,
+      updated_at = now()
+  WHERE id = p_zone_id;
+
+  -- Award reward points to PIC if applicable
+  IF p_points_reward > 0 AND v_pic_id IS NOT NULL THEN
+    UPDATE workers
+    SET total_points = total_points + p_points_reward,
+        updated_at = now()
+    WHERE id = v_pic_id;
+
+    INSERT INTO activity_log (worker_id, action, detail)
+    VALUES (v_pic_id, 'audit_5s_completed', 'Reward Audit 5R Wilayah (' || v_zone_name || '): Predikat ' || p_rating || ' (+' || p_points_reward || ' PTS)');
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'record_id', v_record_id,
+    'score', p_total,
+    'rating', p_rating,
+    'reward_points', p_points_reward,
+    'message', 'Audit 5R berhasil dicatat dan nilai rating telah diperbarui.'
+  );
+END;
+$$;
+
+-- ─── 26. Phase 17: Dynamic System Points Configuration (Config Remote) ────
+
+CREATE TABLE IF NOT EXISTS system_point_configs (
+  id TEXT PRIMARY KEY DEFAULT 'default_config',
+  config_data JSONB NOT NULL,
+  updated_by TEXT,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+ALTER TABLE system_point_configs ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Allow read for system_point_configs" ON system_point_configs FOR SELECT TO public USING (true);
+CREATE POLICY "Allow manage for system_point_configs" ON system_point_configs FOR ALL TO public USING (true);
+
+-- Seed Default Config Row
+INSERT INTO system_point_configs (id, config_data, updated_by)
+VALUES (
+  'default_config',
+  '{
+    "dailyQuizPoints": 50,
+    "dailyQuiz100Bonus": 25,
+    "preShiftChecklistPoints": 30,
+    "sopCompletionPoints": 50,
+    "incidentReportPoints": 40,
+    "nearMissBonusPoints": 20,
+    "kaizenSubmissionPoints": 50,
+    "kaizenApprovedPoints": 150,
+    "kaizenImplementedPoints": 300,
+    "kudoReceivedPoints": 10,
+    "kudoSentPoints": 5,
+    "audit5sGoldPoints": 100,
+    "audit5sSilverPoints": 50,
+    "audit5sBronzePoints": 25,
+    "sioRegistrationPoints": 100,
+    "sioRenewalPoints": 75,
+    "verbalCoachingPenaltyPoints": 25,
+    "warningLetter1PenaltyPoints": 100,
+    "warningLetter2PenaltyPoints": 250,
+    "warningLetter3PenaltyPoints": 500,
+    "suspensionPenaltyPoints": 1000
+  }'::jsonb,
+  'SYS-ADMIN'
+)
+ON CONFLICT (id) DO UPDATE SET
+  config_data = EXCLUDED.config_data;
+
+-- ─── 27. Universal Activity Log Constraints & Indexes ──────────────────────
+
+ALTER TABLE activity_log DROP CONSTRAINT IF EXISTS activity_log_action_check;
+ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
+  action IN (
+    'login', 'logout', 'password_reset', 'profile_update', 'badge_awarded',
+    'quiz_completed', 'checklist_completed', 'incident_reported',
+    'kudo_sent', 'kudo_received', 'shift_handover', 'sop_completed',
+    'kaizen_submitted', 'kaizen_approved', 'disciplinary_issued',
+    'disciplinary_retraining_completed', 'audit_5s_completed',
+    'sio_registered', 'ppe_distributed', 'ppe_damaged'
+  )
+);
+

@@ -199,12 +199,50 @@
 
 ---
 
-## Phase 12: Toolbox Talk / Safety Briefing Harian
+## Phase 12: Pelacak SIO & Lisensi Alat Berat (MHE License & Certification Tracker)
 
-- [ ] **Data Layer & Types (`src/types/toolbox.ts`)**: Model `ToolboxBriefingEntity`, array relasi absensi `attendee_ids`.
-- [ ] **Database SQL Setup (`supabase_setup.sql`)**: Buat tabel `toolbox_briefings` (id, date, supervisor_id, topic, location, created_at) dan tabel many-to-many `toolbox_attendees`.
-- [ ] **Service Layer (`src/lib/toolboxService.ts`)**: OOP service `ToolboxSession` yang mencakup validasi presensi dan auto-distribusi poin K3 rutin ke seluruh partisipan yang hadir.
-- [ ] **UI Component (`src/components/ToolboxBriefingModal.tsx`)**: Form Supervisor untuk memilih topik K3 harian, dan checklist `Multi-Select` daftar pekerja yang hadir (berbasis shift).
-- [ ] **UI Component (`src/components/AttendanceQRScanner.tsx`)**: (Opsional) Integrasi scanner menggunakan pustaka seperti `html5-qrcode` agar Supervisor bisa melakukan _check-in_ kehadiran via pindai barcode kartu ID pekerja.
+- [x] **Data Layer & Types (`src/types/license.ts`)**: Model `MheLicenseEntity`, `LicenseType` (SIO Forklift, SIO Reach Truck, SIM B2 Umum, K3 Kemenaker, First Aid), `LicenseStatus` (Active, Expiring Soon, Expired).
+- [x] **Service Layer (`src/lib/licenseService.ts`)**: Service manajemen lisensi, kalkulasi sisa hari aktif, filter operator, dan ekspor data CSV.
+- [x] **Admin UI Component (`src/components/MheLicensePanel.tsx`)**: Tab kontrol SIO, indikator kedaluwarsa H-30 hari, modal pendaftaran/pembaruan SIO, dan status kepatuhan legalitas alat berat.
+
+---
+
+## Phase 13: Inventaris & Distribusi APD (PPE Lifecycle & Safety Gear Management)
+
+- [x] **Data Layer & Types (`src/types/ppe.ts`)**: Model `PpeItemEntity`, `PpeDistributionEntity`, `PpeDamageReportEntity`, `PpeCategory` (Safety Shoes, Helm K3, Rompi Reflektif, Sarung Tangan, Masker/Respirator, Body Harness).
+- [x] **Service Layer (`src/lib/ppeService.ts`)**: Manajemen stok APD, log serah terima, deteksi interval penggantian berkala (H-14 hari), skema penggantian APD rusak/hilang, notifikasi otomatis, dan ekspor data CSV.
+- [x] **Admin & Supervisor UI Component (`src/components/PpeManagementPanel.tsx`)**: Monitoring serah terima APD pekerja, manajemen katalog stok gudang, meja tiket verifikasi & penerbitan pengganti APD rusak/hilang.
+
+---
+
+## Phase 14: Generator Laporan Audit Eksekutif (Executive Compliance & Safety Report Generator)
+
+- [x] **Service Layer (`src/lib/pdfReportService.ts`)**: Generator dokumen eksekutif resmi (Matriks Kompetensi BIB, K3 Zero Incident & CAPA, Legalitas SIO MHE, Inventaris APD, Anggaran Reward) dengan penomoran unik, kop surat resmi, penandatangan multi-level, dan ekspor CSV.
+- [x] **Admin & Supervisor UI Component (`src/components/ExecutiveReportPanel.tsx`)**: Meja generator laporan eksekutif lengkap dengan filter periode/divisi, penandatangan resmi, pratinjau lembar langsung (live preview), KPI summary, dan tombol cetak PDF / download CSV.
+
+---
+
+## Phase 15: Konseling & Sanksi K3 (Safety Coaching & Disciplinary Matrix)
+
+- [x] **Data Layer & Types (`src/types/disciplinary.ts`)**: Model `DisciplinaryActionEntity`, `ViolationLevel` (Pembinaan Lisan, SP 1, SP 2, SP 3, Skorsing, Remedial), `SanctionStatus` (Active, In Retraining, Resolved, Appealed), `DisciplinaryStats`.
+- [x] **Service Layer (`src/lib/disciplinaryService.ts`)**: Pencatatan pelanggaran K3, penomoran SK resmi otomatis, penalti pengurangan poin dinamis, penugasan mandatory retraining SOP, notifikasi otomatis, cetak PDF Surat Peringatan, dan ekspor CSV.
+- [x] **Admin & Supervisor UI Component (`src/components/DisciplinaryPanel.tsx`)**: Meja kontrol pembinaan K3, form penerbitan sanksi terstandarisasi, verifikasi modal kelulusan retraining, dan panduan matriks eskalasi sanksi K3.
+
+---
+
+## Phase 16: Audit Standar 5R / 5S Wilayah Gudang (5S Warehouse Audit Zone)
+
+- [x] **Data Layer & Types (`src/types/audit5s.ts`)**: Model `WarehouseZone5s`, `Audit5sRecord`, `Audit5sPillars` (Ringkas, Rapi, Resik, Rawat, Rajin: 0-100%), `ZoneType`, `Rating5s` (Gold, Silver, Bronze, Perlu Perbaikan), `Audit5sStats`.
+- [x] **Service Layer (`src/lib/audit5sService.ts`)**: Scoring engine 5R, kalkulasi predikat rating, alokasi reward poin insentif PIC zona, notifikasi otomatis, cetak Berita Acara PDF, dan ekspor CSV.
+- [x] **Admin & Supervisor UI Component (`src/components/Audit5sPanel.tsx`)**: Papan klasemen kebersihan zona gudang, formulir audit 5 pilar interaktif dengan slider 0-100%, riwayat sesi audit, dan form manajemen master zona gudang.
+
+---
+
+## Phase 17: Dynamic System Points Management Configuration (No Hardcoded Points)
+
+- [x] **Domain Service (`src/domain/SystemConfigService.ts`)**: Model konfigurasi poin dinamis lengkap (Kuis Harian, Bonus 100%, Pre-Shift, SOP, Insiden, Near-Miss, Kaizen Submission/Approval/Implementation, Kudo Kirim/Terima, 5S Gold/Silver/Bronze, SIO Registrasi/Pembaruan, dan Penalti Sanksi Disiplin K3).
+- [x] **Admin UI Integration (`src/components/SystemConfigPanel.tsx` & `src/components/AdminConsole.tsx`)**: Meja kontrol konfigurasi poin dinamis lengkap di tab "Aturan & Config System" dengan live save, broadcast custom event, tombol Reset ke Default, dan feedback visual.
+
+
 
 
