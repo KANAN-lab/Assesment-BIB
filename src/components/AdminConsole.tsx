@@ -6,8 +6,7 @@ import { RoleEntity } from '../domain/RoleEntity';
 import { RewardEntity } from '../domain/RewardEntity';
 import matrixData from '../data/matrixData.json';
 import { PaginationControls } from './PaginationControls';
-import { AdminAnalytics } from './AdminAnalytics';
-import { ActivityLogPanel } from './ActivityLogPanel';
+import { SkeletonLoader } from './SkeletonLoader';
 import {
   Settings, UserCheck, Plus, Search, TableProperties,
   ShieldAlert, Award, FileSpreadsheet, Upload, Check, Trash2, Edit3,
@@ -25,19 +24,23 @@ import {
   fetchAllRedemptionHistory, fulfillRedemption, AdminRedemptionRecord,
   batchImportWorkers, mutateWorkerRoleAndDivision
 } from '../lib/supabaseService';
-import { BadgeManagementPanel } from './BadgeManagementPanel';
-import { QuizManagementPanel } from './QuizManagementPanel';
-import { SopManagementPanel } from './SopManagementPanel';
-import { KaizenKanbanBoard } from './KaizenKanbanBoard';
-import { AdminNotificationPanel } from './AdminNotificationPanel';
-import { MheLicensePanel } from './MheLicensePanel';
-import { PpeManagementPanel } from './PpeManagementPanel';
-import { ExecutiveReportPanel } from './ExecutiveReportPanel';
-import { DisciplinaryPanel } from './DisciplinaryPanel';
-import { Audit5sPanel } from './Audit5sPanel';
-import { SystemConfigPanel } from './SystemConfigPanel';
 import { SystemConfigService, FREQUENCY_OPTIONS } from '../domain/SystemConfigService';
 import { ExecutivePDFReportGenerator } from '../lib/pdfReportService';
+
+// ─── Granular Lazy-Loaded Sub-Panels (Performance Optimization) ───
+const AdminAnalytics = React.lazy(() => import('./AdminAnalytics').then(m => ({ default: m.AdminAnalytics })));
+const ActivityLogPanel = React.lazy(() => import('./ActivityLogPanel').then(m => ({ default: m.ActivityLogPanel })));
+const BadgeManagementPanel = React.lazy(() => import('./BadgeManagementPanel').then(m => ({ default: m.BadgeManagementPanel })));
+const QuizManagementPanel = React.lazy(() => import('./QuizManagementPanel').then(m => ({ default: m.QuizManagementPanel })));
+const SopManagementPanel = React.lazy(() => import('./SopManagementPanel').then(m => ({ default: m.SopManagementPanel })));
+const KaizenKanbanBoard = React.lazy(() => import('./KaizenKanbanBoard').then(m => ({ default: m.KaizenKanbanBoard })));
+const AdminNotificationPanel = React.lazy(() => import('./AdminNotificationPanel').then(m => ({ default: m.AdminNotificationPanel })));
+const MheLicensePanel = React.lazy(() => import('./MheLicensePanel').then(m => ({ default: m.MheLicensePanel })));
+const PpeManagementPanel = React.lazy(() => import('./PpeManagementPanel').then(m => ({ default: m.PpeManagementPanel })));
+const ExecutiveReportPanel = React.lazy(() => import('./ExecutiveReportPanel').then(m => ({ default: m.ExecutiveReportPanel })));
+const DisciplinaryPanel = React.lazy(() => import('./DisciplinaryPanel').then(m => ({ default: m.DisciplinaryPanel })));
+const Audit5sPanel = React.lazy(() => import('./Audit5sPanel').then(m => ({ default: m.Audit5sPanel })));
+const SystemConfigPanel = React.lazy(() => import('./SystemConfigPanel').then(m => ({ default: m.SystemConfigPanel })));
 
 export const SAMPLE_EMPLOYEE_IMPORT_DATA = `328000257\tAGUNG BAGASKARA\tOperator Forklift (WFG)\tWFG
 328000261\tARANIKITA BERU SIBIRO\tAdmin (Timbangan)\tTIM
@@ -916,7 +919,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
       {/* ─── TAB: KAIZEN KANBAN ─── */}
       {activeTab === 'kaizen' && (
         <div className="animate-in fade-in duration-300">
-          <KaizenKanbanBoard currentUserId={currentAdminId} isAdmin={true} />
+          <React.Suspense fallback={<SkeletonLoader />}>
+            <KaizenKanbanBoard currentUserId={currentAdminId} isAdmin={true} />
+          </React.Suspense>
         </div>
       )}
 
@@ -1332,7 +1337,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
       {/* ─── TAB: ANALYTICS ─── */}
       {activeTab === 'analytics' && (
         <div className="card p-5">
-          <AdminAnalytics workers={workers} />
+          <React.Suspense fallback={<SkeletonLoader />}>
+            <AdminAnalytics workers={workers} />
+          </React.Suspense>
         </div>
       )}
 
@@ -1651,14 +1658,16 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
       {/* ─── TAB: ACTIVITY LOG ─── */}
       {activeTab === 'activity' && (
         <div className="card p-5">
-          <ActivityLogPanel
-            logs={activityLogs}
-            loading={activityLoading}
-            onRefresh={() => {
-              setActivityLoading(true);
-              fetchActivityLog(100).then(setActivityLogs).catch(() => { }).finally(() => setActivityLoading(false));
-            }}
-          />
+          <React.Suspense fallback={<SkeletonLoader />}>
+            <ActivityLogPanel
+              logs={activityLogs}
+              loading={activityLoading}
+              onRefresh={() => {
+                setActivityLoading(true);
+                fetchActivityLog(100).then(setActivityLogs).catch(() => { }).finally(() => setActivityLoading(false));
+              }}
+            />
+          </React.Suspense>
         </div>
       )}
 
@@ -1678,66 +1687,86 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
       {/* ─── TAB: MANAJEMEN BADGE ─── */}
       {activeTab === 'badges' && (
         <div className="card p-5">
-          <BadgeManagementPanel />
+          <React.Suspense fallback={<SkeletonLoader />}>
+            <BadgeManagementPanel />
+          </React.Suspense>
         </div>
       )}
 
       {/* ─── TAB: BANK SOAL QUIZ ─── */}
       {activeTab === 'quiz' && (
         <div className="card p-5">
-          <QuizManagementPanel />
+          <React.Suspense fallback={<SkeletonLoader />}>
+            <QuizManagementPanel />
+          </React.Suspense>
         </div>
       )}
 
       {/* ─── TAB: MODUL SOP MICRO-DECK ─── */}
       {activeTab === 'sop' && (
-        <SopManagementPanel currentAdminId={currentAdminId} onToast={showToast} />
+        <React.Suspense fallback={<SkeletonLoader />}>
+          <SopManagementPanel currentAdminId={currentAdminId} onToast={showToast} />
+        </React.Suspense>
       )}
 
       {/* ─── TAB: ATURAN & CONFIG SYSTEM ─── */}
       {activeTab === 'config' && (
-        <SystemConfigPanel onToast={showToast} />
+        <React.Suspense fallback={<SkeletonLoader />}>
+          <SystemConfigPanel onToast={showToast} />
+        </React.Suspense>
       )}
 
       {/* ─── TAB: MANAJEMEN NOTIFIKASI ─── */}
       {activeTab === 'notifications' && (
-        <AdminNotificationPanel />
+        <React.Suspense fallback={<SkeletonLoader />}>
+          <AdminNotificationPanel />
+        </React.Suspense>
       )}
 
       {/* ─── TAB: PELACAK SIO & LISENSI MHE ─── */}
       {activeTab === 'licenses' && (
-        <MheLicensePanel workers={workers} />
+        <React.Suspense fallback={<SkeletonLoader />}>
+          <MheLicensePanel workers={workers} />
+        </React.Suspense>
       )}
 
       {/* ─── TAB: INVENTARIS & DISTRIBUSI APD ─── */}
       {activeTab === 'ppe' && (
-        <PpeManagementPanel workers={workers} currentUserName="System Administrator" />
+        <React.Suspense fallback={<SkeletonLoader />}>
+          <PpeManagementPanel workers={workers} currentUserName="System Administrator" />
+        </React.Suspense>
       )}
 
       {/* ─── TAB: LAPORAN AUDIT EKSEKUTIF ─── */}
       {activeTab === 'reports' && (
-        <ExecutiveReportPanel
-          workers={workers}
-          incidents={incidents}
-          rewardCatalog={rewardCatalog}
-          currentUserName="System Administrator"
-        />
+        <React.Suspense fallback={<SkeletonLoader />}>
+          <ExecutiveReportPanel
+            workers={workers}
+            incidents={incidents}
+            rewardCatalog={rewardCatalog}
+            currentUserName="System Administrator"
+          />
+        </React.Suspense>
       )}
 
       {/* ─── TAB: KONSELING & SANKSI K3 ─── */}
       {activeTab === 'disciplinary' && (
-        <DisciplinaryPanel
-          workers={workers}
-          currentUserName="System Administrator"
-        />
+        <React.Suspense fallback={<SkeletonLoader />}>
+          <DisciplinaryPanel
+            workers={workers}
+            currentUserName="System Administrator"
+          />
+        </React.Suspense>
       )}
 
       {/* ─── TAB: AUDIT STANDAR 5R / 5S ─── */}
       {activeTab === 'audit-5s' && (
-        <Audit5sPanel
-          workers={workers}
-          currentUserName="System Administrator"
-        />
+        <React.Suspense fallback={<SkeletonLoader />}>
+          <Audit5sPanel
+            workers={workers}
+            currentUserName="System Administrator"
+          />
+        </React.Suspense>
       )}
 
       {/* ─── MODAL: IMPORT MASSAL PEKERJA ─── */}

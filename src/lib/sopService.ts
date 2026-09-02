@@ -6,54 +6,66 @@ import {
   WorkerSopProgress,
   SopComplianceOverview,
 } from '../types/sop';
+import { OfflineSopService } from './offlineSopService';
 
 const LOCAL_STORAGE_SOP_PROGRESS_KEY = 'bib_sop_worker_progress_v2';
 const LOCAL_STORAGE_SOP_CUSTOM_MODULES_KEY = 'bib_sop_custom_modules_v2';
 
 /**
- * Fetch all SOP Modules with dynamic fallback to default seed data
+ * Fetch all SOP Modules with dynamic fallback to default seed data & offline cache
  */
 export async function fetchAllSopModules(
   workerDivision?: string,
   workerRole?: string
 ): Promise<SopModule[]> {
   try {
-    const { data, error } = await supabase
-      .from('sop_modules')
-      .select('*')
-      .eq('is_active', true)
-      .order('code', { ascending: true });
+    if (OfflineSopService.isOnline()) {
+      const { data, error } = await supabase
+        .from('sop_modules')
+        .select('*')
+        .eq('is_active', true)
+        .order('code', { ascending: true });
 
-    if (!error && data && data.length > 0) {
-      const parsed: SopModule[] = data.map((row: any) => ({
-        id: row.id,
-        code: row.code,
-        title: row.title,
-        description: row.description || '',
-        category: row.category,
-        difficulty: row.difficulty || 'Beginner',
-        targetDivisions: Array.isArray(row.target_divisions) ? row.target_divisions : ['ALL'],
-        targetRoles: Array.isArray(row.target_roles) ? row.target_roles : ['ALL'],
-        estimatedMinutes: row.estimated_minutes || 3,
-        pointsReward: row.points_reward || 50,
-        badgeIcon: row.badge_icon || 'BookOpen',
-        slides: Array.isArray(row.slides_data) ? row.slides_data : [],
-        isMandatory: !!row.is_mandatory,
-        deadlineDays: row.deadline_days || 14,
-        version: row.version || 'v1.0',
-        isActive: row.is_active !== false,
-        author: row.author || 'HSE & Ops Management',
-        createdAt: row.created_at,
-        updatedAt: row.updated_at,
-      }));
+      if (!error && data && data.length > 0) {
+        const parsed: SopModule[] = data.map((row: any) => ({
+          id: row.id,
+          code: row.code,
+          title: row.title,
+          description: row.description || '',
+          category: row.category,
+          difficulty: row.difficulty || 'Beginner',
+          targetDivisions: Array.isArray(row.target_divisions) ? row.target_divisions : ['ALL'],
+          targetRoles: Array.isArray(row.target_roles) ? row.target_roles : ['ALL'],
+          estimatedMinutes: row.estimated_minutes || 3,
+          pointsReward: row.points_reward || 50,
+          badgeIcon: row.badge_icon || 'BookOpen',
+          slides: Array.isArray(row.slides_data) ? row.slides_data : [],
+          isMandatory: !!row.is_mandatory,
+          deadlineDays: row.deadline_days || 14,
+          version: row.version || 'v1.0',
+          isActive: row.is_active !== false,
+          author: row.author || 'HSE & Ops Management',
+          createdAt: row.created_at,
+          updatedAt: row.updated_at,
+        }));
 
-      return filterSopByTarget(parsed, workerDivision, workerRole);
+        // Cache locally for offline availability
+        OfflineSopService.cacheModules(parsed);
+
+        return filterSopByTarget(parsed, workerDivision, workerRole);
+      }
     }
   } catch (err) {
-    console.warn('[SopService] Fallback to local default SOP data:', err);
+    console.warn('[SopService] Fallback to local/cached SOP data:', err);
   }
 
-  // Fallback to local seed + interactive demo modules + custom local modules
+  // Fallback 1: Cached modules from IndexedDB/LocalStorage
+  const cached = OfflineSopService.getCachedModules();
+  if (cached.length > 0) {
+    return filterSopByTarget(cached, workerDivision, workerRole);
+  }
+
+  // Fallback 2: Local seed + interactive demo modules + custom local modules
   const localCustom = getLocalCustomModules();
   const combined = [...(defaultSopData as SopModule[]), ...BUILT_IN_ADVANCED_MODULES, ...localCustom];
   return filterSopByTarget(combined, workerDivision, workerRole);
@@ -267,44 +279,57 @@ export async function fetchWorkerSopProgress(workerId: string): Promise<Record<s
 }
 
 /**
- * Mark an SOP as completed atomically and award +50 PTS
+ * Mark an SOP as completed atomically with idempotency protection and offline queue
  */
 export async function completeSopModule(
   workerId: string,
   sopId: string,
   timeSpentSeconds = 180,
   quizScore = 100
-): Promise<{ success: boolean; pointsAdded: number; message: string }> {
-  // 1. Try Supabase Atomic RPC
-  try {
-    const { data, error } = await supabase.rpc('rpc_complete_sop_module', {
-      p_worker_id: workerId,
-      p_sop_id: sopId,
-      p_time_spent: timeSpentSeconds,
-      p_quiz_score: quizScore,
-    });
+): Promise<{ success: boolean; pointsAdded: number; message: string; isOfflineQueued?: boolean }> {
+  const dateKey = new Date().toISOString().slice(0, 10);
+  const idempotencyKey = `${workerId}_${sopId}_${dateKey}`;
 
-    if (!error && data && typeof data === 'object') {
-      const res = data as any;
-      updateLocalProgressRecord(workerId, sopId, {
-        isCompleted: true,
-        completedAt: new Date().toISOString(),
-        pointsAwarded: true,
-        quizScore,
-        timeSpentSeconds,
+  // 1. Try Supabase Atomic RPC if online
+  if (OfflineSopService.isOnline()) {
+    try {
+      const { data, error } = await supabase.rpc('rpc_complete_sop_module', {
+        p_worker_id: workerId,
+        p_sop_id: sopId,
+        p_time_spent: timeSpentSeconds,
+        p_quiz_score: quizScore,
       });
 
-      return {
-        success: true,
-        pointsAdded: res.points_added || 50,
-        message: res.message || 'Selamat! Anda telah menyelesaikan modul SOP dan memperoleh +50 PTS.',
-      };
+      if (!error && data && typeof data === 'object') {
+        const res = data as any;
+        updateLocalProgressRecord(workerId, sopId, {
+          isCompleted: true,
+          completedAt: new Date().toISOString(),
+          pointsAwarded: true,
+          quizScore,
+          timeSpentSeconds,
+        });
+
+        return {
+          success: true,
+          pointsAdded: res.points_added || 50,
+          message: res.message || 'Selamat! Anda telah menyelesaikan modul SOP dan memperoleh +50 PTS.',
+        };
+      }
+    } catch (err) {
+      console.warn('[SopService] RPC complete SOP failed, falling back to offline queue:', err);
     }
-  } catch (err) {
-    console.warn('[SopService] RPC complete SOP fallback to local simulation:', err);
   }
 
-  // 2. Fallback local simulation
+  // 2. Offline / Network blind-spot fallback: Enqueue for background sync
+  OfflineSopService.enqueueCompletion({
+    workerId,
+    moduleId: sopId,
+    score: quizScore,
+    pointsAwarded: 50,
+    idempotencyKey,
+  });
+
   updateLocalProgressRecord(workerId, sopId, {
     isCompleted: true,
     completedAt: new Date().toISOString(),
@@ -316,8 +341,32 @@ export async function completeSopModule(
   return {
     success: true,
     pointsAdded: 50,
-    message: 'Selamat! Anda telah menyelesaikan modul SOP dan memperoleh +50 PTS.',
+    isOfflineQueued: true,
+    message: 'Tersimpan Offline! Hasil evaluasi SOP akan disinkronkan otomatis saat terhubung internet.',
   };
+}
+
+/**
+ * Flush and sync all offline completions to Supabase when network is restored
+ */
+export async function flushOfflineSopCompletions(): Promise<number> {
+  if (!OfflineSopService.isOnline()) return 0;
+
+  const res = await OfflineSopService.flushSyncQueue(async (item) => {
+    try {
+      const { error } = await supabase.rpc('rpc_complete_sop_module', {
+        p_worker_id: item.workerId,
+        p_sop_id: item.moduleId,
+        p_time_spent: 180,
+        p_quiz_score: item.score,
+      });
+      return !error;
+    } catch {
+      return false;
+    }
+  });
+
+  return res.syncedCount;
 }
 
 /**

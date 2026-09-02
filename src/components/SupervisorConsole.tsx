@@ -8,23 +8,28 @@ import {
   Search, Flame, ShieldCheck, Award, ChevronRight,
   BarChart3, CheckCircle, AlertTriangle, Download,
   ShieldAlert, Clock, CheckCircle2, History, Loader2, AlertCircle,
-  Lightbulb, Sparkles, Truck, HardHat, FileText
+  Lightbulb, Sparkles, Truck, HardHat, FileText, QrCode
 } from 'lucide-react';
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, Tooltip as RechartsTooltip
 } from 'recharts';
 import { WorkerAvatar } from './WorkerAvatar';
+import { SkeletonLoader } from './SkeletonLoader';
 import { RoleEntity } from '../domain/RoleEntity';
 import { ExecutivePDFReportGenerator } from '../lib/pdfReportService';
-import { CompetencyGapAnalysisModal } from './CompetencyGapAnalysisModal';
-import { SupervisorIncidentKanban } from './SupervisorIncidentKanban';
-import { SupervisorIncidentValidationModal } from './SupervisorIncidentValidationModal';
-import { KaizenKanbanBoard } from './KaizenKanbanBoard';
-import { MheLicensePanel } from './MheLicensePanel';
-import { PpeManagementPanel } from './PpeManagementPanel';
-import { ExecutiveReportPanel } from './ExecutiveReportPanel';
-import { DisciplinaryPanel } from './DisciplinaryPanel';
-import { Audit5sPanel } from './Audit5sPanel';
+
+// ─── Granular Lazy-Loaded Sub-Panels (Performance Optimization) ───
+const CompetencyGapAnalysisModal = React.lazy(() => import('./CompetencyGapAnalysisModal').then(m => ({ default: m.CompetencyGapAnalysisModal })));
+const QrBadgeScannerModal = React.lazy(() => import('./QrBadgeScannerModal').then(m => ({ default: m.QrBadgeScannerModal })));
+const SupervisorIncidentKanban = React.lazy(() => import('./SupervisorIncidentKanban').then(m => ({ default: m.SupervisorIncidentKanban })));
+const SupervisorIncidentValidationModal = React.lazy(() => import('./SupervisorIncidentValidationModal').then(m => ({ default: m.SupervisorIncidentValidationModal })));
+const KaizenKanbanBoard = React.lazy(() => import('./KaizenKanbanBoard').then(m => ({ default: m.KaizenKanbanBoard })));
+const MheLicensePanel = React.lazy(() => import('./MheLicensePanel').then(m => ({ default: m.MheLicensePanel })));
+const PpeManagementPanel = React.lazy(() => import('./PpeManagementPanel').then(m => ({ default: m.PpeManagementPanel })));
+const ExecutiveReportPanel = React.lazy(() => import('./ExecutiveReportPanel').then(m => ({ default: m.ExecutiveReportPanel })));
+const DisciplinaryPanel = React.lazy(() => import('./DisciplinaryPanel').then(m => ({ default: m.DisciplinaryPanel })));
+const Audit5sPanel = React.lazy(() => import('./Audit5sPanel').then(m => ({ default: m.Audit5sPanel })));
+
 import { KaizenService } from '../lib/kaizenService';
 import { SystemConfigService } from '../domain/SystemConfigService';
 import {
@@ -53,6 +58,7 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>(operationalWorkers[0]?.id || '');
   const [search, setSearch] = useState('');
   const [isGapModalOpen, setIsGapModalOpen] = useState(false);
+  const [isQrScannerOpen, setIsQrScannerOpen] = useState(false);
   const [pendingKaizenCount, setPendingKaizenCount] = useState(0);
 
   // Incidents tab state
@@ -313,6 +319,15 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={() => setIsQrScannerOpen(true)}
+              className="px-3.5 py-1.5 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+              title="Scan QR ID Card / Lisensi SIO Pekerja Lapangan"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              <span>Scan QR Badge SIO</span>
+            </button>
+
             <div className="flex items-center gap-2 text-xs bg-zinc-900 px-3.5 py-1.5 rounded-xl border border-zinc-800 shrink-0">
               <ShieldCheck className="w-4 h-4 text-emerald-400" />
               <span className="font-semibold text-zinc-300">
@@ -414,31 +429,35 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
 
       {/* ─ INCIDENTS KANBAN TAB ─ */}
       {activeTab === 'incidents' && (
-        <SupervisorIncidentKanban
-          incidents={incidents}
-          loading={incidentsLoading}
-          onUpdateStatus={async (incId, newStatus) => {
-            handleUpdateIncidentStatus(incId, newStatus);
-          }}
-          updatingIncidentId={updatingIncidentId}
-          onSelectIncident={(inc) => setValidatingIncident(inc)}
-        />
+        <React.Suspense fallback={<SkeletonLoader />}>
+          <SupervisorIncidentKanban
+            incidents={incidents}
+            loading={incidentsLoading}
+            onUpdateStatus={async (incId: string, newStatus: any) => {
+              handleUpdateIncidentStatus(incId, newStatus);
+            }}
+            updatingIncidentId={updatingIncidentId}
+            onSelectIncident={(inc: IncidentReport) => setValidatingIncident(inc)}
+          />
+        </React.Suspense>
       )}
 
       {/* ─ MODAL VALIDASI INSIDEN SUPERVISOR ─ */}
       {validatingIncident && (
-        <SupervisorIncidentValidationModal
-          incident={validatingIncident}
-          workers={workers}
-          onClose={() => setValidatingIncident(null)}
-          onSuccess={() => {
-            setIncidentsLoading(true);
-            fetchIncidentReports()
-              .then(setIncidents)
-              .catch(() => {})
-              .finally(() => setIncidentsLoading(false));
-          }}
-        />
+        <React.Suspense fallback={null}>
+          <SupervisorIncidentValidationModal
+            incident={validatingIncident}
+            workers={workers}
+            onClose={() => setValidatingIncident(null)}
+            onSuccess={() => {
+              setIncidentsLoading(true);
+              fetchIncidentReports()
+                .then(setIncidents)
+                .catch(() => {})
+                .finally(() => setIncidentsLoading(false));
+            }}
+          />
+        </React.Suspense>
       )}
 
       {/* ─ KAIZEN APPROVAL & KANBAN TAB ─ */}
@@ -460,45 +479,57 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
               </span>
             </div>
           </div>
-          <KaizenKanbanBoard currentUserId={currentSupervisorId} isAdmin={true} />
+          <React.Suspense fallback={<SkeletonLoader />}>
+            <KaizenKanbanBoard currentUserId={currentSupervisorId} isAdmin={true} />
+          </React.Suspense>
         </div>
       )}
 
       {/* ─ SIO & MHE LICENSE TRACKER TAB ─ */}
       {activeTab === 'licenses' && (
-        <MheLicensePanel workers={operationalWorkers} />
+        <React.Suspense fallback={<SkeletonLoader />}>
+          <MheLicensePanel workers={operationalWorkers} />
+        </React.Suspense>
       )}
 
       {/* ─ INVENTARIS & DISTRIBUSI APD TAB ─ */}
       {activeTab === 'ppe' && (
-        <PpeManagementPanel workers={operationalWorkers} isSupervisor={true} currentUserName="Supervisor Operasional" />
+        <React.Suspense fallback={<SkeletonLoader />}>
+          <PpeManagementPanel workers={operationalWorkers} isSupervisor={true} currentUserName="Supervisor Operasional" />
+        </React.Suspense>
       )}
 
       {/* ─ LAPORAN AUDIT EKSEKUTIF TAB ─ */}
       {activeTab === 'reports' && (
-        <ExecutiveReportPanel
-          workers={operationalWorkers}
-          incidents={incidents}
-          currentUserName="Supervisor Operasional"
-        />
+        <React.Suspense fallback={<SkeletonLoader />}>
+          <ExecutiveReportPanel
+            workers={operationalWorkers}
+            incidents={incidents}
+            currentUserName="Supervisor Operasional"
+          />
+        </React.Suspense>
       )}
 
       {/* ─ KONSELING & SANKSI K3 TAB ─ */}
       {activeTab === 'disciplinary' && (
-        <DisciplinaryPanel
-          workers={operationalWorkers}
-          currentUserName="Supervisor Operasional"
-          isSupervisor={true}
-        />
+        <React.Suspense fallback={<SkeletonLoader />}>
+          <DisciplinaryPanel
+            workers={operationalWorkers}
+            currentUserName="Supervisor Operasional"
+            isSupervisor={true}
+          />
+        </React.Suspense>
       )}
 
       {/* ─ AUDIT 5R GUDANG TAB ─ */}
       {activeTab === 'audit-5s' && (
-        <Audit5sPanel
-          workers={operationalWorkers}
-          currentUserName="Supervisor Operasional"
-          isSupervisor={true}
-        />
+        <React.Suspense fallback={<SkeletonLoader />}>
+          <Audit5sPanel
+            workers={operationalWorkers}
+            currentUserName="Supervisor Operasional"
+            isSupervisor={true}
+          />
+        </React.Suspense>
       )}
 
       {/* ─ AUDIT HISTORY TAB ─ */}
@@ -954,11 +985,23 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
       </div>
 
       {/* Competency Gap Analysis Modal */}
-      <CompetencyGapAnalysisModal
-        isOpen={isGapModalOpen}
-        onClose={() => setIsGapModalOpen(false)}
-        workers={operationalWorkers}
-      />
+      <React.Suspense fallback={null}>
+        <CompetencyGapAnalysisModal
+          isOpen={isGapModalOpen}
+          onClose={() => setIsGapModalOpen(false)}
+          workers={operationalWorkers}
+        />
+      </React.Suspense>
+
+      {/* Quick QR ID Card & SIO MHE Inspector Modal */}
+      <React.Suspense fallback={null}>
+        <QrBadgeScannerModal
+          isOpen={isQrScannerOpen}
+          onClose={() => setIsQrScannerOpen(false)}
+          workers={operationalWorkers}
+          onSelectWorkerForAudit={(w) => onOpenMatrixAudit?.(w)}
+        />
+      </React.Suspense>
       </>)}
 
     </div>

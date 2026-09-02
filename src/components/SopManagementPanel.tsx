@@ -750,13 +750,31 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-2 border-t border-zinc-800 flex items-center justify-between gap-2">
+              <div className="pt-2 border-t border-zinc-800 flex items-center justify-between gap-1.5">
                 <button
                   onClick={() => setPreviewingModule(item)}
                   className="flex-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1"
                 >
                   <Play className="w-3 h-3 fill-current" />
                   <span>Putar ({item.slides.length} Slide)</span>
+                </button>
+
+                <button
+                  onClick={async () => {
+                    try {
+                      const { SopPdfExporter } = await import('../lib/sopPdfExporter');
+                      await SopPdfExporter.exportSopPosterPDF(item);
+                      onToast?.(`Poster A4 SOP ${item.code} berhasil diunduh!`);
+                    } catch (err) {
+                      console.error('PDF export error:', err);
+                      onToast?.('Gagal mengunduh poster PDF.');
+                    }
+                  }}
+                  className="p-1.5 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 rounded-lg transition flex items-center gap-1 text-[11px] font-bold px-2"
+                  title="Cetak Poster A4 / Cheatsheet PDF"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span className="hidden sm:inline">A4 PDF</span>
                 </button>
 
                 <button

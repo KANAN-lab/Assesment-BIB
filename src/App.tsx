@@ -227,6 +227,21 @@ export const App: React.FC = () => {
     };
   }, [currentWorker]);
 
+  // ── Auto background sync for offline SOP queue when network returns ──
+  useEffect(() => {
+    const handleOnline = () => {
+      import('./lib/sopService').then(({ flushOfflineSopCompletions }) => {
+        flushOfflineSopCompletions().then((count) => {
+          if (count > 0) {
+            console.log(`[OfflineSync] Berhasil mensinkronkan ${count} penyelesaian SOP offline.`);
+          }
+        });
+      });
+    };
+    window.addEventListener('online', handleOnline);
+    return () => window.removeEventListener('online', handleOnline);
+  }, []);
+
   // ── Auto Sync Effect: Tarik poin & data worker terbaru dari Supabase setiap 8 detik ──
   useEffect(() => {
     if (!currentWorker) return;
