@@ -101,33 +101,20 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
 
-          {/* Center: Live stats & SOP (Worker mode only) */}
-          {activeView === 'worker' && (
-            <div className="hidden lg:flex items-center gap-2">
-              <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-lg text-xs">
-                <Flame className="w-3.5 h-3.5 text-amber-400" />
-                <span className="text-zinc-400">Streak</span>
-                <span className="font-bold text-amber-300 ml-0.5">{currentWorker.streakDays}d</span>
-              </div>
-              <div className="flex items-center gap-1.5 bg-zinc-900 border border-zinc-800 px-3 py-1.5 rounded-lg text-xs">
-                <Coins className="w-3.5 h-3.5 text-emerald-400" />
-                <span className="text-zinc-400">Poin</span>
-                <span className="font-bold text-emerald-300 ml-0.5">{currentWorker.totalPoints.toLocaleString()}</span>
-              </div>
-              {onOpenOnboarding && (
-                <button
-                  onClick={onOpenOnboarding}
-                  className="flex items-center gap-1 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 px-2.5 py-1.5 rounded-lg text-xs font-bold text-zinc-400 hover:text-zinc-200 transition"
-                  title="Panduan Penggunaan Aplikasi"
-                >
-                  <HelpCircle className="w-3.5 h-3.5 text-emerald-400" />
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Right: Demo Role Mode Switcher + Notifications + Profile */}
+          {/* Right: Help Guide + Notification Bell + Demo Role Mode Switcher + Profile */}
           <div className="flex items-center gap-2">
+
+            {/* Panduan Aplikasi (Available on Mobile & Desktop) */}
+            {onOpenOnboarding && (
+              <button
+                onClick={onOpenOnboarding}
+                className="flex items-center justify-center w-8 h-8 sm:w-9 sm:h-9 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 hover:border-zinc-700 rounded-xl text-zinc-400 hover:text-emerald-400 transition shadow-sm"
+                title="Panduan Penggunaan Aplikasi (Tour & Guide)"
+                aria-label="Panduan Aplikasi"
+              >
+                <HelpCircle className="w-4 h-4 text-emerald-400" />
+              </button>
+            )}
             
             {/* OOP Notification Bell */}
             <NotificationBell
