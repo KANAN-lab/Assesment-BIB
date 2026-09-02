@@ -10,22 +10,30 @@ import {
   CheckCircle2,
   AlertTriangle,
   Clock,
-  Award,
   Layers,
   Sparkles,
-  Truck,
-  Flame,
-  Scale,
-  Boxes,
-  ShieldCheck,
   X,
   Loader2,
-  FileSpreadsheet,
   Download,
-  ToggleLeft,
-  ToggleRight,
+  Copy,
+  ArrowUp,
+  ArrowDown,
+  HelpCircle,
+  FileText,
+  Smartphone,
+  ShieldAlert,
+  ListOrdered,
+  FileCheck2,
 } from 'lucide-react';
-import { SopModule, SopCategory, SopDifficulty, SopSlide, SopSlideType, SopPresentationFormat, SopHotspotPoint } from '../types/sop';
+import {
+  SopModule,
+  SopCategory,
+  SopDifficulty,
+  SopSlide,
+  SopSlideType,
+  SopPresentationFormat,
+  SopHotspotPoint,
+} from '../types/sop';
 import { fetchAllSopModules } from '../lib/sopService';
 import { supabase } from '../lib/supabaseClient';
 import { SopSlideshowModal } from './SopSlideshowModal';
@@ -45,14 +53,14 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
   const [selectedCategory, setSelectedCategory] = useState('Semua');
   const [previewingModule, setPreviewingModule] = useState<SopModule | null>(null);
 
-  // Create Module Modal State & Wizard
+  // Create/Edit Module Wizard State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
-  const [creationStep, setCreationStep] = useState<1 | 2>(1); // 1: Pilih Format, 2: Form Builder
+  const [creationStep, setCreationStep] = useState<1 | 2>(1); // 1: Pilih Format Dasar, 2: Multi-Slide Editor
   const [formFormat, setFormFormat] = useState<SopPresentationFormat>('micro_deck');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
-  // Common Form Fields
+  // Basic Module Meta Fields
   const [formCode, setFormCode] = useState('');
   const [formTitle, setFormTitle] = useState('');
   const [formDesc, setFormDesc] = useState('');
@@ -64,61 +72,262 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
   const [formPoints, setFormPoints] = useState(50);
   const [formIsMandatory, setFormIsMandatory] = useState(false);
 
-  // Standard Micro-Deck Form States
-  const [formSlide1Title, setFormSlide1Title] = useState('Instruksi Langkah Kerja Standar');
-  const [formSlide1Subtitle, setFormSlide1Subtitle] = useState('Patuhi urutan langkah kerja operasional aman');
-  const [formSlide1Step1, setFormSlide1Step1] = useState('Pemeriksaan fisik awal peralatan dan area kerja');
-  const [formSlide1Step2, setFormSlide1Step2] = useState('Eksekusi penanganan muatan sesuai kaidah SOP');
-  const [formSlide1Step3, setFormSlide1Step3] = useState('Pengecekan akhir dan penataan kembali peralatan');
+  // Dynamic Multi-Slide Array & Active Slide Selector
+  const [editingSlides, setEditingSlides] = useState<SopSlide[]>([]);
+  const [activeSlideIndex, setActiveSlideIndex] = useState(0);
 
-  const [formSlide2DoTitle, setFormSlide2DoTitle] = useState('Selalu gunakan APD lengkap');
-  const [formSlide2DoText, setFormSlide2DoText] = useState('Gunakan helm safety, rompi reflektif, dan safety shoes saat berada di area logistik.');
-  const [formSlide2DontTitle, setFormSlide2DontTitle] = useState('Dilarang mengabaikan rambu K3');
-  const [formSlide2DontText, setFormSlide2DontText] = useState('Dilarang melintas di bawah muatan terangkat atau mengoperasikan alat tanpa lisensi resmi.');
+  // Initialize Default Slide Template based on chosen format
+  const initializeSlidesForFormat = (format: SopPresentationFormat) => {
+    setFormFormat(format);
+    if (format === 'interactive_simulator') {
+      setFormCode(`SOP-WMS-${Math.floor(Math.random() * 90 + 10)}`);
+      setFormTitle('Simulasi WMS: Alur Putaway Palet & Scan Barcode');
+      setFormDesc('Latihan interaktif multi-langkah operasional Handheld Scanner WMS.');
+      setFormCategory('Warehouse & Staging');
+      setEditingSlides([
+        {
+          id: `sl-${Date.now()}-1`,
+          slideNumber: 1,
+          slideType: 'interactive_simulator',
+          title: 'Langkah 1: Buka Menu Inbound Putaway',
+          subtitle: 'Pilih opsi penerimaan barang pada menu scanner',
+          audioNarrationText: 'Pada layar scanner, ketuk tombol menu Putaway berwarna biru.',
+          imageUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80',
+          simulatorConfig: {
+            taskInstruction: 'Ketuk tombol [PUTAWAY STORAGE] di layar scanner',
+            targetXPercent: 20,
+            targetYPercent: 40,
+            targetWidthPercent: 60,
+            targetHeightPercent: 20,
+            hintText: 'Cari tombol menu tengah [PUTAWAY STORAGE] berbingkai hijau.',
+            highlightLabel: '👉 [PUTAWAY]',
+            successMessage: 'Bagus! Menu Putaway Storage berhasil dibuka.',
+          },
+        },
+        {
+          id: `sl-${Date.now()}-2`,
+          slideNumber: 2,
+          slideType: 'interactive_simulator',
+          title: 'Langkah 2: Konfirmasi Posisi Rak Gudang',
+          subtitle: 'Kunci barcode lokasi rak tujuan sebelum menaruh palet',
+          audioNarrationText: 'Arahkan laser scanner ke tiang rak dan tekan tombol F4 Konfirmasi.',
+          imageUrl: 'https://images.unsplash.com/photo-1553413077-190dd305871c?auto=format&fit=crop&w=1200&q=80',
+          simulatorConfig: {
+            taskInstruction: 'Klik tombol hijau [F4 - CONFIRM LOCATION] di bagian bawah layar',
+            targetXPercent: 25,
+            targetYPercent: 70,
+            targetWidthPercent: 50,
+            targetHeightPercent: 18,
+            hintText: 'Tekan tombol konfirmasi di baris bawah layar.',
+            highlightLabel: '⚡ [F4] CONFIRM',
+            successMessage: 'Tepat! Lokasi rak RAK-A-04-02 berhasil terverifikasi.',
+          },
+        },
+        {
+          id: `sl-${Date.now()}-3`,
+          slideNumber: 3,
+          slideType: 'quiz_checkpoint',
+          title: 'Evaluasi: Integritas Data WMS',
+          subtitle: 'Uji pemahaman prosedur barcode lokasi',
+          audioNarrationText: 'Selesaikan kuis evaluasi pemahaman untuk mengklaim poin reward.',
+          quiz: {
+            id: `q-${Date.now()}`,
+            question: 'Apa akibatnya jika fisik palet ditaruh di rak A-02 tetapi sistem WMS mencatat rak A-05?',
+            options: [
+              'Terjadi selisih stok (discrepancy) saat proses picking barang',
+              'Sistem WMS akan otomatis memperbaikinya sendiri',
+              'Tidak berdampak apapun terhadap operasional',
+              'Barang otomatis hilang dari database',
+            ],
+            correctAnswerIndex: 0,
+            explanation: 'Selisih barcode fisik dan sistem menyebabkan picker gagal menemukan barang fisik saat proses muat order.',
+            points: 50,
+          },
+        },
+      ]);
+    } else if (format === 'spot_the_mistake') {
+      setFormCode(`SOP-SPOT-${Math.floor(Math.random() * 90 + 10)}`);
+      setFormTitle('Hazard Hunt: Deteksi Anomali Penumpukan Palet & APD');
+      setFormDesc('Uji kejelian visual mencari potensi bahaya K3 pada foto lapangan.');
+      setFormCategory('K3 & Safety');
+      setEditingSlides([
+        {
+          id: `sl-${Date.now()}-1`,
+          slideNumber: 1,
+          slideType: 'spot_the_mistake',
+          title: 'Tantangan 1: Inspeksi Tumpukan Palet',
+          subtitle: 'Cari tumpukan palet yang miring atau melebihi batas aman',
+          audioNarrationText: 'Perhatikan susunan palet pada foto. Temukan anomali K3 yang berisiko jatuh.',
+          imageUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80',
+          spotMistakeConfig: {
+            challengePrompt: '⚠️ Temukan 1 muatan palet kardus yang miring (overhang > 10cm)!',
+            targetXPercent: 55,
+            targetYPercent: 35,
+            toleranceRadiusPercent: 18,
+            hazardName: 'Tumpukan Miring Overhang (> 10cm)',
+            explanation: 'Muatan tanpa wrapping kencang dan miring > 2 derajat berisiko fatal roboh menimpa pejalan kaki.',
+            timeLimitSeconds: 25,
+          },
+        },
+        {
+          id: `sl-${Date.now()}-2`,
+          slideNumber: 2,
+          slideType: 'quiz_checkpoint',
+          title: 'Evaluasi: Batas Toleransi Tumpukan',
+          subtitle: 'Uji batas aman gravitasi muatan',
+          audioNarrationText: 'Jawab pertanyaan kuis evaluasi K3 berikut.',
+          quiz: {
+            id: `q-${Date.now()}`,
+            question: 'Berapakah batas tinggi maksimum tumpukan palet kardus yang aman di area staging?',
+            options: [
+              'Maksimum 3 susun atau sesuai garis batas dinding',
+              'Setinggi jangkauan garpu forklift',
+              'Bebas tergantung sisa ruang kosong',
+              'Maksimum 10 susun',
+            ],
+            correctAnswerIndex: 0,
+            explanation: 'Batas 3 susun memastikan stabilitas beban dan mencegah beban bawah amblas.',
+            points: 50,
+          },
+        },
+      ]);
+    } else if (format === 'visual_hotspot') {
+      setFormCode(`SOP-MHE-${Math.floor(Math.random() * 90 + 10)}`);
+      setFormTitle('Diagram Inspeksi 360 Pre-Use Forklift');
+      setFormDesc('Pemeriksaan komponen kritis unit forklift sebelum shift operasional.');
+      setFormCategory('Operasional MHE');
+      setEditingSlides([
+        {
+          id: `sl-${Date.now()}-1`,
+          slideNumber: 1,
+          slideType: 'interactive_hotspot',
+          title: 'Diagram Titik Kritis Forklift',
+          subtitle: 'Ketuk setiap pin untuk melihat panduan inspeksi komponen',
+          content: 'Lakukan pemeriksaan visual dan mekanis pada seluruh titik pin yang ditandai.',
+          audioNarrationText: 'Periksa kondisi garpu, sistem hidrolik, dan ban forklift.',
+          imageUrl: 'https://images.unsplash.com/photo-1553413077-190dd305871c?auto=format&fit=crop&w=1200&q=80',
+          hotspots: [
+            { id: 'hs-1', xPercent: 30, yPercent: 40, label: 'Garpu (Forks)', description: 'Pastikan tidak retak dan ketebalan tumit > 90%.', status: 'critical' },
+            { id: 'hs-2', xPercent: 70, yPercent: 60, label: 'Roda & Ban Padat', description: 'Periksa tidak ada benda tajam tertancap atau ban pecah.', status: 'check' },
+          ],
+        },
+        {
+          id: `sl-${Date.now()}-2`,
+          slideNumber: 2,
+          slideType: 'quiz_checkpoint',
+          title: 'Evaluasi: Pre-Use Inspection Checklist',
+          subtitle: 'Uji tindakan saat ditemukan cacat kritis',
+          quiz: {
+            id: `q-${Date.now()}`,
+            question: 'Apa yang wajib dilakukan jika ditemukan kebocoran oli hidrolik pada garpu saat inspeksi?',
+            options: [
+              'Pasang tag OUT OF SERVICE dan lapor Supervisor/Mekanik',
+              'Tetap gunakan dengan beban ringan',
+              'Lap ceceran oli dengan majun lalu operasikan seperti biasa',
+              'Tutup kebocoran dengan lakban',
+            ],
+            correctAnswerIndex: 0,
+            explanation: 'Unit wajib di-tag out segera untuk mencegah kegagalan hidrolik fatal saat mengangkat beban.',
+            points: 50,
+          },
+        },
+      ]);
+    } else if (format === 'document_reader') {
+      setFormCode(`SOP-DOC-${Math.floor(Math.random() * 90 + 10)}`);
+      setFormTitle('Dokumen SOP Resmi: Tanggap Darurat & Spill Kit');
+      setFormDesc('Modul dokumen digital instruksi penanganan tumpahan bahan kimia.');
+      setFormCategory('Tanggap Darurat & Lingkungan');
+      setEditingSlides([
+        {
+          id: `sl-${Date.now()}-1`,
+          slideNumber: 1,
+          slideType: 'document_reader',
+          title: 'Halaman 1: Prosedur Isolasi Area Tumpahan',
+          subtitle: 'Berkas: SOP-Tanggap-Darurat-B3.pdf',
+          content: 'Langkah awal: Pasang safety cone, gunakan APD respirator kimia, dan bendung tumpahan menggunakan absorbent boom.',
+          audioNarrationText: 'Segera isolasi area dan gunakan perlengkapan Spill Kit sesuai instruksi lembar kerja.',
+          imageUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80',
+          documentConfig: { fileName: 'SOP-Tanggap-Darurat-B3.pdf', currentPage: 1, totalPdfPages: 2, extractedSummaryText: 'Isolasi area tumpahan segera.' },
+        },
+        {
+          id: `sl-${Date.now()}-2`,
+          slideNumber: 2,
+          slideType: 'quiz_checkpoint',
+          title: 'Evaluasi: Kepatuhan Spill Kit',
+          subtitle: 'Uji prosedur penanganan tumpahan',
+          quiz: {
+            id: `q-${Date.now()}`,
+            question: 'Di mana limbah absorbent bekas tumpahan oli/B3 wajib dibuang?',
+            options: [
+              'Drum khusus Limbah B3 berlabel resmi',
+              'Tempat sampah umum warna hijau',
+              'Dibiarkan di sudut gudang',
+              'Dibuang ke saluran air got',
+            ],
+            correctAnswerIndex: 0,
+            explanation: 'Limbah B3 wajib dikumpulkan pada wadah drum tertutup berlabel khusus limbah B3 berizin.',
+            points: 50,
+          },
+        },
+      ]);
+    } else {
+      // Default: Micro-Deck Standar
+      setFormCode(`SOP-K3-${Math.floor(Math.random() * 90 + 10)}`);
+      setFormTitle('Standar K3 & Keselamatan Operasional Logistik');
+      setFormDesc('Pedoman wajib kepatuhan keselamatan kerja dan pencegahan insiden.');
+      setFormCategory('K3 & Safety');
+      setEditingSlides([
+        {
+          id: `sl-${Date.now()}-1`,
+          slideNumber: 1,
+          slideType: 'step_instruction',
+          title: 'Langkah Kerja Standar Operasional',
+          subtitle: 'Patuhi urutan 3 langkah kerja aman berikut',
+          audioNarrationText: 'Langkah 1 pemeriksaan awal. Langkah 2 pelaksanaan aman. Langkah 3 verifikasi penataan.',
+          steps: [
+            { stepNumber: 1, title: 'Persiapan & APD', description: 'Gunakan helm, rompi reflektif, dan safety shoes.', iconName: 'CheckSquare' },
+            { stepNumber: 2, title: 'Pelaksanaan Kerja', description: 'Ikuti batas kecepatan MHE maks 10 km/jam.', iconName: 'Play' },
+            { stepNumber: 3, title: 'Housekeeping 5S', description: 'Pastikan lorong bebas hambatan setelah selesai.', iconName: 'CheckCircle2' },
+          ],
+        },
+        {
+          id: `sl-${Date.now()}-2`,
+          slideNumber: 2,
+          slideType: 'dos_and_donts',
+          title: 'Kaidah Aman (DO) vs Larangan Kritis (DON\'T)',
+          subtitle: 'Golden rules keselamatan seluruh personel',
+          audioNarrationText: 'Patuhi kaidah DO dan hindari larangan keras DON\'T.',
+          dosAndDonts: [
+            {
+              doTitle: 'Selalu Bunyikan Klakson di Persimpangan',
+              doText: 'Klakson memberi peringatan kepada pejalan kaki di blind spot.',
+              dontTitle: 'Dilarang Mengoperasikan HP Saat Berkendara',
+              dontText: 'Distraksi ponsel merupakan pemicu utama tabrakan forklift.',
+            },
+          ],
+        },
+        {
+          id: `sl-${Date.now()}-3`,
+          slideNumber: 3,
+          slideType: 'quiz_checkpoint',
+          title: 'Evaluasi: Pemahaman Golden Rules K3',
+          subtitle: 'Uji pemahaman aturan keselamatan',
+          quiz: {
+            id: `q-${Date.now()}`,
+            question: 'Berapakah batas kecepatan maksimum MHE (Forklift/Reach Truck) di dalam area gudang?',
+            options: ['10 km/jam', '25 km/jam', 'Bebas sesuai urgensi', '50 km/jam'],
+            correctAnswerIndex: 0,
+            explanation: 'Batas kecepatan 10 km/jam memberi jarak pengereman aman dan visibilitas cukup.',
+            points: 50,
+          },
+        },
+      ]);
+    }
+    setActiveSlideIndex(0);
+    setCreationStep(2);
+  };
 
-  // WMS / App Click Simulator States
-  const [simImageUrl, setSimImageUrl] = useState('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80');
-  const [simTaskInstruction, setSimTaskInstruction] = useState('Klik tombol [PUTAWAY STORAGE] di layar untuk melanjutkan');
-  const [simTargetX, setSimTargetX] = useState(25);
-  const [simTargetY, setSimTargetY] = useState(45);
-  const [simTargetW, setSimTargetW] = useState(50);
-  const [simTargetH, setSimTargetH] = useState(20);
-  const [simHintText, setSimHintText] = useState('Klik pada tombol menu tengah berbingkai hijau.');
-  const [simHighlightLabel, setSimHighlightLabel] = useState('👉 [PUTAWAY]');
-  const [simSuccessMsg, setSimSuccessMsg] = useState('Tepat! Menu Putaway Storage berhasil dibuka.');
-
-  // Spot-the-Mistake States
-  const [spotImageUrl, setSpotImageUrl] = useState('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80');
-  const [spotPrompt, setSpotPrompt] = useState('Temukan 1 tumpukan palet yang miring atau melebihi batas (overhang)!');
-  const [spotTargetX, setSpotTargetX] = useState(55);
-  const [spotTargetY, setSpotTargetY] = useState(40);
-  const [spotRadius, setSpotRadius] = useState(15);
-  const [spotHazardName, setSpotHazardName] = useState('Palet Miring & Overhang (> 10cm)');
-  const [spotExplanation, setSpotExplanation] = useState('Muatan kardus melebihi bibir palet kayu tanpa pengikat berisiko jatuh menimpa orang.');
-  const [spotTimeLimit, setSpotTimeLimit] = useState(20);
-
-  // Document Reader States
-  const [docFileName, setDocFileName] = useState('SOP-Instruksi-Kerja-Logistik.pdf');
-  const [docSummaryText, setDocSummaryText] = useState('Ringkasan SOP: Wajib melakukan pemeriksaan visual 360 derajat sebelum mengoperasikan alat.');
-  const [docTotalPages, setDocTotalPages] = useState(3);
-
-  // Visual Hotspot States
-  const [hotspotImageUrl, setHotspotImageUrl] = useState('https://images.unsplash.com/photo-1553413077-190dd305871c?auto=format&fit=crop&w=1200&q=80');
-  const [hotspotsList, setHotspotsList] = useState<SopHotspotPoint[]>([
-    { id: 'hs-1', xPercent: 30, yPercent: 40, label: 'Garpu Forklift (Forks)', description: 'Periksa tidak ada retak struktural atau ketebalan berkurang > 10%.', status: 'critical' },
-    { id: 'hs-2', xPercent: 70, yPercent: 60, label: 'Roda & Ban', description: 'Pastikan ban padat tidak sobek dan baut roda terkunci kencang.', status: 'check' },
-  ]);
-
-  // Quiz Checkpoint (Universal across all formats)
-  const [formQuizQuestion, setFormQuizQuestion] = useState('Apa tujuan utama pelaksanaan inspeksi pre-use pada peralatan kerja?');
-  const [formQuizOptA, setFormQuizOptA] = useState('Memastikan alat dalam kondisi aman sebelum digunakan');
-  const [formQuizOptB, setFormQuizOptB] = useState('Hanya formalitas administrasi');
-  const [formQuizOptC, setFormQuizOptC] = useState('Menghabiskan sisa waktu shift');
-  const [formQuizOptD, setFormQuizOptD] = useState('Menunggu instruksi rekan kerja');
-  const [formQuizCorrectIdx, setFormQuizCorrectIdx] = useState(0);
-  const [formQuizExplanation, setFormQuizExplanation] = useState('Inspeksi pre-use wajib dilakukan untuk mendeteksi potensi kerusakan alat sedini mungkin demi mencegah kecelakaan kerja fatal.');
-
-  // Load modules
+  // Load modules from Supabase / Local cache
   const loadModules = async () => {
     setLoading(true);
     try {
@@ -145,63 +354,171 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
     return matchSearch && matchCat;
   });
 
-  // AI Auto-Fill Helper based on selected format
-  const handleAiAutoFill = () => {
-    if (formFormat === 'interactive_simulator') {
-      setFormCode(`SOP-WMS-${Math.floor(Math.random() * 90 + 10)}`);
-      setFormTitle('Simulasi WMS: Pemindaian Barcode Inbound & Putaway');
-      setFormDesc('Latihan interaktif pengoperasian menu sistem WMS untuk operator penerimaan barang.');
-      setFormCategory('Warehouse & Staging');
-      setSimTaskInstruction('Klik tombol [F2 - SCAN PALLET] untuk memindai barcode surat jalan');
-      setSimHighlightLabel('👉 [F2 SCAN]');
-      setSimHintText('Perhatikan area tombol menu bawah berwarna hijau terang.');
-      setSimSuccessMsg('Tepat sekali! Sistem siap membaca barcode muatan.');
-      setFormQuizQuestion('Apa akibatnya jika operator salah memasukkan nomor lokasi rak di sistem WMS?');
-      setFormQuizOptA('Terjadi selisih stok (discrepancy) saat proses picking barang');
-      setFormQuizOptB('Sistem WMS otomatis memperbaikinya sendiri');
-      setFormQuizOptC('Tidak berpengaruh apapun');
-      setFormQuizOptD('Barang langsung otomatis hilang');
-      setFormQuizCorrectIdx(0);
-      setFormQuizExplanation('Lokasi rak yang keliru menyebabkan picker gagal menemukan barang fisik sehingga menghambat pengiriman.');
-    } else if (formFormat === 'spot_the_mistake') {
-      setFormCode(`SOP-SPOT-${Math.floor(Math.random() * 90 + 10)}`);
-      setFormTitle('Hazard Hunt: Deteksi Anomali Penumpukan Palet & APD');
-      setFormDesc('Uji kejelian operator dalam mengidentifikasi kondisi tidak aman di area gudang.');
-      setFormCategory('K3 & Safety');
-      setSpotPrompt('Temukan 1 muatan palet kardus yang miring dan berisiko roboh!');
-      setSpotHazardName('Tumpukan Miring Overhang (> 10cm)');
-      setSpotExplanation('Kardus tidak di-wrapping dengan kencang dan miring melebihi 2 derajat berisiko fatal runtuh.');
-      setFormQuizQuestion('Berapa batas tinggi tumpukan palet kardus yang aman di area staging?');
-      setFormQuizOptA('Maksimum 3 palet atau sesuai garis marka batas tinggi dinding');
-      setFormQuizOptB('Setinggi jangkauan forklift tanpa batas');
-      setFormQuizOptC('Bebas sesuai sisa ruang kosong');
-      setFormQuizOptD('Maksimum 10 palet');
-      setFormQuizCorrectIdx(0);
-      setFormQuizExplanation('Batas tumpukan 3 palet menjaga kestabilan titik gravitasi muatan.');
-    } else if (formFormat === 'visual_hotspot') {
-      setFormCode(`SOP-MHE-${Math.floor(Math.random() * 90 + 10)}`);
-      setFormTitle('Diagram Inspeksi 360 Pre-Use Forklift');
-      setFormDesc('Panduan interaktif titik kritis pemeriksaan harian unit forklift sebelum digunakan.');
-      setFormCategory('Operasional MHE');
-    } else if (formFormat === 'document_reader') {
-      setFormCode(`SOP-DOC-${Math.floor(Math.random() * 90 + 10)}`);
-      setFormTitle('Instruksi Kerja Resmi: Prosedur Tanggap Darurat & Tumpahan');
-      setFormDesc('Modul digital dokumen SOP penanganan tumpahan bahan kimia berbahaya (Spill Kit).');
-      setFormCategory('Tanggap Darurat & Lingkungan');
+  // Slide Management Helpers
+  const currentActiveSlide: SopSlide | undefined = editingSlides[activeSlideIndex];
+
+  const handleUpdateActiveSlide = (updates: Partial<SopSlide>) => {
+    setEditingSlides((prev) => {
+      const next = [...prev];
+      if (next[activeSlideIndex]) {
+        next[activeSlideIndex] = { ...next[activeSlideIndex], ...updates };
+      }
+      return next;
+    });
+  };
+
+  const handleAddSlide = (type: SopSlideType) => {
+    const newSlideNumber = editingSlides.length + 1;
+    let newSlide: SopSlide;
+
+    if (type === 'interactive_simulator') {
+      newSlide = {
+        id: `sl-${Date.now()}-${newSlideNumber}`,
+        slideNumber: newSlideNumber,
+        slideType: 'interactive_simulator',
+        title: `Langkah ${newSlideNumber}: Simulasi Klik Aplikasi`,
+        subtitle: 'Instruksi klik tombol target interaktif',
+        audioNarrationText: 'Ketuk tombol target yang ditunjuk pada layar.',
+        imageUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80',
+        simulatorConfig: {
+          taskInstruction: 'Klik tombol target yang menyala di layar',
+          targetXPercent: 30,
+          targetYPercent: 40,
+          targetWidthPercent: 40,
+          targetHeightPercent: 20,
+          hintText: 'Perhatikan kotak berbingkai hijau di layar.',
+          highlightLabel: '👉 KLIK DI SINI',
+          successMessage: 'Langkah berhasil!',
+        },
+      };
+    } else if (type === 'spot_the_mistake') {
+      newSlide = {
+        id: `sl-${Date.now()}-${newSlideNumber}`,
+        slideNumber: newSlideNumber,
+        slideType: 'spot_the_mistake',
+        title: `Tantangan ${newSlideNumber}: Hazard Hunt`,
+        subtitle: 'Temukan anomali K3 pada foto lapangan',
+        audioNarrationText: 'Amati foto dan temukan letak kesalahan prosedur keselamatan.',
+        imageUrl: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80',
+        spotMistakeConfig: {
+          challengePrompt: 'Temukan 1 pelanggaran atau anomali pada foto!',
+          targetXPercent: 50,
+          targetYPercent: 50,
+          toleranceRadiusPercent: 15,
+          hazardName: 'Potensi Bahaya Tersembunyi',
+          explanation: 'Kondisi tidak aman ini berisiko memicu kecelakaan kerja.',
+          timeLimitSeconds: 20,
+        },
+      };
+    } else if (type === 'interactive_hotspot') {
+      newSlide = {
+        id: `sl-${Date.now()}-${newSlideNumber}`,
+        slideNumber: newSlideNumber,
+        slideType: 'interactive_hotspot',
+        title: `Diagram Inspeksi ${newSlideNumber}`,
+        subtitle: 'Titik inspeksi interaktif',
+        content: 'Ketuk pin untuk detail inspeksi komponen.',
+        imageUrl: 'https://images.unsplash.com/photo-1553413077-190dd305871c?auto=format&fit=crop&w=1200&q=80',
+        hotspots: [
+          { id: `hs-${Date.now()}`, xPercent: 50, yPercent: 50, label: 'Komponen Utama', description: 'Pastikan dalam kondisi siap pakai.', status: 'check' },
+        ],
+      };
+    } else if (type === 'dos_and_donts') {
+      newSlide = {
+        id: `sl-${Date.now()}-${newSlideNumber}`,
+        slideNumber: newSlideNumber,
+        slideType: 'dos_and_donts',
+        title: 'Kaidah Aman (DO) vs Larangan (DON\'T)',
+        subtitle: 'Komparasi visual keselamatan kerja',
+        dosAndDonts: [
+          { doTitle: 'Praktik Benar (DO)', doText: 'Lakukan sesuai panduan resmi.', dontTitle: 'Larangan (DON\'T)', dontText: 'Hindari tindakan berbahaya ini.' },
+        ],
+      };
+    } else if (type === 'quiz_checkpoint') {
+      newSlide = {
+        id: `sl-${Date.now()}-${newSlideNumber}`,
+        slideNumber: newSlideNumber,
+        slideType: 'quiz_checkpoint',
+        title: `Kuis Checkpoint Evaluasi #${newSlideNumber}`,
+        subtitle: 'Verifikasi pemahaman materi',
+        quiz: {
+          id: `q-${Date.now()}`,
+          question: 'Pertanyaan evaluasi pemahaman SOP:',
+          options: ['Pilihan Jawaban Benar', 'Pilihan Jawaban Salah 1', 'Pilihan Jawaban Salah 2', 'Pilihan Jawaban Salah 3'],
+          correctAnswerIndex: 0,
+          explanation: 'Penjelasan rinci mengapa jawaban ini tepat sesuai standar operasional.',
+          points: 50,
+        },
+      };
     } else {
-      setFormCode(`SOP-K3-${Math.floor(Math.random() * 90 + 10)}`);
-      setFormTitle('Tata Tertib K3 & APD Standar Gudang');
-      setFormDesc('Pedoman wajib kepatuhan keselamatan kerja dan penggunaan APD di area logistik.');
-      setFormCategory('K3 & Safety');
+      newSlide = {
+        id: `sl-${Date.now()}-${newSlideNumber}`,
+        slideNumber: newSlideNumber,
+        slideType: 'step_instruction',
+        title: `Instruksi Langkah Kerja #${newSlideNumber}`,
+        subtitle: 'Panduan langkah operasional',
+        steps: [
+          { stepNumber: 1, title: 'Persiapan', description: 'Lakukan pengecekan awal.' },
+          { stepNumber: 2, title: 'Eksekusi', description: 'Laksanakan tugas sesuai SOP.' },
+        ],
+      };
     }
-    onToast?.('✨ Konten modul berhasil di-generate oleh Gappy AI!');
+
+    setEditingSlides((prev) => [...prev, newSlide]);
+    setActiveSlideIndex(editingSlides.length);
+    onToast?.(`Slide ${newSlideNumber} (${type}) berhasil ditambahkan.`);
+  };
+
+  const handleDeleteSlide = (index: number) => {
+    if (editingSlides.length <= 1) {
+      setFormError('Modul wajib memiliki minimal 1 slide.');
+      return;
+    }
+    const next = editingSlides.filter((_, i) => i !== index).map((s, i) => ({ ...s, slideNumber: i + 1 }));
+    setEditingSlides(next);
+    setActiveSlideIndex(Math.max(0, index - 1));
+  };
+
+  const handleMoveSlide = (index: number, direction: 'up' | 'down') => {
+    const targetIdx = direction === 'up' ? index - 1 : index + 1;
+    if (targetIdx < 0 || targetIdx >= editingSlides.length) return;
+
+    const next = [...editingSlides];
+    const temp = next[index];
+    next[index] = next[targetIdx];
+    next[targetIdx] = temp;
+
+    const renumbered = next.map((s, i) => ({ ...s, slideNumber: i + 1 }));
+    setEditingSlides(renumbered);
+    setActiveSlideIndex(targetIdx);
+  };
+
+  const handleDuplicateSlide = (index: number) => {
+    const toDup = editingSlides[index];
+    const dupSlide: SopSlide = {
+      ...toDup,
+      id: `sl-${Date.now()}-${editingSlides.length + 1}`,
+      title: `${toDup.title} (Salinan)`,
+      slideNumber: editingSlides.length + 1,
+    };
+    const next = [...editingSlides.slice(0, index + 1), dupSlide, ...editingSlides.slice(index + 1)].map((s, i) => ({
+      ...s,
+      slideNumber: i + 1,
+    }));
+    setEditingSlides(next);
+    setActiveSlideIndex(index + 1);
+    onToast?.('Slide berhasil diduplikasi.');
   };
 
   // Handle Save New SOP Module
-  const handleCreateModule = async (e: React.FormEvent) => {
+  const handleSaveModule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formCode.trim() || !formTitle.trim()) {
       setFormError('Kode SOP dan Judul Modul wajib diisi.');
+      return;
+    }
+    if (editingSlides.length === 0) {
+      setFormError('Modul harus memiliki minimal 1 slide.');
       return;
     }
 
@@ -209,200 +526,6 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
     setFormError(null);
 
     try {
-      let generatedSlides: SopSlide[] = [];
-
-      if (formFormat === 'interactive_simulator') {
-        generatedSlides = [
-          {
-            id: `sl-${Date.now()}-1`,
-            slideNumber: 1,
-            slideType: 'interactive_simulator',
-            title: `Simulasi: ${formTitle}`,
-            subtitle: formDesc,
-            audioNarrationText: `Lakukan langkah simulasi: ${simTaskInstruction}.`,
-            imageUrl: simImageUrl,
-            simulatorConfig: {
-              taskInstruction: simTaskInstruction,
-              targetXPercent: simTargetX,
-              targetYPercent: simTargetY,
-              targetWidthPercent: simTargetW,
-              targetHeightPercent: simTargetH,
-              hintText: simHintText,
-              highlightLabel: simHighlightLabel,
-              successMessage: simSuccessMsg,
-            },
-          },
-          {
-            id: `sl-${Date.now()}-2`,
-            slideNumber: 2,
-            slideType: 'quiz_checkpoint',
-            title: 'Kuis Evaluasi Pemahaman Simulasi',
-            subtitle: 'Verifikasi pemahaman alur aplikasi sistem',
-            audioNarrationText: `Uji pemahaman Anda: ${formQuizQuestion}`,
-            quiz: {
-              id: `q-${Date.now()}`,
-              question: formQuizQuestion,
-              options: [formQuizOptA, formQuizOptB, formQuizOptC, formQuizOptD],
-              correctAnswerIndex: formQuizCorrectIdx,
-              explanation: formQuizExplanation,
-              points: formPoints,
-            },
-          }
-        ];
-      } else if (formFormat === 'spot_the_mistake') {
-        generatedSlides = [
-          {
-            id: `sl-${Date.now()}-1`,
-            slideNumber: 1,
-            slideType: 'spot_the_mistake',
-            title: `Hazard Hunt: ${formTitle}`,
-            subtitle: formDesc,
-            audioNarrationText: `Perhatikan gambar dengan cermat. ${spotPrompt}`,
-            imageUrl: spotImageUrl,
-            spotMistakeConfig: {
-              challengePrompt: spotPrompt,
-              targetXPercent: spotTargetX,
-              targetYPercent: spotTargetY,
-              toleranceRadiusPercent: spotRadius,
-              hazardName: spotHazardName,
-              explanation: spotExplanation,
-              timeLimitSeconds: spotTimeLimit,
-            },
-          },
-          {
-            id: `sl-${Date.now()}-2`,
-            slideNumber: 2,
-            slideType: 'quiz_checkpoint',
-            title: 'Kuis Evaluasi K3 Hazard Hunt',
-            subtitle: 'Verifikasi tindakan pencegahan bahaya',
-            audioNarrationText: `Uji pemahaman Anda: ${formQuizQuestion}`,
-            quiz: {
-              id: `q-${Date.now()}`,
-              question: formQuizQuestion,
-              options: [formQuizOptA, formQuizOptB, formQuizOptC, formQuizOptD],
-              correctAnswerIndex: formQuizCorrectIdx,
-              explanation: formQuizExplanation,
-              points: formPoints,
-            },
-          }
-        ];
-      } else if (formFormat === 'visual_hotspot') {
-        generatedSlides = [
-          {
-            id: `sl-${Date.now()}-1`,
-            slideNumber: 1,
-            slideType: 'interactive_hotspot',
-            title: `Diagram Inspeksi: ${formTitle}`,
-            subtitle: formDesc,
-            content: 'Ketuk setiap titik pin interaktif pada gambar untuk melihat detail inspeksi komponen.',
-            audioNarrationText: `Periksa seluruh titik inspeksi pada diagram.`,
-            imageUrl: hotspotImageUrl,
-            hotspots: hotspotsList,
-          },
-          {
-            id: `sl-${Date.now()}-2`,
-            slideNumber: 2,
-            slideType: 'quiz_checkpoint',
-            title: 'Kuis Evaluasi Inspeksi Diagram',
-            subtitle: 'Verifikasi pemahaman komponen',
-            audioNarrationText: `Uji pemahaman Anda: ${formQuizQuestion}`,
-            quiz: {
-              id: `q-${Date.now()}`,
-              question: formQuizQuestion,
-              options: [formQuizOptA, formQuizOptB, formQuizOptC, formQuizOptD],
-              correctAnswerIndex: formQuizCorrectIdx,
-              explanation: formQuizExplanation,
-              points: formPoints,
-            },
-          }
-        ];
-      } else if (formFormat === 'document_reader') {
-        generatedSlides = [
-          {
-            id: `sl-${Date.now()}-1`,
-            slideNumber: 1,
-            slideType: 'document_reader',
-            title: `Dokumen: ${formTitle}`,
-            subtitle: `Berkas: ${docFileName}`,
-            content: docSummaryText,
-            audioNarrationText: `Dokumen resmi ${docFileName}. ${docSummaryText}`,
-            documentConfig: {
-              fileName: docFileName,
-              currentPage: 1,
-              totalPdfPages: docTotalPages,
-              extractedSummaryText: docSummaryText,
-            },
-          },
-          {
-            id: `sl-${Date.now()}-2`,
-            slideNumber: 2,
-            slideType: 'quiz_checkpoint',
-            title: 'Kuis Evaluasi Pemahaman Dokumen',
-            subtitle: 'Uji poin kepatuhan SOP resmi',
-            audioNarrationText: `Uji pemahaman Anda: ${formQuizQuestion}`,
-            quiz: {
-              id: `q-${Date.now()}`,
-              question: formQuizQuestion,
-              options: [formQuizOptA, formQuizOptB, formQuizOptC, formQuizOptD],
-              correctAnswerIndex: formQuizCorrectIdx,
-              explanation: formQuizExplanation,
-              points: formPoints,
-            },
-          }
-        ];
-      } else {
-        // Standard Micro-Deck
-        generatedSlides = [
-          {
-            id: `sl-${Date.now()}-1`,
-            slideNumber: 1,
-            slideType: 'step_instruction',
-            title: formSlide1Title,
-            subtitle: formSlide1Subtitle,
-            audioNarrationText: `Langkah kerja ${formTitle}. ${formSlide1Step1}. ${formSlide1Step2}. ${formSlide1Step3}.`,
-            steps: [
-              { stepNumber: 1, title: 'Langkah 1: Persiapan', description: formSlide1Step1, iconName: 'CheckSquare' },
-              { stepNumber: 2, title: 'Langkah 2: Operasional', description: formSlide1Step2, iconName: 'Play' },
-              { stepNumber: 3, title: 'Langkah 3: Verifikasi', description: formSlide1Step3, iconName: 'CheckCircle2' },
-            ],
-          },
-          {
-            id: `sl-${Date.now()}-2`,
-            slideNumber: 2,
-            slideType: 'dos_and_donts',
-            title: 'Kaidah Aman (DO) vs Larangan Kritis (DON\'T)',
-            subtitle: 'Pedoman keselamatan wajib bagi seluruh staf operasional',
-            audioNarrationText: `Perhatikan aturan aman dan larangan. Wajib: ${formSlide2DoTitle}. Dilarang: ${formSlide2DontTitle}.`,
-            dosAndDonts: [
-              {
-                doTitle: formSlide2DoTitle,
-                doText: formSlide2DoText,
-                doTip: 'Patuhi kaidah K3 setiap saat.',
-                dontTitle: formSlide2DontTitle,
-                dontText: formSlide2DontText,
-                dontWarning: 'Pelanggaran dapat dikenakan sanksi K3.',
-              },
-            ],
-          },
-          {
-            id: `sl-${Date.now()}-3`,
-            slideNumber: 3,
-            slideType: 'quiz_checkpoint',
-            title: 'Kuis Evaluasi Pemahaman SOP',
-            subtitle: 'Jawab pertanyaan untuk memverifikasi pemahaman Anda',
-            audioNarrationText: `Uji pemahaman Anda: ${formQuizQuestion}`,
-            quiz: {
-              id: `q-${Date.now()}`,
-              question: formQuizQuestion,
-              options: [formQuizOptA, formQuizOptB, formQuizOptC, formQuizOptD],
-              correctAnswerIndex: formQuizCorrectIdx,
-              explanation: formQuizExplanation,
-              points: formPoints,
-            },
-          },
-        ];
-      }
-
       const newModuleRecord: any = {
         id: `sop-${formCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`,
         code: formCode.trim().toUpperCase(),
@@ -416,7 +539,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
         estimated_minutes: formEstMinutes,
         points_reward: formPoints,
         badge_icon: formFormat === 'interactive_simulator' ? 'Smartphone' : formFormat === 'spot_the_mistake' ? 'ShieldAlert' : 'BookOpen',
-        slides_data: generatedSlides,
+        slides_data: editingSlides,
         is_mandatory: formIsMandatory,
         deadline_days: 14,
         version: 'v1.0',
@@ -439,7 +562,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
         targetRoles: formTargetRoles,
         estimatedMinutes: formEstMinutes,
         pointsReward: formPoints,
-        slides: generatedSlides,
+        slides: editingSlides,
         isMandatory: formIsMandatory,
         isActive: true,
         createdAt: new Date().toISOString(),
@@ -447,7 +570,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
       });
       localStorage.setItem('bib_sop_custom_modules_v2', JSON.stringify(localCustom));
 
-      onToast?.(`Modul SOP ${formCode.toUpperCase()} (${formFormat}) berhasil dibuat!`);
+      onToast?.(`Modul SOP ${formCode.toUpperCase()} (${editingSlides.length} Slide) berhasil diterbitkan!`);
       setIsCreateModalOpen(false);
       setCreationStep(1);
       loadModules();
@@ -464,28 +587,26 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
 
     try {
       await supabase.from('sop_modules').delete().eq('id', item.id);
-      // Clean from local
       const localCustom = JSON.parse(localStorage.getItem('bib_sop_custom_modules_v2') || '[]');
       const filtered = localCustom.filter((m: any) => m.id !== item.id);
       localStorage.setItem('bib_sop_custom_modules_v2', JSON.stringify(filtered));
 
       setModules((prev) => prev.filter((m) => m.id !== item.id));
-      onToast?.(`Modul SOP ${item.code} berhasil dihapus.`);
-    } catch (e: any) {
-      onToast?.(`Gagal menghapus: ${e.message}`);
+      onToast?.(`Modul ${item.code} berhasil dihapus.`);
+    } catch (e) {
+      console.error('Error deleting SOP module:', e);
     }
   };
 
   // Export CSV
   const handleExportCSV = () => {
-    const headers = ['Kode SOP', 'Judul Modul', 'Kategori', 'Tingkat', 'Divisi Target', 'Est Durasi (Menit)', 'Poin Reward', 'Wajib Kepatuhan'];
-    const rows = modules.map((m) => [
+    const headers = ['Kode SOP', 'Judul Modul', 'Kategori', 'Kesulitan', 'Jumlah Slide', 'Poin Reward', 'Wajib Kepatuhan'];
+    const rows = filteredModules.map((m) => [
       m.code,
       `"${m.title.replace(/"/g, '""')}"`,
       m.category,
       m.difficulty,
-      `"${m.targetDivisions.join(', ')}"`,
-      m.estimatedMinutes,
+      m.slides.length,
       m.pointsReward,
       m.isMandatory ? 'YA' : 'TIDAK',
     ]);
@@ -521,7 +642,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
             Manajemen Modul SOP Micro-Deck & K3 Academy ({modules.length} Decks)
           </h3>
           <p className="text-[11px] text-zinc-400 mt-0.5">
-            Kelola materi pelatihan slideshow mikro, kaidah K3, kuis checkpoint, dan kepatuhan staf operasional
+            Studio pembuatan modul pelatihan multi-slide, simulasi klik WMS, hazard hunt, dan kuis kepatuhan
           </p>
         </div>
 
@@ -536,7 +657,10 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
           </button>
 
           <button
-            onClick={() => setIsCreateModalOpen(true)}
+            onClick={() => {
+              setIsCreateModalOpen(true);
+              setCreationStep(1);
+            }}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition shadow-md shadow-purple-900/30"
           >
             <Plus className="w-4 h-4" />
@@ -632,7 +756,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                   className="flex-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 py-1.5 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1"
                 >
                   <Play className="w-3 h-3 fill-current" />
-                  <span>Preview Slide</span>
+                  <span>Putar ({item.slides.length} Slide)</span>
                 </button>
 
                 <button
@@ -648,24 +772,26 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
         </div>
       )}
 
-      {/* ─── 4. CREATE NEW SOP MODULE MODAL PORTAL ─── */}
+      {/* ─── 4. DYNAMIC MULTI-SLIDE STUDIO MODAL PORTAL ─── */}
       {isCreateModalOpen &&
         createPortal(
           <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/85 backdrop-blur-md p-3 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in">
-            <div className="card-elevated w-full max-w-3xl max-h-[92vh] flex flex-col p-5 sm:p-6 relative border border-zinc-700/80 shadow-2xl overflow-y-auto custom-scrollbar">
+            <div className="card-elevated w-full max-w-4xl max-h-[94vh] flex flex-col p-5 sm:p-6 relative border border-zinc-700/80 shadow-2xl overflow-y-auto custom-scrollbar">
               
               {/* Modal Header */}
-              <div className="flex items-center justify-between pb-3 border-b border-zinc-800 mb-4">
+              <div className="flex items-center justify-between pb-3 border-b border-zinc-800 mb-3">
                 <div className="flex items-center gap-2">
                   <BookOpen className="w-5 h-5 text-purple-400" />
                   <div>
                     <h3 className="text-sm font-bold text-white">
-                      {creationStep === 1 ? 'Pilih Konsep Modul Pelatihan Interaktif' : `Studio Pembuatan SOP (${formFormat.toUpperCase()})`}
+                      {creationStep === 1
+                        ? 'Langkah 1: Pilih Konsep Dasar Modul'
+                        : `Langkah 2: Studio Multi-Slide Deck (${editingSlides.length} Slide Aktif)`}
                     </h3>
                     <p className="text-[11px] text-zinc-400">
                       {creationStep === 1
-                        ? 'Pilih 1 dari 5 format interaktif yang paling sesuai dengan materi pelatihan Anda'
-                        : 'Lengkapi instruksi kerja, koordinat target interaktif, dan kuis pemahaman'}
+                        ? 'Tentukan format utama modul sebelum menyusun alur slide interaktif'
+                        : 'Kelola alur multi-slide, koordinat klik simulator, foto anomali, dan kuis pemahaman'}
                     </p>
                   </div>
                 </div>
@@ -681,199 +807,121 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
               </div>
 
               {formError && (
-                <div className="mb-4 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs">
+                <div className="mb-3 p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs">
                   {formError}
                 </div>
               )}
 
-              {/* ─── STEP 1: PILIH FORMAT KONSEP ─── */}
+              {/* ─── STEP 1: PILIH FORMAT DASAR ─── */}
               {creationStep === 1 && (
                 <div className="space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     
-                    {/* Concept 1: Micro-Deck */}
                     <div
-                      onClick={() => setFormFormat('micro_deck')}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
-                        formFormat === 'micro_deck'
-                          ? 'bg-purple-950/40 border-purple-500 shadow-lg shadow-purple-900/30'
-                          : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
-                      }`}
+                      onClick={() => initializeSlidesForFormat('micro_deck')}
+                      className="p-4 rounded-xl border-2 bg-zinc-900 border-zinc-800 hover:border-purple-500 cursor-pointer transition flex flex-col justify-between"
                     >
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xl">📖</span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-900 text-purple-200">
-                            Paling Populer
-                          </span>
+                          <span className="text-2xl">📖</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-900 text-purple-200">Standar</span>
                         </div>
-                        <h4 className="font-bold text-white text-xs mb-1">Micro-Deck Standar</h4>
+                        <h4 className="font-bold text-white text-xs mb-1">Micro-Deck Interaktif</h4>
                         <p className="text-[11px] text-zinc-400 leading-relaxed">
-                          Slide instruksi langkah berurutan, komparasi visual DOs & DON'Ts, narasi audio TTS, dan kuis evaluasi.
+                          Slide instruksi langkah berurutan, perbandingan DOs & DON'Ts, narasi audio, dan kuis checkpoint.
                         </p>
                       </div>
-                      <span className="text-[10px] text-purple-400 font-semibold mt-3">Cocok untuk: SOP Operasional & Kaidah APD</span>
+                      <span className="text-[10px] text-purple-400 font-semibold mt-3">Mulai dengan template 3 slide →</span>
                     </div>
 
-                    {/* Concept 2: WMS Click Simulator */}
                     <div
-                      onClick={() => setFormFormat('interactive_simulator')}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
-                        formFormat === 'interactive_simulator'
-                          ? 'bg-indigo-950/40 border-indigo-500 shadow-lg shadow-indigo-900/30'
-                          : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
-                      }`}
+                      onClick={() => initializeSlidesForFormat('interactive_simulator')}
+                      className="p-4 rounded-xl border-2 bg-zinc-900 border-zinc-800 hover:border-indigo-500 cursor-pointer transition flex flex-col justify-between"
                     >
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xl">🎮</span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-900 text-indigo-200">
-                            Interaktif
-                          </span>
+                          <span className="text-2xl">🎮</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-indigo-900 text-indigo-200">Simulator</span>
                         </div>
                         <h4 className="font-bold text-white text-xs mb-1">WMS / App Click Simulator</h4>
                         <p className="text-[11px] text-zinc-400 leading-relaxed">
-                          Screenshot aplikasi WMS / Handheld scanner dengan zona target klik. Pekerja harus menekan tombol yang tepat untuk lolos.
+                          Alur simulasi beruntun screenshot WMS/Scanner dengan zona target klik interaktif di setiap langkah.
                         </p>
                       </div>
-                      <span className="text-[10px] text-indigo-400 font-semibold mt-3">Cocok untuk: Tutorial Aplikasi & Scanner</span>
+                      <span className="text-[10px] text-indigo-400 font-semibold mt-3">Mulai simulasi multi-step →</span>
                     </div>
 
-                    {/* Concept 3: Spot the Mistake */}
                     <div
-                      onClick={() => setFormFormat('spot_the_mistake')}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
-                        formFormat === 'spot_the_mistake'
-                          ? 'bg-amber-950/40 border-amber-500 shadow-lg shadow-amber-900/30'
-                          : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
-                      }`}
+                      onClick={() => initializeSlidesForFormat('spot_the_mistake')}
+                      className="p-4 rounded-xl border-2 bg-zinc-900 border-zinc-800 hover:border-amber-500 cursor-pointer transition flex flex-col justify-between"
                     >
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xl">🔍</span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-900 text-amber-200">
-                            Game K3
-                          </span>
+                          <span className="text-2xl">🔍</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-900 text-amber-200">Game K3</span>
                         </div>
                         <h4 className="font-bold text-white text-xs mb-1">Spot-the-Mistake / Hazard Hunt</h4>
                         <p className="text-[11px] text-zinc-400 leading-relaxed">
-                          Tantangan kejelian visual mencari anomali tumpukan palet, kerusakan APD, atau pelanggaran K3 pada foto lapangan dengan timer.
+                          Tantangan kejelian visual mencari pelanggaran susunan palet/APD pada foto lapangan dengan timer.
                         </p>
                       </div>
-                      <span className="text-[10px] text-amber-400 font-semibold mt-3">Cocok untuk: Kampanye Keselamatan & Hazard</span>
+                      <span className="text-[10px] text-amber-400 font-semibold mt-3">Mulai tantangan visual →</span>
                     </div>
 
-                    {/* Concept 4: Visual Hotspot */}
                     <div
-                      onClick={() => setFormFormat('visual_hotspot')}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between ${
-                        formFormat === 'visual_hotspot'
-                          ? 'bg-emerald-950/40 border-emerald-500 shadow-lg shadow-emerald-900/30'
-                          : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
-                      }`}
+                      onClick={() => initializeSlidesForFormat('visual_hotspot')}
+                      className="p-4 rounded-xl border-2 bg-zinc-900 border-zinc-800 hover:border-emerald-500 cursor-pointer transition flex flex-col justify-between"
                     >
                       <div>
                         <div className="flex items-center justify-between mb-2">
-                          <span className="text-xl">📌</span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-900 text-emerald-200">
-                            Diagram 360
-                          </span>
+                          <span className="text-2xl">📌</span>
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-900 text-emerald-200">Diagram</span>
                         </div>
                         <h4 className="font-bold text-white text-xs mb-1">Visual Hotspot Diagram</h4>
                         <p className="text-[11px] text-zinc-400 leading-relaxed">
-                          Foto alat/mesin resolusi tinggi dengan pin titik inspeksi berkedip yang menampilkan instruksi saat diketuk.
+                          Foto alat/mesin resolusi tinggi dengan pin titik inspeksi interaktif yang berkedip.
                         </p>
                       </div>
-                      <span className="text-[10px] text-emerald-400 font-semibold mt-3">Cocok untuk: Pre-Use Inspection MHE/Forklift</span>
+                      <span className="text-[10px] text-emerald-400 font-semibold mt-3">Mulai diagram inspeksi →</span>
                     </div>
 
-                    {/* Concept 5: Document Reader */}
-                    <div
-                      onClick={() => setFormFormat('document_reader')}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition flex flex-col justify-between sm:col-span-2 ${
-                        formFormat === 'document_reader'
-                          ? 'bg-blue-950/40 border-blue-500 shadow-lg shadow-blue-900/30'
-                          : 'bg-zinc-900 border-zinc-800 hover:border-zinc-700'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-xl">📄</span>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-blue-900 text-blue-200">
-                            Konverter Dokumen
-                          </span>
-                        </div>
-                        <h4 className="font-bold text-white text-xs mb-1">PDF & PPT Smart Reader</h4>
-                        <p className="text-[11px] text-zinc-400 leading-relaxed">
-                          Konversi dokumen PDF / slide presentasi ke antarmuka reader digital yang dilengkapi narasi audio AI dan kuis pemahaman otomatis.
-                        </p>
-                      </div>
-                      <span className="text-[10px] text-blue-400 font-semibold mt-3">Cocok untuk: Pedoman Kebijakan & Regulasi Resmi</span>
-                    </div>
-
-                  </div>
-
-                  {/* Next Step Button */}
-                  <div className="flex justify-end pt-3 border-t border-zinc-800">
-                    <button
-                      type="button"
-                      onClick={() => setCreationStep(2)}
-                      className="px-6 py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-purple-900/40 flex items-center gap-2"
-                    >
-                      <span>Lanjutkan ke Pengaturan Konten</span>
-                      <span>→</span>
-                    </button>
                   </div>
                 </div>
               )}
 
-              {/* ─── STEP 2: FORM CONTENT BUILDER ─── */}
+              {/* ─── STEP 2: DYNAMIC MULTI-SLIDE DECK BUILDER ─── */}
               {creationStep === 2 && (
-                <form onSubmit={handleCreateModule} className="space-y-4">
+                <form onSubmit={handleSaveModule} className="space-y-4">
                   
-                  {/* AI Quick Generator Bar */}
-                  <div className="flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-purple-950/60 to-indigo-950/60 border border-purple-500/30">
-                    <div className="flex items-center gap-2 text-xs">
-                      <Sparkles className="w-4 h-4 text-amber-400 animate-spin" />
-                      <span className="text-zinc-200 font-semibold">Gunakan Gappy AI untuk mengisi template format ini secara otomatis</span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={handleAiAutoFill}
-                      className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-lg transition shadow flex items-center gap-1.5"
-                    >
-                      <Sparkles className="w-3 h-3 text-amber-300" />
-                      <span>✨ Auto-Fill via AI</span>
-                    </button>
-                  </div>
-
-                  {/* ── Section 1: Basic Module Info ── */}
-                  <div className="space-y-3 bg-zinc-900/60 p-3.5 rounded-xl border border-zinc-800">
-                    <div className="text-[11px] font-bold text-purple-400 uppercase tracking-wider">
-                      1. Informasi Dasar Modul
+                  {/* Metadata Row */}
+                  <div className="bg-zinc-900/70 p-3.5 rounded-xl border border-zinc-800 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-purple-400 uppercase tracking-wider">
+                        1. Informasi Umum Modul
+                      </span>
+                      <span className="text-[10px] font-mono bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded">
+                        Format: {formFormat.toUpperCase()}
+                      </span>
                     </div>
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-xs text-zinc-400 mb-1">Kode SOP *</label>
+                        <label className="block text-[11px] text-zinc-400 mb-1">Kode SOP *</label>
                         <input
                           type="text"
                           value={formCode}
                           onChange={(e) => setFormCode(e.target.value)}
-                          placeholder="cth. SOP-WMS-02"
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white uppercase font-mono focus:outline-none focus:border-purple-500"
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white uppercase font-mono"
                           required
                         />
                       </div>
-
                       <div className="sm:col-span-2">
-                        <label className="block text-xs text-zinc-400 mb-1">Judul Modul SOP *</label>
+                        <label className="block text-[11px] text-zinc-400 mb-1">Judul Modul Pelatihan *</label>
                         <input
                           type="text"
                           value={formTitle}
                           onChange={(e) => setFormTitle(e.target.value)}
-                          placeholder="cth. Simulasi Konfirmasi Putaway Inbound Scanner"
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
                           required
                         />
                       </div>
@@ -881,12 +929,11 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
 
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       <div>
-                        <label className="block text-xs text-zinc-400 mb-1">Kategori</label>
+                        <label className="block text-[11px] text-zinc-400 mb-1">Kategori</label>
                         <select
                           value={formCategory}
                           onChange={(e) => setFormCategory(e.target.value as SopCategory)}
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                          required
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
                         >
                           <option value="K3 & Safety">K3 & Safety</option>
                           <option value="Operasional MHE">Operasional MHE</option>
@@ -899,12 +946,11 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                       </div>
 
                       <div>
-                        <label className="block text-xs text-zinc-400 mb-1">Tingkat Kesulitan</label>
+                        <label className="block text-[11px] text-zinc-400 mb-1">Tingkat Kesulitan</label>
                         <select
                           value={formDifficulty}
                           onChange={(e) => setFormDifficulty(e.target.value as SopDifficulty)}
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                          required
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
                         >
                           <option value="Beginner">Beginner</option>
                           <option value="Intermediate">Intermediate</option>
@@ -914,398 +960,458 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                       </div>
 
                       <div>
-                        <label className="block text-xs text-zinc-400 mb-1">Poin Reward (PTS)</label>
+                        <label className="block text-[11px] text-zinc-400 mb-1">Poin Reward (PTS)</label>
                         <input
                           type="number"
-                          min="10"
-                          max="500"
                           value={formPoints}
                           onChange={(e) => setFormPoints(Number(e.target.value))}
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
                         />
                       </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs text-zinc-400 mb-1">Deskripsi Singkat</label>
-                      <textarea
-                        rows={2}
-                        value={formDesc}
-                        onChange={(e) => setFormDesc(e.target.value)}
-                        placeholder="Jelaskan tujuan dan ruang lingkup instruksi SOP ini..."
-                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                      />
                     </div>
                   </div>
 
-                  {/* ── Section 2A: BUILDER FORMAT INTERACTIVE SIMULATOR ── */}
-                  {formFormat === 'interactive_simulator' && (
-                    <div className="space-y-3 bg-zinc-900/60 p-3.5 rounded-xl border border-indigo-500/30">
-                      <div className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <span>🎮 2. Konfigurasi Screenshot & Zona Target Klik</span>
+                  {/* ─── 🎞️ SLIDE FILMSTRIP & TIMELINE NAVIGATION ─── */}
+                  <div className="bg-zinc-900/90 p-3.5 rounded-xl border border-purple-500/30 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Layers className="w-4 h-4 text-purple-400" />
+                        <span className="text-xs font-bold text-white">
+                          Timeline Slide ({editingSlides.length} Slide)
+                        </span>
                       </div>
-
-                      <div>
-                        <label className="block text-xs text-zinc-400 mb-1">URL Gambar Screenshot WMS / Handheld</label>
-                        <input
-                          type="text"
-                          value={simImageUrl}
-                          onChange={(e) => setSimImageUrl(e.target.value)}
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                        />
-                      </div>
-
-                      {/* Interactive Visual Hitbox Coordinate Picker */}
-                      <div>
-                        <label className="block text-xs text-zinc-400 mb-1">
-                          Klik langsung pada gambar di bawah untuk memposisikan kotak tombol target:
-                        </label>
-                        <div
-                          onClick={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const clickX = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-                            const clickY = Math.round(((e.clientY - rect.top) / rect.height) * 100);
-                            setSimTargetX(Math.max(0, Math.min(80, clickX - Math.round(simTargetW / 2))));
-                            setSimTargetY(Math.max(0, Math.min(80, clickY - Math.round(simTargetH / 2))));
-                          }}
-                          className="relative rounded-xl overflow-hidden border-2 border-indigo-500/50 bg-black cursor-crosshair max-h-56 flex items-center justify-center select-none"
+                      
+                      {/* Add Slide Quick Menu */}
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                        <span className="text-[10px] text-zinc-400 mr-1 hidden sm:inline">+ Tambah:</span>
+                        <button
+                          type="button"
+                          onClick={() => handleAddSlide('interactive_simulator')}
+                          className="px-2 py-1 bg-indigo-950 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/60 rounded-lg text-[10px] font-bold transition flex items-center gap-1"
                         >
-                          <img src={simImageUrl} alt="Simulator preview" className="w-full h-full object-cover max-h-56 pointer-events-none" />
-                          <div
-                            style={{
-                              left: `${simTargetX}%`,
-                              top: `${simTargetY}%`,
-                              width: `${simTargetW}%`,
-                              height: `${simTargetH}%`,
-                            }}
-                            className="absolute border-2 border-emerald-400 bg-emerald-500/25 rounded flex items-center justify-center pointer-events-none shadow-[0_0_15px_rgba(16,185,129,0.5)]"
-                          >
-                            <span className="text-[9px] font-black text-white bg-black/80 px-1 rounded">
-                              {simHighlightLabel || 'TARGET'}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="flex gap-2 text-[10px] text-zinc-400 mt-1 font-mono">
-                          <span>Posisi X: {simTargetX}%</span>
-                          <span>Posisi Y: {simTargetY}%</span>
-                          <span>Lebar: {simTargetW}%</span>
-                          <span>Tinggi: {simTargetH}%</span>
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-xs text-zinc-400 mb-1">Instruksi Tugas untuk Pekerja</label>
-                          <input
-                            type="text"
-                            value={simTaskInstruction}
-                            onChange={(e) => setSimTaskInstruction(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-zinc-400 mb-1">Label Highlight Tombol</label>
-                          <input
-                            type="text"
-                            value={simHighlightLabel}
-                            onChange={(e) => setSimHighlightLabel(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-xs text-zinc-400 mb-1">Petunjuk jika Salah Klik (Hint)</label>
-                          <input
-                            type="text"
-                            value={simHintText}
-                            onChange={(e) => setSimHintText(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-zinc-400 mb-1">Pesan Sukses saat Berhasil</label>
-                          <input
-                            type="text"
-                            value={simSuccessMsg}
-                            onChange={(e) => setSimSuccessMsg(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                          />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── Section 2B: BUILDER FORMAT SPOT THE MISTAKE ── */}
-                  {formFormat === 'spot_the_mistake' && (
-                    <div className="space-y-3 bg-zinc-900/60 p-3.5 rounded-xl border border-amber-500/30">
-                      <div className="text-[11px] font-bold text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                        <span>🔍 2. Konfigurasi Foto Lapangan & Titik Bahaya Anomali</span>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs text-zinc-400 mb-1">URL Foto Lapangan</label>
-                        <input
-                          type="text"
-                          value={spotImageUrl}
-                          onChange={(e) => setSpotImageUrl(e.target.value)}
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                        />
-                      </div>
-
-                      {/* Interactive Visual Anomaly Coordinate Picker */}
-                      <div>
-                        <label className="block text-xs text-zinc-400 mb-1">
-                          Klik langsung pada foto untuk menandai letak anomali/bahaya K3:
-                        </label>
-                        <div
-                          onClick={(e) => {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const clickX = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-                            const clickY = Math.round(((e.clientY - rect.top) / rect.height) * 100);
-                            setSpotTargetX(clickX);
-                            setSpotTargetY(clickY);
-                          }}
-                          className="relative rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black cursor-crosshair max-h-56 flex items-center justify-center select-none"
+                          <Smartphone className="w-3 h-3" /> Simulator
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAddSlide('spot_the_mistake')}
+                          className="px-2 py-1 bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-700/60 rounded-lg text-[10px] font-bold transition flex items-center gap-1"
                         >
-                          <img src={spotImageUrl} alt="Spot preview" className="w-full h-full object-cover max-h-56 pointer-events-none" />
+                          <ShieldAlert className="w-3 h-3" /> Hazard Hunt
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAddSlide('step_instruction')}
+                          className="px-2 py-1 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 rounded-lg text-[10px] font-bold transition flex items-center gap-1"
+                        >
+                          <ListOrdered className="w-3 h-3" /> Langkah
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAddSlide('quiz_checkpoint')}
+                          className="px-2 py-1 bg-purple-950 hover:bg-purple-900 text-purple-300 border border-purple-700/60 rounded-lg text-[10px] font-bold transition flex items-center gap-1"
+                        >
+                          <HelpCircle className="w-3 h-3" /> Kuis
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Filmstrip Strip Horizontal Badges */}
+                    <div className="flex items-center gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                      {editingSlides.map((slide, idx) => {
+                        const isActive = idx === activeSlideIndex;
+                        let typeIcon = '📖';
+                        if (slide.slideType === 'interactive_simulator') typeIcon = '🎮';
+                        if (slide.slideType === 'spot_the_mistake') typeIcon = '🔍';
+                        if (slide.slideType === 'interactive_hotspot') typeIcon = '📌';
+                        if (slide.slideType === 'quiz_checkpoint') typeIcon = '❓';
+
+                        return (
                           <div
-                            style={{
-                              left: `${spotTargetX}%`,
-                              top: `${spotTargetY}%`,
-                            }}
-                            className="absolute -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full border-2 border-rose-500 bg-rose-500/30 animate-pulse pointer-events-none flex items-center justify-center shadow-[0_0_20px_rgba(244,63,94,0.6)]"
+                            key={slide.id || idx}
+                            onClick={() => setActiveSlideIndex(idx)}
+                            className={`px-3 py-2 rounded-xl border-2 cursor-pointer transition shrink-0 flex items-center gap-2 select-none ${
+                              isActive
+                                ? 'bg-purple-950/60 border-purple-500 shadow-md shadow-purple-900/40'
+                                : 'bg-zinc-950 border-zinc-800 hover:border-zinc-700'
+                            }`}
                           >
-                            <span className="text-xs">⚠️</span>
+                            <span className="text-sm">{typeIcon}</span>
+                            <div className="text-left">
+                              <div className="text-[10px] font-black text-white">
+                                Slide #{idx + 1}
+                              </div>
+                              <div className="text-[9px] text-zinc-400 truncate max-w-[90px]">
+                                {slide.title || slide.slideType}
+                              </div>
+                            </div>
                           </div>
-                        </div>
-                        <div className="flex gap-2 text-[10px] text-zinc-400 mt-1 font-mono">
-                          <span>Titik X: {spotTargetX}%</span>
-                          <span>Titik Y: {spotTargetY}%</span>
-                          <span>Toleransi Radius: {spotRadius}%</span>
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs text-zinc-400 mb-1">Tantangan untuk Pekerja</label>
-                        <input
-                          type="text"
-                          value={spotPrompt}
-                          onChange={(e) => setSpotPrompt(e.target.value)}
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                        />
-                      </div>
-
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        <div>
-                          <label className="block text-xs text-zinc-400 mb-1">Nama Bahaya K3</label>
-                          <input
-                            type="text"
-                            value={spotHazardName}
-                            onChange={(e) => setSpotHazardName(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs text-zinc-400 mb-1">Batas Waktu (Detik)</label>
-                          <input
-                            type="number"
-                            value={spotTimeLimit}
-                            onChange={(e) => setSpotTimeLimit(Number(e.target.value))}
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-xs text-zinc-400 mb-1">Penjelasan K3 Mengapa Berbahaya</label>
-                        <textarea
-                          rows={2}
-                          value={spotExplanation}
-                          onChange={(e) => setSpotExplanation(e.target.value)}
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {/* ── Section 2C: BUILDER FORMAT STANDARD MICRO-DECK ── */}
-                  {formFormat === 'micro_deck' && (
-                    <>
-                      <div className="space-y-3 bg-zinc-900/60 p-3.5 rounded-xl border border-zinc-800">
-                        <div className="text-[11px] font-bold text-emerald-400 uppercase tracking-wider">
-                          2. Slide 1: Instruksi Langkah Kerja (3 Langkah)
-                        </div>
-                        <div>
-                          <label className="block text-xs text-zinc-400 mb-1">Judul Slide 1</label>
-                          <input
-                            type="text"
-                            value={formSlide1Title}
-                            onChange={(e) => setFormSlide1Title(e.target.value)}
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <input
-                            type="text"
-                            value={formSlide1Step1}
-                            onChange={(e) => setFormSlide1Step1(e.target.value)}
-                            placeholder="Langkah 1: Persiapan..."
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                          />
-                          <input
-                            type="text"
-                            value={formSlide1Step2}
-                            onChange={(e) => setFormSlide1Step2(e.target.value)}
-                            placeholder="Langkah 2: Pelaksanaan..."
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                          />
-                          <input
-                            type="text"
-                            value={formSlide1Step3}
-                            onChange={(e) => setFormSlide1Step3(e.target.value)}
-                            placeholder="Langkah 3: Pengecekan Akhir..."
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="space-y-3 bg-zinc-900/60 p-3.5 rounded-xl border border-zinc-800">
-                        <div className="text-[11px] font-bold text-amber-400 uppercase tracking-wider">
-                          3. Slide 2: Kaidah Aman (DO) vs Larangan (DON'T)
-                        </div>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                          <div className="space-y-2">
-                            <label className="block text-[11px] font-bold text-emerald-400">DO (Praktik Benar)</label>
-                            <input
-                              type="text"
-                              value={formSlide2DoTitle}
-                              onChange={(e) => setFormSlide2DoTitle(e.target.value)}
-                              placeholder="Judul DO..."
-                              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                            />
-                            <textarea
-                              rows={2}
-                              value={formSlide2DoText}
-                              onChange={(e) => setFormSlide2DoText(e.target.value)}
-                              placeholder="Penjelasan detail DO..."
-                              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                            />
-                          </div>
-
-                          <div className="space-y-2">
-                            <label className="block text-[11px] font-bold text-rose-400">DON'T (Larangan Keras)</label>
-                            <input
-                              type="text"
-                              value={formSlide2DontTitle}
-                              onChange={(e) => setFormSlide2DontTitle(e.target.value)}
-                              placeholder="Judul DON'T..."
-                              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                            />
-                            <textarea
-                              rows={2}
-                              value={formSlide2DontText}
-                              onChange={(e) => setFormSlide2DontText(e.target.value)}
-                              placeholder="Penjelasan bahaya DON'T..."
-                              className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  )}
-
-                  {/* ── Section 3: UNIVERSAL QUIZ CHECKPOINT BUILDER ── */}
-                  <div className="space-y-3 bg-zinc-900/60 p-3.5 rounded-xl border border-zinc-800">
-                    <div className="text-[11px] font-bold text-purple-400 uppercase tracking-wider">
-                      Evaluasi Kuis Checkpoint
-                    </div>
-                    <div>
-                      <label className="block text-xs text-zinc-400 mb-1">Pertanyaan Kuis *</label>
-                      <input
-                        type="text"
-                        value={formQuizQuestion}
-                        onChange={(e) => setFormQuizQuestion(e.target.value)}
-                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                        required
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[10px] text-zinc-400 mb-0.5">Pilihan A</label>
-                        <input
-                          type="text"
-                          value={formQuizOptA}
-                          onChange={(e) => setFormQuizOptA(e.target.value)}
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] text-zinc-400 mb-0.5">Pilihan B</label>
-                        <input
-                          type="text"
-                          value={formQuizOptB}
-                          onChange={(e) => setFormQuizOptB(e.target.value)}
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] text-zinc-400 mb-0.5">Pilihan C</label>
-                        <input
-                          type="text"
-                          value={formQuizOptC}
-                          onChange={(e) => setFormQuizOptC(e.target.value)}
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                          required
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] text-zinc-400 mb-0.5">Pilihan D</label>
-                        <input
-                          type="text"
-                          value={formQuizOptD}
-                          onChange={(e) => setFormQuizOptD(e.target.value)}
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                          required
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs text-zinc-400 mb-1">Kunci Jawaban Benar</label>
-                      <select
-                        value={formQuizCorrectIdx}
-                        onChange={(e) => setFormQuizCorrectIdx(Number(e.target.value))}
-                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white font-bold"
-                      >
-                        <option value={0}>A — {formQuizOptA || 'Pilihan A'}</option>
-                        <option value={1}>B — {formQuizOptB || 'Pilihan B'}</option>
-                        <option value={2}>C — {formQuizOptC || 'Pilihan C'}</option>
-                        <option value={3}>D — {formQuizOptD || 'Pilihan D'}</option>
-                      </select>
+                        );
+                      })}
                     </div>
                   </div>
+
+                  {/* ─── ✏️ ACTIVE SLIDE DETAIL EDITOR WORKSPACE ─── */}
+                  {currentActiveSlide && (
+                    <div className="bg-zinc-900/60 p-4 rounded-xl border border-zinc-800 space-y-3 animate-fade-in">
+                      
+                      {/* Slide Toolbar */}
+                      <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-purple-300">
+                            Mengedit Slide #{activeSlideIndex + 1}
+                          </span>
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-mono">
+                            Tipe: {currentActiveSlide.slideType}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => handleMoveSlide(activeSlideIndex, 'up')}
+                            disabled={activeSlideIndex === 0}
+                            className="p-1 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-300 rounded text-xs"
+                            title="Geser ke kiri/naik"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveSlide(activeSlideIndex, 'down')}
+                            disabled={activeSlideIndex === editingSlides.length - 1}
+                            className="p-1 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-300 rounded text-xs"
+                            title="Geser ke kanan/turun"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDuplicateSlide(activeSlideIndex)}
+                            className="p-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded text-xs"
+                            title="Duplikasi Slide"
+                          >
+                            <Copy className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSlide(activeSlideIndex)}
+                            className="p-1 bg-rose-950/80 hover:bg-rose-900 text-rose-300 rounded text-xs ml-1"
+                            title="Hapus Slide Ini"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Common Slide Title & Subtitle */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className="block text-[11px] text-zinc-400 mb-1">Judul Slide</label>
+                          <input
+                            type="text"
+                            value={currentActiveSlide.title}
+                            onChange={(e) => handleUpdateActiveSlide({ title: e.target.value })}
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-[11px] text-zinc-400 mb-1">Sub-judul / Instruksi Singkat</label>
+                          <input
+                            type="text"
+                            value={currentActiveSlide.subtitle || ''}
+                            onChange={(e) => handleUpdateActiveSlide({ subtitle: e.target.value })}
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                          />
+                        </div>
+                      </div>
+
+                      {/* ── TYPE: INTERACTIVE SIMULATOR ── */}
+                      {currentActiveSlide.slideType === 'interactive_simulator' && (
+                        <div className="space-y-3 bg-indigo-950/20 p-3 rounded-xl border border-indigo-500/30">
+                          <label className="block text-[11px] text-indigo-300 font-bold">
+                            🎮 Konfigurasi Screenshot & Zona Target Klik
+                          </label>
+                          <input
+                            type="text"
+                            value={currentActiveSlide.imageUrl || ''}
+                            onChange={(e) => handleUpdateActiveSlide({ imageUrl: e.target.value })}
+                            placeholder="URL Gambar Screenshot WMS..."
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                          />
+
+                          {/* Hitbox Coordinate Picker */}
+                          <div
+                            onClick={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const clickX = Math.round(((e.clientX - rect.left) / rect.width) * 100);
+                              const clickY = Math.round(((e.clientY - rect.top) / rect.height) * 100);
+                              const w = currentActiveSlide.simulatorConfig?.targetWidthPercent || 40;
+                              const h = currentActiveSlide.simulatorConfig?.targetHeightPercent || 20;
+                              handleUpdateActiveSlide({
+                                simulatorConfig: {
+                                  ...(currentActiveSlide.simulatorConfig || {
+                                    taskInstruction: 'Klik tombol target di layar',
+                                    hintText: 'Perhatikan tombol yang menyala',
+                                  }),
+                                  targetXPercent: Math.max(0, Math.min(80, clickX - Math.round(w / 2))),
+                                  targetYPercent: Math.max(0, Math.min(80, clickY - Math.round(h / 2))),
+                                  targetWidthPercent: w,
+                                  targetHeightPercent: h,
+                                },
+                              });
+                            }}
+                            className="relative rounded-xl overflow-hidden border-2 border-indigo-500/50 bg-black cursor-crosshair max-h-56 flex items-center justify-center select-none"
+                          >
+                            <img
+                              src={currentActiveSlide.imageUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
+                              alt="Simulator screen"
+                              className="w-full h-full object-cover max-h-56 pointer-events-none"
+                            />
+                            <div
+                              style={{
+                                left: `${currentActiveSlide.simulatorConfig?.targetXPercent || 30}%`,
+                                top: `${currentActiveSlide.simulatorConfig?.targetYPercent || 40}%`,
+                                width: `${currentActiveSlide.simulatorConfig?.targetWidthPercent || 40}%`,
+                                height: `${currentActiveSlide.simulatorConfig?.targetHeightPercent || 20}%`,
+                              }}
+                              className="absolute border-2 border-emerald-400 bg-emerald-500/25 rounded flex items-center justify-center pointer-events-none shadow-[0_0_15px_rgba(16,185,129,0.5)]"
+                            >
+                              <span className="text-[9px] font-black text-white bg-black/80 px-1 rounded">
+                                {currentActiveSlide.simulatorConfig?.highlightLabel || 'TARGET'}
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] text-zinc-400 mb-0.5">Tugas untuk Pekerja</label>
+                              <input
+                                type="text"
+                                value={currentActiveSlide.simulatorConfig?.taskInstruction || ''}
+                                onChange={(e) =>
+                                  handleUpdateActiveSlide({
+                                    simulatorConfig: {
+                                      ...(currentActiveSlide.simulatorConfig || { targetXPercent: 30, targetYPercent: 40, targetWidthPercent: 40, targetHeightPercent: 20, hintText: '' }),
+                                      taskInstruction: e.target.value,
+                                    },
+                                  })
+                                }
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-zinc-400 mb-0.5">Petunjuk jika Salah (Hint)</label>
+                              <input
+                                type="text"
+                                value={currentActiveSlide.simulatorConfig?.hintText || ''}
+                                onChange={(e) =>
+                                  handleUpdateActiveSlide({
+                                    simulatorConfig: {
+                                      ...(currentActiveSlide.simulatorConfig || { targetXPercent: 30, targetYPercent: 40, targetWidthPercent: 40, targetHeightPercent: 20, taskInstruction: '' }),
+                                      hintText: e.target.value,
+                                    },
+                                  })
+                                }
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── TYPE: SPOT THE MISTAKE ── */}
+                      {currentActiveSlide.slideType === 'spot_the_mistake' && (
+                        <div className="space-y-3 bg-amber-950/20 p-3 rounded-xl border border-amber-500/30">
+                          <label className="block text-[11px] text-amber-300 font-bold">
+                            🔍 Konfigurasi Foto Lapangan & Titik Bahaya
+                          </label>
+                          <input
+                            type="text"
+                            value={currentActiveSlide.imageUrl || ''}
+                            onChange={(e) => handleUpdateActiveSlide({ imageUrl: e.target.value })}
+                            placeholder="URL Foto Lapangan..."
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                          />
+
+                          <div
+                            onClick={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const clickX = Math.round(((e.clientX - rect.left) / rect.width) * 100);
+                              const clickY = Math.round(((e.clientY - rect.top) / rect.height) * 100);
+                              handleUpdateActiveSlide({
+                                spotMistakeConfig: {
+                                  ...(currentActiveSlide.spotMistakeConfig || {
+                                    challengePrompt: 'Temukan bahaya!',
+                                    hazardName: 'Bahaya K3',
+                                    explanation: 'Penjelasan K3',
+                                  }),
+                                  targetXPercent: clickX,
+                                  targetYPercent: clickY,
+                                  toleranceRadiusPercent: 15,
+                                },
+                              });
+                            }}
+                            className="relative rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black cursor-crosshair max-h-56 flex items-center justify-center select-none"
+                          >
+                            <img
+                              src={currentActiveSlide.imageUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
+                              alt="Spot preview"
+                              className="w-full h-full object-cover max-h-56 pointer-events-none"
+                            />
+                            <div
+                              style={{
+                                left: `${currentActiveSlide.spotMistakeConfig?.targetXPercent || 50}%`,
+                                top: `${currentActiveSlide.spotMistakeConfig?.targetYPercent || 50}%`,
+                              }}
+                              className="absolute -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full border-2 border-rose-500 bg-rose-500/30 animate-pulse pointer-events-none flex items-center justify-center shadow-[0_0_20px_rgba(244,63,94,0.6)]"
+                            >
+                              <span className="text-xs">⚠️</span>
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] text-zinc-400 mb-0.5">Tantangan untuk Pekerja</label>
+                              <input
+                                type="text"
+                                value={currentActiveSlide.spotMistakeConfig?.challengePrompt || ''}
+                                onChange={(e) =>
+                                  handleUpdateActiveSlide({
+                                    spotMistakeConfig: {
+                                      ...(currentActiveSlide.spotMistakeConfig || { targetXPercent: 50, targetYPercent: 50, toleranceRadiusPercent: 15, hazardName: '', explanation: '' }),
+                                      challengePrompt: e.target.value,
+                                    },
+                                  })
+                                }
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-zinc-400 mb-0.5">Nama Bahaya K3</label>
+                              <input
+                                type="text"
+                                value={currentActiveSlide.spotMistakeConfig?.hazardName || ''}
+                                onChange={(e) =>
+                                  handleUpdateActiveSlide({
+                                    spotMistakeConfig: {
+                                      ...(currentActiveSlide.spotMistakeConfig || { targetXPercent: 50, targetYPercent: 50, toleranceRadiusPercent: 15, challengePrompt: '', explanation: '' }),
+                                      hazardName: e.target.value,
+                                    },
+                                  })
+                                }
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── TYPE: QUIZ CHECKPOINT ── */}
+                      {currentActiveSlide.slideType === 'quiz_checkpoint' && (
+                        <div className="space-y-3 bg-purple-950/20 p-3 rounded-xl border border-purple-500/30">
+                          <label className="block text-[11px] text-purple-300 font-bold">
+                            ❓ Konfigurasi Pertanyaan Kuis Checkpoint
+                          </label>
+                          <input
+                            type="text"
+                            value={currentActiveSlide.quiz?.question || ''}
+                            onChange={(e) =>
+                              handleUpdateActiveSlide({
+                                quiz: {
+                                  ...(currentActiveSlide.quiz || { id: `q-${Date.now()}`, options: ['A', 'B', 'C', 'D'], correctAnswerIndex: 0, explanation: '' }),
+                                  question: e.target.value,
+                                },
+                              })
+                            }
+                            placeholder="Tuliskan pertanyaan evaluasi..."
+                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                          />
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {(currentActiveSlide.quiz?.options || ['Pilihan A', 'Pilihan B', 'Pilihan C', 'Pilihan D']).map((opt, optIdx) => (
+                              <div key={optIdx}>
+                                <label className="block text-[10px] text-zinc-400 mb-0.5">
+                                  Pilihan {String.fromCharCode(65 + optIdx)} {optIdx === currentActiveSlide.quiz?.correctAnswerIndex && '★ (KUNCI BENAR)'}
+                                </label>
+                                <input
+                                  type="text"
+                                  value={opt}
+                                  onChange={(e) => {
+                                    const currentOpts = [...(currentActiveSlide.quiz?.options || ['A', 'B', 'C', 'D'])];
+                                    currentOpts[optIdx] = e.target.value;
+                                    handleUpdateActiveSlide({
+                                      quiz: {
+                                        ...(currentActiveSlide.quiz || { id: `q-${Date.now()}`, correctAnswerIndex: 0, explanation: '', question: '' }),
+                                        options: currentOpts,
+                                      },
+                                    });
+                                  }}
+                                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                                />
+                              </div>
+                            ))}
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            <div>
+                              <label className="block text-[10px] text-zinc-400 mb-0.5">Kunci Jawaban Benar</label>
+                              <select
+                                value={currentActiveSlide.quiz?.correctAnswerIndex || 0}
+                                onChange={(e) =>
+                                  handleUpdateActiveSlide({
+                                    quiz: {
+                                      ...(currentActiveSlide.quiz || { id: `q-${Date.now()}`, options: ['A', 'B', 'C', 'D'], explanation: '', question: '' }),
+                                      correctAnswerIndex: Number(e.target.value),
+                                    },
+                                  })
+                                }
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white font-bold"
+                              >
+                                <option value={0}>Pilihan A</option>
+                                <option value={1}>Pilihan B</option>
+                                <option value={2}>Pilihan C</option>
+                                <option value={3}>Pilihan D</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-zinc-400 mb-0.5">Penjelasan Jawaban</label>
+                              <input
+                                type="text"
+                                value={currentActiveSlide.quiz?.explanation || ''}
+                                onChange={(e) =>
+                                  handleUpdateActiveSlide({
+                                    quiz: {
+                                      ...(currentActiveSlide.quiz || { id: `q-${Date.now()}`, options: ['A', 'B', 'C', 'D'], correctAnswerIndex: 0, question: '' }),
+                                      explanation: e.target.value,
+                                    },
+                                  })
+                                }
+                                placeholder="Mengapa jawaban ini benar..."
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* Submit Action Buttons */}
                   <div className="flex gap-2 pt-2 border-t border-zinc-800">
                     <button
                       type="button"
                       onClick={() => setCreationStep(1)}
-                      className="w-1/3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold py-2 rounded-xl text-xs transition"
+                      className="w-1/3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold py-2.5 rounded-xl text-xs transition"
                     >
-                      ← Kembali Pilih Format
+                      ← Ganti Format Dasar
                     </button>
                     <button
                       type="submit"
                       disabled={isSubmitting}
-                      className="w-2/3 bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-purple-900/30"
+                      className="w-2/3 bg-purple-600 hover:bg-purple-500 text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-purple-900/30"
                     >
                       {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                      <span>Simpan & Terbitkan Modul ({formFormat})</span>
+                      <span>Simpan & Terbitkan Modul ({editingSlides.length} Slide)</span>
                     </button>
                   </div>
 
