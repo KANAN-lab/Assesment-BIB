@@ -15,16 +15,23 @@ import {
   Filter,
   Check,
   AlertTriangle,
-  Sparkles
+  Sparkles,
+  User
 } from 'lucide-react';
 import { NotificationEngine, AppNotification } from '../domain/NotificationEngine';
 import { PaginationControls } from './PaginationControls';
+import { WorkerProfile } from '../types/assessment';
 
-export const AdminNotificationPanel: React.FC = () => {
+interface AdminNotificationPanelProps {
+  workers?: WorkerProfile[];
+}
+
+export const AdminNotificationPanel: React.FC<AdminNotificationPanelProps> = ({ workers = [] }) => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
-  const [recipientRole, setRecipientRole] = useState<'all' | 'worker' | 'supervisor'>('all');
+  const [recipientRole, setRecipientRole] = useState<'all' | 'worker' | 'supervisor' | 'specific'>('all');
+  const [selectedWorkerId, setSelectedWorkerId] = useState<string>('');
   const [notifType, setNotifType] = useState<'system' | 'incident' | 'quiz' | 'reward' | 'audit'>('system');
   const [sending, setSending] = useState(false);
   const [sentSuccess, setSentSuccess] = useState(false);
@@ -41,9 +48,14 @@ export const AdminNotificationPanel: React.FC = () => {
 
   useEffect(() => {
     reloadData();
+    NotificationEngine.syncFromRemote().then(() => reloadData());
     const handleUpdate = () => reloadData();
     window.addEventListener('gappy_notification_updated', handleUpdate);
-    return () => window.removeEventListener('gappy_notification_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('gappy_notification_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
   }, []);
 
   const handleBroadcast = (e: React.FormEvent) => {
@@ -51,12 +63,36 @@ export const AdminNotificationPanel: React.FC = () => {
     if (!title.trim() || !message.trim()) return;
 
     setSending(true);
-    NotificationEngine.broadcast(
-      title.trim(),
-      message.trim(),
-      recipientRole,
-      notifType
-    );
+
+    if (recipientRole === 'specific') {
+      if (!selectedWorkerId) {
+        alert('Silakan pilih pekerja penerima khusus terlebih dahulu.');
+        setSending(false);
+        return;
+      }
+      const targetWorker = workers.find(
+        (w) => w.id === selectedWorkerId || w.employeeId === selectedWorkerId
+      );
+      NotificationEngine.addNotification({
+        recipientId: targetWorker?.id || selectedWorkerId,
+        recipientRole: 'worker',
+        title: title.trim(),
+        message: message.trim(),
+        type: notifType,
+        metadata: {
+          targetWorkerName: targetWorker?.name || 'Pekerja Khusus',
+          targetEmployeeId: targetWorker?.employeeId || selectedWorkerId,
+          targetDivision: targetWorker?.division || '',
+        },
+      });
+    } else {
+      NotificationEngine.broadcast(
+        title.trim(),
+        message.trim(),
+        recipientRole,
+        notifType
+      );
+    }
 
     setSending(false);
     setSentSuccess(true);
@@ -111,7 +147,15 @@ export const AdminNotificationPanel: React.FC = () => {
     }
   };
 
-  const getRecipientLabel = (role: string) => {
+  const getRecipientLabel = (role: string, metadata?: Record<string, any>) => {
+    if (metadata?.targetWorkerName) {
+      return (
+        <span className="text-cyan-400 font-semibold flex items-center gap-1">
+          <User className="w-3 h-3" />
+          <span>{metadata.targetWorkerName} ({metadata.targetEmployeeId || 'Pribadi'})</span>
+        </span>
+      );
+    }
     switch (role) {
       case 'worker': return <span className="text-emerald-400 font-semibold">Operational Only</span>;
       case 'supervisor': return <span className="text-indigo-400 font-semibold">Supervisor Only</span>;
@@ -162,11 +206,11 @@ export const AdminNotificationPanel: React.FC = () => {
             {/* Target Recipient */}
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-zinc-400">Target Audiens Penerima:</label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <button
                   type="button"
                   onClick={() => setRecipientRole('all')}
-                  className={`p-2.5 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                  className={`p-2 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
                     recipientRole === 'all'
                       ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
                       : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
@@ -178,7 +222,7 @@ export const AdminNotificationPanel: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setRecipientRole('worker')}
-                  className={`p-2.5 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                  className={`p-2 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
                     recipientRole === 'worker'
                       ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
                       : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
@@ -190,7 +234,7 @@ export const AdminNotificationPanel: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => setRecipientRole('supervisor')}
-                  className={`p-2.5 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                  className={`p-2 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
                     recipientRole === 'supervisor'
                       ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300'
                       : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
@@ -199,8 +243,43 @@ export const AdminNotificationPanel: React.FC = () => {
                   <UserCheck className="w-3.5 h-3.5" />
                   <span>Supervisor</span>
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setRecipientRole('specific')}
+                  className={`p-2 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                    recipientRole === 'specific'
+                      ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300'
+                      : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Personel Khusus</span>
+                </button>
               </div>
             </div>
+
+            {/* Specific Worker Picker */}
+            {recipientRole === 'specific' && (
+              <div className="space-y-1.5 animate-fade-in bg-zinc-900/60 p-3 rounded-xl border border-zinc-800">
+                <label className="text-xs font-bold text-zinc-300 flex items-center justify-between">
+                  <span>Pilih Pekerja Penerima Khusus *</span>
+                  {selectedWorkerId && <span className="text-[10px] text-emerald-400">Target terpilih</span>}
+                </label>
+                <select
+                  value={selectedWorkerId}
+                  onChange={(e) => setSelectedWorkerId(e.target.value)}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-semibold"
+                  required
+                >
+                  <option value="" disabled>-- Pilih Pekerja / NIK --</option>
+                  {workers.map((w) => (
+                    <option key={w.id} value={w.id} className="bg-zinc-900 text-white">
+                      {w.name} ({w.employeeId}) — {w.division} / {w.role}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* Type Selector */}
             <div className="space-y-1.5">
@@ -338,7 +417,7 @@ export const AdminNotificationPanel: React.FC = () => {
                       <div className="flex items-center gap-2 flex-wrap">
                         {getTypeBadge(n.type)}
                         <span className="text-[10px] text-zinc-500">
-                          Target: {getRecipientLabel(n.recipientRole)}
+                          Target: {getRecipientLabel(n.recipientRole, n.metadata)}
                         </span>
                         <span className="text-[10px] text-zinc-600 font-mono ml-auto">
                           {new Date(n.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}

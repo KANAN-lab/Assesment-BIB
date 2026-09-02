@@ -41,10 +41,12 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
 
   useEffect(() => {
     reloadNotifications();
+    NotificationEngine.syncFromRemote().then(() => reloadNotifications());
 
     const handleEvent = () => reloadNotifications();
     window.addEventListener('gappy_notification_received', handleEvent);
     window.addEventListener('gappy_notification_updated', handleEvent);
+    window.addEventListener('storage', handleEvent);
 
     const handleClickOutside = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) {
@@ -60,9 +62,16 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
     return () => {
       window.removeEventListener('gappy_notification_received', handleEvent);
       window.removeEventListener('gappy_notification_updated', handleEvent);
+      window.removeEventListener('storage', handleEvent);
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [currentUserId, currentRole, currentEmployeeId]);
+
+  useEffect(() => {
+    if (isOpen) {
+      NotificationEngine.syncFromRemote().then(() => reloadNotifications());
+    }
+  }, [isOpen]);
 
   const filteredNotifications = useMemo(() => {
     return notifications.filter((n) => {

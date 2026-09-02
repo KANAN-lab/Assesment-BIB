@@ -1673,3 +1673,25 @@ ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
   )
 );
 
+-- ─── 28. App Notifications Table (Pusat Siaran & Notifikasi Terpadu) ────────
+CREATE TABLE IF NOT EXISTS app_notifications (
+  id             TEXT PRIMARY KEY,
+  recipient_id   TEXT NOT NULL DEFAULT 'all', -- 'all', 'worker', 'supervisor', 'admin', atau specific worker_id
+  recipient_role TEXT NOT NULL DEFAULT 'all' CHECK (recipient_role IN ('all', 'worker', 'supervisor', 'admin')),
+  title          TEXT NOT NULL,
+  message        TEXT NOT NULL,
+  type           TEXT NOT NULL DEFAULT 'system' CHECK (type IN ('incident', 'quiz', 'reward', 'audit', 'system', 'license')),
+  is_read        BOOLEAN NOT NULL DEFAULT false,
+  metadata       JSONB DEFAULT '{}'::jsonb,
+  created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_app_notif_recipient ON app_notifications(recipient_role, recipient_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_app_notif_created ON app_notifications(created_at DESC);
+
+-- Row Level Security
+ALTER TABLE app_notifications ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all access to app_notifications" ON app_notifications;
+CREATE POLICY "Allow all access to app_notifications" ON app_notifications FOR ALL USING (true) WITH CHECK (true);
+
+

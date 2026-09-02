@@ -1719,7 +1719,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
       {/* ─── TAB: MANAJEMEN NOTIFIKASI ─── */}
       {activeTab === 'notifications' && (
         <React.Suspense fallback={<SkeletonLoader />}>
-          <AdminNotificationPanel />
+          <AdminNotificationPanel workers={workers} />
         </React.Suspense>
       )}
 
