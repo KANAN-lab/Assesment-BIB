@@ -158,14 +158,7 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
 
       setUploadStep('Menyimpan laporan insiden ke Supabase Database...');
 
-      if (!photoUrlData && photoFile) {
-        photoUrlData = await new Promise<string>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve(reader.result as string);
-          reader.onerror = () => resolve('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop&q=80');
-          reader.readAsDataURL(photoFile);
-        });
-      } else if (!photoUrlData) {
+      if (!photoUrlData) {
         photoUrlData = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop&q=80';
       }
 

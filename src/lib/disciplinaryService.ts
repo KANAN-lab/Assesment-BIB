@@ -6,6 +6,7 @@ import { SystemConfigService } from '../domain/SystemConfigService';
 import { DisciplinaryMatrixEngine } from '../domain/DisciplinaryMatrixEngine';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { safeLocalStorageSetItem } from './storageSanitizer';
 
 const STORAGE_KEY = 'gappy_disciplinary_actions_v2';
 const EVENT_UPDATED = 'gappy_disciplinary_updated';
@@ -72,12 +73,8 @@ export class DisciplinaryService {
   }
 
   private static save(items: DisciplinaryActionEntity[]): void {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(items));
-      window.dispatchEvent(new Event(EVENT_UPDATED));
-    } catch (e) {
-      console.error('[DisciplinaryService] Save error:', e);
-    }
+    safeLocalStorageSetItem(STORAGE_KEY, items);
+    window.dispatchEvent(new Event(EVENT_UPDATED));
   }
 
   public static getDefaultPointDeduction(level: ViolationLevel): number {

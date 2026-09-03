@@ -72,6 +72,7 @@ import {
 } from './lib/supabaseService';
 import { supabase } from './lib/supabaseClient';
 import { AtomicTransactionManager } from './lib/atomicService';
+import { cleanExistingLocalStorageQuota } from './lib/storageSanitizer';
 
 import { WorkerProfile, RewardItem, RewardHistory, AuditInput, LeaderboardEntry, ScoreHistoryEntry, TierType, Announcement, WorkerBadge, Badge, IncidentReport } from './types/assessment';
 import { RoleEntity } from './domain/RoleEntity';
@@ -119,6 +120,11 @@ export const App: React.FC = () => {
   // ── Competency Matrix Audit state ──
   const [matrixAuditWorker, setMatrixAuditWorker] = useState<WorkerProfile | null>(null);
   const [matrixInitialScores, setMatrixInitialScores] = useState<Record<string, number>>({});
+
+  // ── Auto-Clean Bloated Base64 Storage on Boot ──
+  useEffect(() => {
+    cleanExistingLocalStorageQuota();
+  }, []);
 
   // ── Strict RBAC Enforcement Effect ──
   useEffect(() => {

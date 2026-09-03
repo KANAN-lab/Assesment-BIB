@@ -42,6 +42,7 @@ import { fetchAllSopModules } from '../lib/sopService';
 import { supabase } from '../lib/supabaseClient';
 import { SopSlideshowModal } from './SopSlideshowModal';
 import { uploadFileToGoogleDrive } from '../lib/googleDriveService';
+import { safeLocalStorageSetItem, sanitizeDataForStorage } from '../lib/storageSanitizer';
 
 interface SopManagementPanelProps {
   currentAdminId?: string;
@@ -380,14 +381,9 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
       return;
     }
 
-    // 1. Tampilkan preview langsung di UI
-    const reader = new FileReader();
-    reader.onload = (loadEvt) => {
-      if (typeof loadEvt.target?.result === 'string') {
-        handleUpdateActiveSlide({ imageUrl: loadEvt.target.result });
-      }
-    };
-    reader.readAsDataURL(file);
+    // 1. Tampilkan preview instan di UI menggunakan Blob URL (0 byte storage overhead)
+    const blobPreviewUrl = URL.createObjectURL(file);
+    handleUpdateActiveSlide({ imageUrl: blobPreviewUrl });
 
     // 2. Unggah otomatis ke Google Drive di folder Administrator / Dokumen_SOP
     try {
@@ -404,6 +400,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
       }
     } catch (err) {
       console.warn('Gagal upload gambar SOP ke Google Drive:', err);
+      if (onToast) onToast('Gagal terhubung ke Google Drive. Menggunakan gambar default.');
     }
 
     e.target.value = '';
@@ -568,11 +565,15 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
     setFormError(null);
 
     try {
-      const newModuleRecord: any = {
-        id: `sop-${formCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`,
-        code: formCode.trim().toUpperCase(),
+      const newModuleId = `sop-${formCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`;
+      // Bersihkan slide dari string data:image/ Base64 raksasa sebelum persistensi
+      const sanitizedSlides = sanitizeDataForStorage(editingSlides);
+
+      const newModuleRecord = {
+        id: newModuleId,
+        code: formCode.toUpperCase().trim(),
         title: formTitle.trim(),
-        description: formDesc.trim() || 'Standar operasional prosedur resmi PT. DAYA ANUGRAH MULYA.',
+        description: formDesc.trim(),
         category: formCategory,
         difficulty: formDifficulty,
         presentation_format: formFormat,
@@ -581,7 +582,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
         estimated_minutes: formEstMinutes,
         points_reward: formPoints,
         badge_icon: formFormat === 'interactive_simulator' ? 'Smartphone' : formFormat === 'spot_the_mistake' ? 'ShieldAlert' : 'BookOpen',
-        slides_data: editingSlides,
+        slides_data: sanitizedSlides,
         is_mandatory: formIsMandatory,
         deadline_days: 14,
         version: 'v1.0',
@@ -595,7 +596,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
         console.warn('Supabase insert fallback to local custom cache:', error);
       }
 
-      // 2. Save locally
+      // 2. Save locally dengan aman tanpa resiko QuotaExceededError
       const localCustom = JSON.parse(localStorage.getItem('bib_sop_custom_modules_v2') || '[]');
       localCustom.push({
         ...newModuleRecord,
@@ -604,13 +605,13 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
         targetRoles: formTargetRoles,
         estimatedMinutes: formEstMinutes,
         pointsReward: formPoints,
-        slides: editingSlides,
+        slides: sanitizedSlides,
         isMandatory: formIsMandatory,
         isActive: true,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
-      localStorage.setItem('bib_sop_custom_modules_v2', JSON.stringify(localCustom));
+      safeLocalStorageSetItem('bib_sop_custom_modules_v2', localCustom);
 
       onToast?.(`Modul SOP ${formCode.toUpperCase()} (${editingSlides.length} Slide) berhasil diterbitkan!`);
       setIsCreateModalOpen(false);
@@ -631,7 +632,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
       await supabase.from('sop_modules').delete().eq('id', item.id);
       const localCustom = JSON.parse(localStorage.getItem('bib_sop_custom_modules_v2') || '[]');
       const filtered = localCustom.filter((m: any) => m.id !== item.id);
-      localStorage.setItem('bib_sop_custom_modules_v2', JSON.stringify(filtered));
+      safeLocalStorageSetItem('bib_sop_custom_modules_v2', filtered);
 
       setModules((prev) => prev.filter((m) => m.id !== item.id));
       onToast?.(`Modul ${item.code} berhasil dihapus.`);

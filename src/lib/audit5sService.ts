@@ -13,6 +13,7 @@ import { SystemConfigService } from '../domain/SystemConfigService';
 import { Audit5sEngine } from '../domain/Audit5sEngine';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { safeLocalStorageSetItem } from './storageSanitizer';
 
 const ZONES_STORAGE_KEY = 'gappy_5s_zones_v2';
 const RECORDS_STORAGE_KEY = 'gappy_5s_audit_records_v2';
@@ -65,12 +66,8 @@ export class Audit5sService {
   }
 
   private static saveZones(zones: WarehouseZone5s[]): void {
-    try {
-      localStorage.setItem(ZONES_STORAGE_KEY, JSON.stringify(zones));
-      window.dispatchEvent(new Event(EVENT_UPDATED));
-    } catch (e) {
-      console.error('[Audit5sService] Error saving zones:', e);
-    }
+    safeLocalStorageSetItem(ZONES_STORAGE_KEY, zones);
+    window.dispatchEvent(new Event(EVENT_UPDATED));
   }
 
   public static addZone(zone: Omit<WarehouseZone5s, 'id' | 'isActive'>): WarehouseZone5s {
@@ -115,12 +112,8 @@ export class Audit5sService {
   }
 
   private static saveRecords(records: Audit5sRecord[]): void {
-    try {
-      localStorage.setItem(RECORDS_STORAGE_KEY, JSON.stringify(records));
-      window.dispatchEvent(new Event(EVENT_UPDATED));
-    } catch (e) {
-      console.error('[Audit5sService] Error saving records:', e);
-    }
+    safeLocalStorageSetItem(RECORDS_STORAGE_KEY, records);
+    window.dispatchEvent(new Event(EVENT_UPDATED));
   }
 
   public static calculateRating(score: number): { rating: Rating5s; points: number; status: Audit5sRecord['status'] } {

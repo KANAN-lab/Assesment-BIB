@@ -730,9 +730,7 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
                       const file = e.target.files?.[0];
                       if (!file) return;
                       setBeforePhotoFile(file);
-                      const reader = new FileReader();
-                      reader.onload = () => setBeforePhotoUrl(reader.result as string);
-                      reader.readAsDataURL(file);
+                      setBeforePhotoUrl(URL.createObjectURL(file));
                     }}
                   />
                 </label>
@@ -796,9 +794,7 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
                       const file = e.target.files?.[0];
                       if (!file) return;
                       setAfterPhotoFile(file);
-                      const reader = new FileReader();
-                      reader.onload = () => setAfterPhotoUrl(reader.result as string);
-                      reader.readAsDataURL(file);
+                      setAfterPhotoUrl(URL.createObjectURL(file));
                     }}
                   />
                 </label>

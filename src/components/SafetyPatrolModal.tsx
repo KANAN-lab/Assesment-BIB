@@ -62,11 +62,7 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
     }
 
     setPhotoFile(file);
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPhotoPreview(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+    setPhotoPreview(URL.createObjectURL(file));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -91,7 +87,7 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
         assignedPicId,
       });
 
-      let finalPhotoUrl = photoPreview;
+      let finalPhotoUrl: string | null = null;
 
       // Unggah foto temuan patroli K3 ke Google Drive folder user/supervisor
       if (photoFile) {
@@ -100,8 +96,8 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
           workerName: currentSupervisorName,
           moduleCategory: 'Safety_Patrol',
         });
-        if (uploadRes.directUrl) {
-          finalPhotoUrl = uploadRes.directUrl;
+        if (uploadRes.directUrl || uploadRes.webViewLink) {
+          finalPhotoUrl = uploadRes.directUrl || uploadRes.webViewLink || null;
         }
       }
 

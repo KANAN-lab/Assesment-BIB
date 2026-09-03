@@ -129,7 +129,7 @@ export function KaizenSubmissionModal({
         currentCondition,
         proposedSolution,
         expectedImpact: expectedImpact.trim() || undefined,
-        photoBeforeUrl: uploadedPhotoUrl || photoPreview || undefined,
+        photoBeforeUrl: uploadedPhotoUrl || undefined,
       };
 
       const res = await KaizenService.submitSuggestion(currentWorkerId, input, idemp);
@@ -324,9 +324,7 @@ export function KaizenSubmissionModal({
                       const file = e.target.files?.[0];
                       if (!file) return;
                       setPhotoFile(file);
-                      const reader = new FileReader();
-                      reader.onload = () => setPhotoPreview(reader.result as string);
-                      reader.readAsDataURL(file);
+                      setPhotoPreview(URL.createObjectURL(file));
                     }}
                   />
                 </label>

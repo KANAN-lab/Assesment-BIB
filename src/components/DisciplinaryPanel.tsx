@@ -765,9 +765,7 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
                       const file = e.target.files?.[0];
                       if (!file) return;
                       setEvidencePhotoFile(file);
-                      const reader = new FileReader();
-                      reader.onload = () => setEvidencePhotoUrl(reader.result as string);
-                      reader.readAsDataURL(file);
+                      setEvidencePhotoUrl(URL.createObjectURL(file));
                     }}
                   />
                 </label>
