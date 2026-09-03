@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { HandoverManager } from '../lib/handoverService';
 import { ShiftHandoverEntity, HandoverStatus, HandoverCategory } from '../types/handover';
+import { ShiftHandoverManager } from '../domain/ShiftHandoverManager';
 
 export function HandoverKanbanBoard() {
   const [handovers, setHandovers] = useState<ShiftHandoverEntity[]>([]);
@@ -29,12 +30,12 @@ export function HandoverKanbanBoard() {
   const [showArchived, setShowArchived] = useState(false); // false = 24h filter for 'Selesai'
 
   const fetchHandovers = async () => {
-    setLoading(true);
     try {
+      setLoading(true);
       const data = await HandoverManager.getHandoverHistory(100);
       setHandovers(data);
     } catch (err) {
-      console.error('Failed to fetch handovers', err);
+      console.error('Failed to load handovers', err);
     } finally {
       setLoading(false);
     }
@@ -44,25 +45,9 @@ export function HandoverKanbanBoard() {
     fetchHandovers();
   }, []);
 
-  // Filter out 'Selesai' older than 24 hours unless showArchived is true
-  const { visibleHandovers, archivedCount } = useMemo(() => {
-    const now = Date.now();
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-
-    let archived = 0;
-    const visible = handovers.filter((item) => {
-      if (item.status === 'Selesai') {
-        const itemTime = new Date(item.created_at).getTime();
-        const isOlderThan24h = now - itemTime > TWENTY_FOUR_HOURS;
-        if (isOlderThan24h) {
-          archived++;
-          return showArchived;
-        }
-      }
-      return true;
-    });
-
-    return { visibleHandovers: visible, archivedCount: archived };
+  // Filter out 'Selesai' older than 24 hours unless showArchived is true (delegated to ShiftHandoverManager)
+  const { visible: visibleHandovers, archivedCount } = useMemo(() => {
+    return ShiftHandoverManager.partitionActiveAndArchived(handovers, showArchived);
   }, [handovers, showArchived]);
 
   // Handle Drag and Drop for Desktop
@@ -83,6 +68,12 @@ export function HandoverKanbanBoard() {
 
   // Direct Status Update (Mobile buttons + Drop fallback)
   const updateStatus = async (id: string, newStatus: HandoverStatus) => {
+    const current = handovers.find((h) => h.id === id);
+    if (current && !ShiftHandoverManager.canTransition(current.status, newStatus)) {
+      console.warn(`[ShiftHandoverManager] Transisi ilegal dari ${current.status} ke ${newStatus}`);
+      return;
+    }
+
     // Optimistic update
     setHandovers((prev) =>
       prev.map((h) => (h.id === id ? { ...h, status: newStatus } : h))
@@ -235,8 +226,8 @@ export function HandoverKanbanBoard() {
     );
   };
 
-  const getStatusItems = (status: HandoverStatus) => {
-    return visibleHandovers.filter((h) => h.status === status);
+  const getStatusItems = (status: HandoverStatus): ShiftHandoverEntity[] => {
+    return visibleHandovers.filter((h: ShiftHandoverEntity) => h.status === status);
   };
 
   const columns: { title: string; status: HandoverStatus; icon: React.ReactNode; colorClass: string; badgeClass: string }[] = [
@@ -363,7 +354,7 @@ export function HandoverKanbanBoard() {
 
               {/* Cards Container with smooth scrolling */}
               <div className="p-3 flex-1 overflow-y-auto space-y-3 custom-scrollbar">
-                {items.map((item) => renderCard(item))}
+                {items.map((item: ShiftHandoverEntity) => renderCard(item))}
 
                 {items.length === 0 && (
                   <div className="h-full flex flex-col items-center justify-center text-zinc-600 space-y-2 py-12 opacity-60">

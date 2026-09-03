@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { KudoEntity, KudoCategory } from '../types/kudos';
+import { SystemConfigService } from '../domain/SystemConfigService';
 
 export class KudoService {
   /**
@@ -12,11 +13,13 @@ export class KudoService {
     message: string = ''
   ): Promise<{ success: boolean; message: string }> {
     try {
+      const rewardPoints = SystemConfigService.getConfig().kudoReceivedPoints;
       const { data, error } = await supabase.rpc('rpc_send_kudo', {
         p_sender_id: senderId,
         p_receiver_id: receiverId,
         p_category: category,
-        p_message: message
+        p_message: message,
+        p_points: rewardPoints,
       });
 
       if (error) {

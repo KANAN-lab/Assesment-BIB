@@ -270,6 +270,88 @@
 - [x] **🪪 Operasional Lapangan (Quick QR Badge Scanner SIO MHE)**: Komponen `src/components/QrBadgeScannerModal.tsx` dengan live camera HUD scanner dan shortcut verifikasi lisensi forklift/reach truck di `SupervisorConsole.tsx`.
 - [x] **🔒 Integritas Data (Idempotency Key & Optimistic Point Claiming)**: Token unik `workerId_sopId_dateKey` dan optimistic locking di `sopService.ts` & `SopSlideshowModal.tsx` untuk mencegah duplikasi saldo poin pekerja.
 
+---
+
+## Phase 21: Enterprise System Enhancements & Operational Protocol (v3.7)
+
+- [x] **🪪 Kartu ID Digital & QR Badge Lisensi SIO Mandiri (`src/components/WorkerDigitalIdModal.tsx`)**:
+  - Generator QR Code SVG 21x21 deterministik berbasis NIP/EmployeeId yang kompatibel dengan pemindai QR kamera.
+  - Verifikasi legalitas lisensi SIO MHE terintegrasi (`LicenseService.getLicenseByWorkerId`), status verifikasi pre-shift checklist K3 hari ini, level Tier BIB & Poin reward.
+  - Tombol akses *"Kartu ID & SIO Digital"* di bar profil worker `src/App.tsx` dan fitur cetak ID Card (`window.print()`).
+- [x] **⚡ Otomatisasi Penugasan Re-Training K3 dari Gap Analysis (`src/domain/TrainingAssignmentService.ts` & `src/components/CompetencyGapAnalysisModal.tsx`)**:
+  - Deteksi gap kompetensi $\ge 25\%$ memicu tombol operasional *"Tugaskan Re-Training"*.
+  - Modal konfirmasi penugasan ke seluruh personel divisi terdampak dengan batas waktu penyelesaian 7 hari.
+  - Pengiriman notifikasi penugasan kepatuhan prioritas tinggi via `NotificationEngine` dan pencatatan audit trail ke `activity_log`.
+- [x] **📄 Ekspor Berita Acara Insiden K3 Resmi / Formulir BAP PDF (`src/lib/pdfReportService.ts`)**:
+  - Implementasi method resmi `ExecutivePDFReportGenerator.exportOfficialBapIncidentPDF` format standar BAP kecelakaan kerja PT DAM Indonesia.
+  - Struktur dokumen A4 komprehensif: Kop HSE resmi, nomor registrasi BAP unik, Bagian I (Identitas Pelapor & Rincian Insiden), Bagian II (Kronologi & Analisis 5-Why Root Cause), Bagian III (Matriks CAPA, PIC & Due Date), serta Bagian IV (Lembar Tanda Tangan 3 Pihak: Pelapor, Saksi Lapangan, dan Supervisor HSE).
+  - Terhubung langsung ke tombol *"Cetak BAP Resmi K3 (PDF)"* di `src/components/SupervisorIncidentValidationModal.tsx`.
+- [x] **🔄 Protokol Mutasi Role dengan Isolasi Nilai Audit Clean Slate (`src/domain/RoleMutationManager.ts` & `src/components/AdminConsole.tsx`)**:
+  - Kolom `archived_competency_scores JSONB` pada tabel `worker_role_mutations` di `supabase_setup.sql`.
+  - Eksekusi mutasi role secara atomic: snapshot seluruh 54-item nilai audit aktif, update role/divisi, dan reset bersih (*Clean Slate*) skor aktif di `worker_competency_scores` agar batasan MaxScore role lama tidak mencemari penilaian role baru.
+  - Notifikasi transisi role otomatis ke dashboard worker dan pencatatan audit ke `activity_log`.
+- [x] **🎯 Aksi Langsung Hasil Scan QR Scanner ke Audit Supervisor (`src/components/SupervisorConsole.tsx` & `src/components/QrBadgeScannerModal.tsx`)**:
+  - Penambahan tombol aksi *"Pilih Pekerja"* (memilih profil staf di tab tim) dan *"Mulai Audit Matriks"* (langsung beralih ke tab tim dan meluncurkan modal `CompetencyAuditModal` 54 item untuk pekerja hasil scan).
+  - Eliminasi kebutuhan pencarian manual di dropdown supervisor.
+- [x] **📶 Indikator Status Jaringan Visual Online/Offline Mode (`src/components/NetworkStatusBadge.tsx` & `src/components/Navbar.tsx`)**:
+  - Real-time network detector mendeteksi event `online` dan `offline`.
+  - Status pill interaktif di Navbar (`🟢 Online` / `🟠 Offline Cache` + jumlah antrean sinkronisasi background SOP).
+  - Pemicu auto-sync otomatis (`flushOfflineSopCompletions`) saat perangkat staf kembali terhubung ke jaringan internet.
+
+---
+
+## Phase 22: UI/UX Redesign & Anti-Redundancy Layout Overhaul (v3.8)
+
+- [x] **🧹 Eliminasi Teks Repetitif & Redundansi (`src/components/Navbar.tsx` & `src/App.tsx`)**:
+  - [x] Navbar: Hilangkan duplikasi teks nama & role ganda (misal `System Administrator` atas-bawah dialihkan ke format NIP · Divisi jika nama sama dengan role).
+  - [x] Profil Banner: Cegah pengulangan nama pada NIP/Role subtext jika nama pengguna sama dengan role (`NIP: {employeeId} · Divisi: {division}`).
+- [x] **📐 Redesain Layout Kartu Profil & KPI Metrik (`src/App.tsx`)**:
+  - [x] Desktop: Pisahkan baris atas menjadi dua zona harmonis: Identitas Pekerja di kiri & Strip Metrik Vital (Streak, Poin, Skor BIB) horizontal yang lega di kanan.
+  - [x] Mobile: Desain compact card yang menghemat ruang vertikal hingga 40% agar konten operasional di bawahnya langsung terlihat *above the fold*.
+- [x] **🎛️ Restrukturisasi & Hirarki 8 Tombol Aksi Lapangan (`src/App.tsx`)**:
+  - [x] Hilangkan efek "pelangi warna-warni kontras tinggi" menjadi gaya enterprise modern berbasis zinc & semantic accents.
+  - [x] Symmetrical clean 8-button command hub (Kuis, Pre-Shift, SOP, Insiden, Kudo, Serah Terima, Kaizen, Riwayat) dengan visual status completion badges.
+- [x] **🔍 Penyisiran & Perbaikan Layout Menu-Menu Lain**:
+  - [x] Papan Serah Terima Shift & Kanban Board (`src/components/HandoverKanbanBoard.tsx`): responsif dengan mobile tab switcher & desktop 3-kolom.
+  - [x] Navigasi dan panel Supervisor Console (`src/components/SupervisorConsole.tsx`): 3-kolom grup tab di desktop dan horizontal pill tab bar di mobile.
+  - [x] Navigasi dan panel Admin Console (`src/components/AdminConsole.tsx`): 4-kolom suite bar di desktop dan horizontal scrollable tab bar di mobile.
+
+---
+
+## Phase 23: Eliminasi Hardcoded Values & Integrasi Dynamic Points (v3.9)
+
+- [x] **⚡ Dynamic Pre-Shift Checklist Points**: Hubungkan `src/App.tsx` (`handleCompleteChecklist` basePoints & tombol hero banner) ke `SystemConfigService.getConfig().preShiftRewardPoints`.
+- [x] **🎯 Dynamic Daily Safety Quiz Points**: Jadikan label tombol kuis dan fallback points pada AI generator dinamis menggunakan `config.dailyQuizRewardPoints`.
+- [x] **🚨 Dynamic Incident & Near-Miss Points**: Hubungkan validasi insiden di `src/lib/supabaseService.ts` dan `SupervisorIncidentValidationModal.tsx` ke `config.incidentValidRewardPoints` (50 PTS) dan `config.nearMissRewardPoints` (75 PTS).
+- [x] **🤝 Dynamic Kudo Appreciation Points**: Operkan parameter `p_points: config.kudoReceivedPoints` pada `KudoService.sendKudo` di `src/lib/kudoService.ts`.
+- [x] **📈 Dynamic Weekly Target Formula**: Hitung target mingguan `PerformanceSummaryCard.tsx` secara otomatis via `(config.dailyQuizRewardPoints + config.preShiftRewardPoints) * 7`.
+- [x] **💡 Dynamic Kaizen Reward Tier Options**: Hubungkan pilihan reward poin review pada `KaizenKanbanBoard.tsx` ke nilai konfigurasi `SystemConfigService`.
+- [x] **⚖️ Dynamic Disciplinary Penalty Points**: Sinkronkan penalti sanksi SP1/SP2/SP3/Skorsing di `src/lib/disciplinaryService.ts` dengan nilai konfigurasi dinamis.
+- [x] **🏆 Dynamic 5S / 5R Rating Rewards**: Hubungkan alokasi poin predikat Gold/Silver/Bronze di `src/lib/audit5sService.ts` ke `SystemConfigService`.
+- [x] **🚜 Eksekusi Reward Poin SIO MHE**: Tambahkan penambahan saldo poin pekerja otomatis saat registrasi SIO (+100 PTS) dan perpanjangan SIO (+150 PTS) di `src/lib/licenseService.ts`.
+
+---
+
+## Phase 24: Enterprise OOP Domain Architecture Refactoring (DDD & State Machine) (v4.0)
+
+- [x] **🛡️ `IncidentManager` & `IncidentEntity` (`src/domain/IncidentManager.ts` & `src/domain/IncidentEntity.ts`)**:
+  - Enkapsulasi status machine siklus hidup insiden (`open` $\to$ `investigating` $\to$ `resolved` $\to$ `closed`).
+  - Enkapsulasi kalkulasi reward pelapor (Near-Miss vs Regular Incident) dan validasi kelengkapan CAPA.
+- [x] **🚜 `MheLicenseEntity` (`src/domain/MheLicenseEntity.ts`)**:
+  - Enkapsulasi method `isEligibleToOperate()`, `getDaysRemaining()`, dan `getStatus()`.
+  - Sentralisasi aturan kedaluwarsa H-30 hari dan hak operasional alat berat.
+- [x] **🔄 `ShiftHandoverManager` (`src/domain/ShiftHandoverManager.ts`)**:
+  - Enkapsulasi state machine serah terima shift (`Tertunda` $\leftrightarrow$ `Proses` $\leftrightarrow$ `Selesai`).
+  - Enkapsulasi aturan auto-archive 24 jam dan validasi acknowledgement.
+- [x] **⚖️ `DisciplinaryMatrixEngine` (`src/domain/DisciplinaryMatrixEngine.ts`)**:
+  - Enkapsulasi matriks eskalasi progresif sanksi K3 (Pembinaan Lisan $\to$ SP1 $\to$ SP2 $\to$ SP3 $\to$ Skorsing) berdasarkan riwayat aktif 6 bulan.
+- [x] **🧹 `Audit5sEngine` (`src/domain/Audit5sEngine.ts`)**:
+  - Enkapsulasi perhitungan skor 5 pilar (Ringkas, Rapi, Resik, Rawat, Rajin) dan penentuan predikat mutu Gold/Silver/Bronze.
+
+
+
+
+
 
 
 

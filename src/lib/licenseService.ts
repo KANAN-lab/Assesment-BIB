@@ -1,30 +1,17 @@
 import { MheLicenseEntity, LicenseType, LicenseStatus, LicenseStats } from '../types/license';
+import { MheLicenseEntity as MheLicenseDomain } from '../domain/MheLicenseEntity';
 import { NotificationEngine } from '../domain/NotificationEngine';
+import { SystemConfigService } from '../domain/SystemConfigService';
+import { supabase } from './supabaseClient';
 
 export class LicenseService {
   private static STORAGE_KEY = 'gappy_mhe_licenses_v2';
 
   /**
-   * Calculate status and days remaining based on expiry date
+   * Calculate status and days remaining based on expiry date (delegated to MheLicenseEntity domain class)
    */
   public static calculateStatusAndDays(expiryDateStr: string): { status: LicenseStatus; daysRemaining: number } {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const expiry = new Date(expiryDateStr);
-    expiry.setHours(0, 0, 0, 0);
-
-    const diffTime = expiry.getTime() - today.getTime();
-    const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-
-    let status: LicenseStatus = 'active';
-    if (daysRemaining < 0) {
-      status = 'expired';
-    } else if (daysRemaining <= 30) {
-      status = 'expiring_soon';
-    }
-
-    return { status, daysRemaining };
+    return MheLicenseDomain.calculateStatusAndDays(expiryDateStr);
   }
 
   /**
@@ -58,6 +45,15 @@ export class LicenseService {
     } catch {
       return [];
     }
+  }
+
+  /**
+   * Get active license for a specific worker
+   */
+  public static getLicenseByWorkerId(workerId: string): MheLicenseEntity | undefined {
+    return this.getAllLicenses().find(
+      (l) => l.workerId === workerId || l.workerId?.toLowerCase() === workerId.toLowerCase()
+    );
   }
 
   /**
@@ -102,13 +98,23 @@ export class LicenseService {
     const updated = [newLicense, ...list];
     this.saveAll(updated);
 
-    // Dispatch Notification to Worker
+    // Dispatch Notification & Points to Worker
     if (data.workerId) {
+      const regReward = SystemConfigService.getConfig().sioRegisteredRewardPoints;
+
+      // Increment worker points asynchronously
+      Promise.resolve(
+        supabase.rpc('increment_worker_points', {
+          p_worker_id: data.workerId,
+          p_points: regReward,
+        })
+      ).catch((e: any) => console.warn('[LicenseService] RPC increment_worker_points fallback:', e));
+
       NotificationEngine.addNotification({
         recipientId: data.workerId,
         recipientRole: 'worker',
-        title: '🚜 Lisensi SIO Terdaftar Resmi',
-        message: `Lisensi ${data.licenseType} (${data.licenseNumber}) Anda telah aktif dan terdaftar. Masa berlaku s/d ${data.expiryDate}.`,
+        title: `🚜 Lisensi SIO Terdaftar Resmi (+${regReward} PTS)`,
+        message: `Lisensi ${data.licenseType} (${data.licenseNumber}) Anda telah aktif dan terdaftar. Reward +${regReward} PTS telah ditambahkan ke akun Anda. Masa berlaku s/d ${data.expiryDate}.`,
         type: 'license',
         metadata: { licenseId: newLicense.id, licenseNumber: data.licenseNumber },
       });
@@ -153,13 +159,23 @@ export class LicenseService {
     list[index] = updatedLicense;
     this.saveAll(list);
 
-    // Dispatch Renewal Notification to Worker & Supervisor
+    // Dispatch Renewal Notification & Points to Worker & Supervisor
     if (updatedLicense.workerId) {
+      const renewReward = SystemConfigService.getConfig().sioRenewedRewardPoints;
+
+      // Increment worker points asynchronously
+      Promise.resolve(
+        supabase.rpc('increment_worker_points', {
+          p_worker_id: updatedLicense.workerId,
+          p_points: renewReward,
+        })
+      ).catch((e: any) => console.warn('[LicenseService] RPC increment_worker_points fallback:', e));
+
       NotificationEngine.addNotification({
         recipientId: updatedLicense.workerId,
         recipientRole: 'worker',
-        title: '🔄 Pembaruan Masa Berlaku SIO',
-        message: `Masa berlaku lisensi ${updatedLicense.licenseType} (${updatedLicense.licenseNumber}) Anda telah diperbarui hingga ${newExpiry}.`,
+        title: `🔄 Pembaruan Masa Berlaku SIO (+${renewReward} PTS)`,
+        message: `Masa berlaku lisensi ${updatedLicense.licenseType} (${updatedLicense.licenseNumber}) Anda telah diperbarui hingga ${newExpiry}. Reward +${renewReward} PTS telah dicairkan ke profil Anda.`,
         type: 'license',
         metadata: { licenseId: updatedLicense.id },
       });

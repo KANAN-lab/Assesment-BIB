@@ -23,6 +23,7 @@ const ACTION_CONFIG: Record<ActivityAction, { icon: React.ReactNode; label: stri
   sop_completed:        { icon: <BookMarked className="w-3.5 h-3.5" />,  label: 'SOP Selesai',      color: 'text-purple-400 bg-purple-500/10' },
   kaizen_submitted:     { icon: <Activity className="w-3.5 h-3.5" />,    label: 'Submit Kaizen',    color: 'text-amber-400 bg-amber-500/10' },
   kaizen_approved:      { icon: <CheckCircle2 className="w-3.5 h-3.5" />,label: 'Kaizen Disetujui', color: 'text-emerald-400 bg-emerald-500/10' },
+  role_mutated:         { icon: <ArrowRightLeft className="w-3.5 h-3.5" />, label: 'Mutasi Role',      color: 'text-cyan-400 bg-cyan-500/10' },
 };
 
 function formatTimeAgo(iso: string): string {

@@ -619,8 +619,11 @@ CREATE TABLE IF NOT EXISTS worker_role_mutations (
   archived_bib_total     NUMERIC(5,2) DEFAULT 0,
   mutated_at             TIMESTAMPTZ NOT NULL DEFAULT now(),
   mutated_by             TEXT DEFAULT 'System Admin',
-  reason                 TEXT DEFAULT 'Mutasi Role & Divisi Operasional'
+  reason                 TEXT DEFAULT 'Mutasi Role & Divisi Operasional',
+  archived_competency_scores JSONB DEFAULT '{}'::jsonb
 );
+
+ALTER TABLE worker_role_mutations ADD COLUMN IF NOT EXISTS archived_competency_scores JSONB DEFAULT '{}'::jsonb;
 
 CREATE INDEX IF NOT EXISTS idx_worker_role_mutations_worker ON worker_role_mutations(worker_id, mutated_at DESC);
 

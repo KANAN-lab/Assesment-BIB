@@ -750,7 +750,7 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
                     {val.label}
                   </span>
                   <span className="text-xs font-mono font-black text-rose-400">
-                    -{val.defaultPoints} PTS
+                    -{DisciplinaryService.getDefaultPointDeduction(key as ViolationLevel)} PTS
                   </span>
                 </div>
 

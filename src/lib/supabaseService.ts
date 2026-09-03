@@ -3,6 +3,7 @@ import { WorkerEntity } from '../domain/WorkerEntity';
 import { NotificationEngine } from '../domain/NotificationEngine';
 import { RewardEntity } from '../domain/RewardEntity';
 import { RoleEntity } from '../domain/RoleEntity';
+import { SystemConfigService } from '../domain/SystemConfigService';
 import type {
   WorkerProfile,
   LeaderboardEntry,
@@ -1485,7 +1486,7 @@ export async function updateIncidentCapaAndStatus(
   // 1. Ambil data insiden untuk cek worker_id & status points_awarded
   const { data: incidentRow } = await supabase
     .from('incident_reports')
-    .select('worker_id, points_awarded, status')
+    .select('worker_id, points_awarded, status, incident_type')
     .eq('id', id)
     .maybeSingle();
 
@@ -1520,16 +1521,21 @@ export async function updateIncidentCapaAndStatus(
 
   let finalNewPoints = 0;
 
-  // 3. Tambahkan +50 PTS ke akun worker pelapor
+  // 3. Tambahkan poin reward ke akun worker pelapor berdasarkan konfigurasi sistem dinamis
   if (pointsAwarded && targetWorkerId) {
     try {
-      console.log(`⚡ [GappyIncidentService] Memproses penambahan +50 PTS untuk Worker ID/NIP: ${targetWorkerId}`);
+      const cfg = SystemConfigService.getConfig();
+      const pointsToAward = (incidentRow?.incident_type === 'near_miss' || (incidentRow as any)?.type === 'near_miss')
+        ? cfg.nearMissRewardPoints
+        : cfg.incidentValidRewardPoints;
+
+      console.log(`⚡ [GappyIncidentService] Memproses penambahan +${pointsToAward} PTS untuk Worker ID/NIP: ${targetWorkerId}`);
 
       // a. Coba panggil RPC increment_worker_points
       try {
         await supabase.rpc('increment_worker_points', {
           p_worker_id: targetWorkerId,
-          p_points: 50,
+          p_points: pointsToAward,
         });
       } catch (err: any) {
         console.warn('RPC increment_worker_points fallback:', err?.message);
@@ -1556,7 +1562,7 @@ export async function updateIncidentCapaAndStatus(
 
       if (worker) {
         const currentPts = Number(worker.total_points || 0);
-        const newTotalPoints = currentPts + 50;
+        const newTotalPoints = currentPts + pointsToAward;
         finalNewPoints = newTotalPoints;
         const newTier = WorkerEntity.calculateTier(newTotalPoints);
 

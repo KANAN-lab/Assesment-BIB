@@ -999,7 +999,17 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
           isOpen={isQrScannerOpen}
           onClose={() => setIsQrScannerOpen(false)}
           workers={operationalWorkers}
-          onSelectWorkerForAudit={(w) => onOpenMatrixAudit?.(w)}
+          onSelectWorkerOnly={(w) => {
+            setSelectedWorkerId(w.id);
+            setActiveTab('team');
+            setIsQrScannerOpen(false);
+          }}
+          onSelectWorkerForAudit={(w) => {
+            setSelectedWorkerId(w.id);
+            setActiveTab('team');
+            setIsQrScannerOpen(false);
+            onOpenMatrixAudit?.(w);
+          }}
         />
       </React.Suspense>
       </>)}

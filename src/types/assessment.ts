@@ -176,6 +176,7 @@ export interface IncidentReport {
   gdriveFolderId?: string;
   originalSizeKb?: number;
   compressedSizeKb?: number;
+  pointsAwarded?: boolean;
   rootCause?: string;
   correctiveAction?: string;
   assignedPic?: string;
@@ -197,7 +198,26 @@ export type ActivityAction =
   | 'shift_handover'
   | 'sop_completed'
   | 'kaizen_submitted'
-  | 'kaizen_approved';
+  | 'kaizen_approved'
+  | 'role_mutated';
+
+export interface WorkerRoleMutation {
+  id: string;
+  workerId: string;
+  workerName?: string;
+  previousRole: string;
+  previousDivision: string;
+  newRole: string;
+  newDivision: string;
+  archivedBibBehavior: number;
+  archivedBibIntegrity: number;
+  archivedBibBenchmark: number;
+  archivedBibTotal: number;
+  archivedCompetencyScores?: Record<string, number>;
+  mutatedAt: string;
+  mutatedBy: string;
+  reason: string;
+}
 
 export interface ActivityLog {
   id: string;

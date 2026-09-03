@@ -22,8 +22,9 @@ import {
   fetchIncidentReports, updateIncidentStatus, updateIncidentCapaAndStatus,
   fetchActivityLog, exportWorkersCSV, exportIncidentsCSV,
   fetchAllRedemptionHistory, fulfillRedemption, AdminRedemptionRecord,
-  batchImportWorkers, mutateWorkerRoleAndDivision
+  batchImportWorkers
 } from '../lib/supabaseService';
+import { RoleMutationManager } from '../domain/RoleMutationManager';
 import { SystemConfigService, FREQUENCY_OPTIONS } from '../domain/SystemConfigService';
 import { ExecutivePDFReportGenerator } from '../lib/pdfReportService';
 
@@ -270,15 +271,15 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
 
     setIsMutating(true);
     try {
-      const res = await mutateWorkerRoleAndDivision(
-        selectedMutationWorker.id,
-        targetMutatedRole,
-        targetMutatedDivision,
-        currentAdminId || 'System Admin',
-        mutationReason.trim() || 'Mutasi Role & Divisi Operasional'
-      );
+      const res = await RoleMutationManager.executeRoleMutation({
+        workerId: selectedMutationWorker.id,
+        newRole: targetMutatedRole,
+        newDivision: targetMutatedDivision,
+        mutatedBy: currentAdminId || 'System Admin',
+        reason: mutationReason.trim() || 'Mutasi Role & Divisi Operasional',
+      });
 
-      showToast(`Berhasil memindahkan ${selectedMutationWorker.name} dari ${res.previousRole} (${res.previousDivision}) ke ${targetMutatedRole} (${targetMutatedDivision})! Skor audit lama diarsipkan & di-reset bersih.`);
+      showToast(`Berhasil memindahkan ${selectedMutationWorker.name} dari ${res.previousRole} (${res.previousDivision}) ke ${targetMutatedRole} (${targetMutatedDivision})! ${res.archivedScoresCount} skor audit diarsipkan & di-reset bersih.`);
       setIsMutationModalOpen(false);
 
       setTimeout(() => {
@@ -714,8 +715,8 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
           </div>
         </div>
 
-        {/* Categorized Executive Tab Navigation Suite Bar */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+        {/* Desktop Categorized Executive Tab Navigation Suite Bar */}
+        <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
           {TAB_GROUPS.map((group, idx) => (
             <div key={idx} className="bg-zinc-950/70 p-2.5 rounded-xl border border-zinc-800/80 space-y-1.5">
               <div className="text-[9px] font-bold text-zinc-500 tracking-wider uppercase px-1">
@@ -759,6 +760,33 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
               </div>
             </div>
           ))}
+        </div>
+
+        {/* Mobile Horizontal Scrollable Tab Bar */}
+        <div className="md:hidden flex bg-zinc-950/90 border border-zinc-800 p-1.5 rounded-xl overflow-x-auto gap-1.5 custom-scrollbar">
+          {TAB_GROUPS.flatMap((g) => g.tabs).map((t) => {
+            const isActive = activeTab === t.key;
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.key}
+                onClick={() => { setActiveTab(t.key); setCurrentPage(1); }}
+                className={`py-1.5 px-3 rounded-lg text-xs font-bold transition shrink-0 flex items-center gap-1.5 ${
+                  isActive
+                    ? 'bg-purple-600 text-white shadow-sm'
+                    : 'text-zinc-400 hover:text-white bg-zinc-900/80 border border-zinc-800'
+                }`}
+              >
+                <Icon className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">{t.label}</span>
+                {t.badge !== undefined && (
+                  <span className={`text-[9px] px-1.5 py-0.2 rounded font-mono ${isActive ? 'bg-purple-800 text-purple-100' : 'bg-zinc-800 text-zinc-400'}`}>
+                    {t.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 

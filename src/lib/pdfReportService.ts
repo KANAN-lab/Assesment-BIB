@@ -530,36 +530,182 @@ export class ExecutivePDFReportGenerator {
     this.generateK3ZeroIncidentPDF(incidents, [], { supervisorName });
   }
 
-  public static exportIncidentReportPDF(incident: IncidentReport): void {
-    // Existing single incident PDF export
+  public static exportIncidentReportPDF(incident: IncidentReport, reporterWorker?: WorkerProfile, config: ReportSigningConfig = {}): void {
+    this.exportOfficialBapIncidentPDF(incident, reporterWorker, config);
+  }
+
+  /**
+   * Formulir Resmi Berita Acara Pemeriksaan (BAP) Kecelakaan Kerja & Insiden K3
+   * Standar Corporate PT DAM Indonesia (PRD §11.3 Fitur D)
+   */
+  public static exportOfficialBapIncidentPDF(
+    incident: IncidentReport,
+    reporterWorker?: WorkerProfile,
+    config: ReportSigningConfig = {}
+  ): void {
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
-    doc.setFillColor(194, 65, 12);
+    const docNumber = config.documentNumber || `BAP-K3/DAM/${new Date().getFullYear()}/${incident.id.slice(0, 8).toUpperCase()}`;
+    const supervisorName = config.supervisorName || 'Supervisor Operasional & HSE';
+    const managerName = config.managerName || 'Plant Operations & HSE Head';
+    const reporterName = reporterWorker?.name || incident.workerName || incident.workerId;
+    const reporterEmpId = reporterWorker?.employeeId || incident.workerId;
+    const reporterRole = reporterWorker?.role || 'Staff Operasional Gudang';
+    const reporterDiv = reporterWorker?.division || 'Divisi Logistik';
+
+    // ── Corporate Header Banner ──
+    doc.setFillColor(194, 65, 12); // Orange-700
     doc.rect(0, 0, pageWidth, 28, 'F');
+
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(13);
-    doc.text('BERITA ACARA & LAPORAN INSIDEN K3', 14, 12);
-    doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
+    doc.setFontSize(12.5);
+    doc.text('PT DAM INDONESIA — DEPARTEMEN HEALTH, SAFETY & ENVIRONMENT (HSE)', 14, 11);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
     doc.setTextColor(254, 215, 170);
-    doc.text('PT DAM INDONESIA — HSE DEPARTMENT', 14, 19);
+    doc.text('BERITA ACARA PEMERIKSAAN KECELAKAAN KERJA & INSIDEN K3 (FORMULIR BAP RESMI)', 14, 18);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text(`No. Dokumen: ${docNumber}  |  Tanggal Terbit: ${new Date().toLocaleDateString('id-ID')}  |  Status: ${incident.status.toUpperCase()}`, 14, 24);
+
+    // ── Metric Highlight Card ──
+    doc.setFillColor(254, 243, 199); // Amber-100
+    doc.setDrawColor(245, 158, 11); // Amber-500
+    doc.roundedRect(14, 33, pageWidth - 28, 16, 2, 2, 'FD');
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(120, 53, 15);
+    doc.text(`TINGKAT SEVERITY: ${incident.severity.toUpperCase()}`, 18, 40);
+    doc.text(`KATEGORI: ${incident.incidentType.replace('_', ' ').toUpperCase()}`, 75, 40);
+    doc.text(`LOKASI: ${incident.location}`, 135, 40);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(146, 64, 14);
+    const occurDate = new Date(incident.occurredAt).toLocaleString('id-ID');
+    doc.text(`Waktu Kejadian: ${occurDate}`, 18, 45.5);
+    doc.text(`Status Investigasi: ${incident.status.toUpperCase()}`, 75, 45.5);
+    doc.text(`Poin K3 Pelapor: +50 PTS (${incident.pointsAwarded ? 'Disetujui' : 'Dalam Proses'})`, 135, 45.5);
+
+    // ── Tabel 1: Identitas Pelapor & Rincian Insiden ──
+    const table1Head = [['BAGIAN I: IDENTITAS PELAPOR & DATA KEJADIAN', 'KETERANGAN']];
+    const table1Body = [
+      ['Nama Pelapor / Korban', reporterName],
+      ['Nomor Induk Pegawai (NIP)', reporterEmpId],
+      ['Peran & Posisi Operasional', reporterRole],
+      ['Divisi / Staging Area', reporterDiv],
+      ['Lokasi Spesifik Kejadian', incident.location],
+      ['Waktu & Tanggal Kejadian', occurDate],
+      ['Tingkat Keparahan (Severity)', incident.severity.toUpperCase()],
+      ['Status Penanganan', incident.status.toUpperCase()],
+    ];
 
     autoTable(doc, {
-      startY: 38,
-      head: [['Parameter', 'Detail']],
-      body: [
-        ['Pelapor', incident.workerName || incident.workerId],
-        ['Jenis Insiden', incident.incidentType],
-        ['Severity', incident.severity],
-        ['Lokasi', incident.location],
-        ['Waktu', incident.occurredAt],
-        ['Deskripsi', incident.description],
-        ['Akar Masalah', incident.rootCause || '-'],
-        ['Action Plan CAPA', incident.correctiveAction || '-'],
-      ],
+      startY: 53,
+      head: table1Head,
+      body: table1Body,
+      theme: 'grid',
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7.5, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 7.5, textColor: [30, 41, 59] },
+      columnStyles: { 0: { cellWidth: 65, fontStyle: 'bold' }, 1: { cellWidth: pageWidth - 28 - 65 } },
     });
 
-    doc.save(`Berita_Acara_Insiden_${incident.id.slice(0, 6)}.pdf`);
+    let currentY = (doc as any).lastAutoTable.finalY + 5;
+
+    // ── Tabel 2: Uraian Kronologis & Analisis Akar Masalah ──
+    const table2Head = [['BAGIAN II: URAIAN KRONOLOGIS & ANALISIS AKAR MASALAH (5-WHY)', 'RINCIAN HASIL INVESTIGASI']];
+    const table2Body = [
+      ['Kronologi Kejadian Lengkap', incident.description || 'Tidak ada uraian kronologi terlampir.'],
+      ['Analisis Akar Masalah (Root Cause)', incident.rootCause || 'Sedang diinvestigasi oleh Supervisor & Tim K3 Lapangan.'],
+      ['Bukti Dokumentasi Lapangan', incident.photoUrl ? 'Foto bukti telah diverifikasi dan tersimpan pada arsip cloud Google Drive resmi.' : 'Tidak ada foto bukti terlampir.'],
+    ];
+
+    autoTable(doc, {
+      startY: currentY,
+      head: table2Head,
+      body: table2Body,
+      theme: 'grid',
+      headStyles: { fillColor: [194, 65, 12], textColor: [255, 255, 255], fontSize: 7.5, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 7.5, textColor: [30, 41, 59] },
+      columnStyles: { 0: { cellWidth: 65, fontStyle: 'bold' }, 1: { cellWidth: pageWidth - 28 - 65 } },
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 5;
+
+    // ── Tabel 3: Matriks Tindakan Korektif & Pencegahan (CAPA) ──
+    const table3Head = [['BAGIAN III: RENCANA TINDAKAN KOREKTIF & PENCEGAHAN (CAPA)', 'DETAIL AKSI PENANGGULANGAN']];
+    const table3Body = [
+      ['Rencana Aksi Korektif (Corrective Action)', incident.correctiveAction || 'Pemberian instruksi kerja ulang dan perapihan area kerja.'],
+      ['Penanggung Jawab (Assigned PIC)', incident.assignedPic || 'Supervisor Lapangan & HSE'],
+      ['Target Penyelesaian (Due Date)', incident.dueDate ? new Date(incident.dueDate).toLocaleDateString('id-ID') : 'Dalam 3 Hari Kerja'],
+      ['Catatan Penyelesaian Insiden', incident.resolutionNote || 'Laporan telah divalidasi dan dicatat dalam audit trail K3 sistem.'],
+    ];
+
+    autoTable(doc, {
+      startY: currentY,
+      head: table3Head,
+      body: table3Body,
+      theme: 'grid',
+      headStyles: { fillColor: [15, 118, 110], textColor: [255, 255, 255], fontSize: 7.5, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 7.5, textColor: [30, 41, 59] },
+      columnStyles: { 0: { cellWidth: 65, fontStyle: 'bold' }, 1: { cellWidth: pageWidth - 28 - 65 } },
+    });
+
+    currentY = (doc as any).lastAutoTable.finalY + 12;
+
+    // ── Lembar Pengesahan Tanda Tangan 3 Pihak ──
+    const signY = Math.min(currentY, doc.internal.pageSize.getHeight() - 42);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(30, 41, 59);
+
+    // Left: Pelapor / Korban
+    doc.text('Pihak I: Pelapor / Saksi,', 18, signY);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text('Staf Operasional Pelapor', 18, signY + 4);
+    doc.line(18, signY + 18, 65, signY + 18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(reporterName, 18, signY + 22);
+
+    // Middle: Saksi Mata / PIC Lapangan
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('Pihak II: PIC Area Gudang,', 80, signY);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text('Penanggung Jawab Lokasi', 80, signY + 4);
+    doc.line(80, signY + 18, 127, signY + 18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(incident.assignedPic || 'PIC Area Gudang', 80, signY + 22);
+
+    // Right: Supervisor Operasional & HSE
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('Pihak III: Verifikator HSE,', 142, signY);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.text('Supervisor Operasional & HSE', 142, signY + 4);
+    doc.line(142, signY + 18, 192, signY + 18);
+    doc.setFont('helvetica', 'bold');
+    doc.text(supervisorName, 142, signY + 22);
+
+    // ── Security Footer ──
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      `Dokumen Resmi Berita Acara K3 PT DAM Indonesia — Terverifikasi Digital Melalui Sistem Gappy Assessment | Halaman 1 dari 1`,
+      pageWidth / 2,
+      doc.internal.pageSize.getHeight() - 6,
+      { align: 'center' }
+    );
+
+    doc.save(`BAP_Insiden_K3_${incident.id.slice(0, 8)}_${new Date().toISOString().slice(0, 10)}.pdf`);
   }
 }

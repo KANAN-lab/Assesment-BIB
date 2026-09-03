@@ -10,6 +10,7 @@ import {
 } from '../types/audit5s';
 import { NotificationEngine } from '../domain/NotificationEngine';
 import { SystemConfigService } from '../domain/SystemConfigService';
+import { Audit5sEngine } from '../domain/Audit5sEngine';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -123,17 +124,11 @@ export class Audit5sService {
   }
 
   public static calculateRating(score: number): { rating: Rating5s; points: number; status: Audit5sRecord['status'] } {
-    const config = SystemConfigService.getConfig();
-    if (score >= 90) {
-      return { rating: 'Gold', points: config.audit5sGoldRewardPoints, status: 'passed' };
-    }
-    if (score >= 80) {
-      return { rating: 'Silver', points: config.audit5sSilverRewardPoints, status: 'passed' };
-    }
-    if (score >= 70) {
-      return { rating: 'Bronze', points: config.audit5sBronzeRewardPoints, status: 'passed' };
-    }
-    return { rating: 'Perlu Perbaikan', points: 0, status: 'needs_improvement' };
+    return Audit5sEngine.evaluateRating(score);
+  }
+
+  public static getRatingRewardPoints(rating: Rating5s): number {
+    return Audit5sEngine.evaluateRating(rating === 'Gold' ? 95 : rating === 'Silver' ? 85 : rating === 'Bronze' ? 75 : 0).points;
   }
 
   public static submitAuditRecord(params: {
@@ -155,16 +150,8 @@ export class Audit5sService {
     const count = records.length + 1;
     const auditRefNumber = `5S/DAM/${new Date().getFullYear()}/${String(count).padStart(3, '0')}`;
 
-    // Average of 5 pillars
-    const totalScore = Math.round(
-      (params.scores.ringkas_seiri +
-        params.scores.rapi_seiton +
-        params.scores.resik_seiso +
-        params.scores.rawat_seiketsu +
-        params.scores.rajin_shitsuke) /
-        5
-    );
-
+    // Average of 5 pillars computed via OOP Domain Engine
+    const totalScore = Audit5sEngine.calculateCompositeScore(params.scores);
     const { rating, points, status } = this.calculateRating(totalScore);
 
     const newRecord: Audit5sRecord = {

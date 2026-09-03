@@ -12,6 +12,7 @@ interface QrBadgeScannerModalProps {
   onClose: () => void;
   workers: WorkerProfile[];
   onSelectWorkerForAudit?: (worker: WorkerProfile) => void;
+  onSelectWorkerOnly?: (worker: WorkerProfile) => void;
 }
 
 export const QrBadgeScannerModal: React.FC<QrBadgeScannerModalProps> = ({
@@ -19,6 +20,7 @@ export const QrBadgeScannerModal: React.FC<QrBadgeScannerModalProps> = ({
   onClose,
   workers,
   onSelectWorkerForAudit,
+  onSelectWorkerOnly,
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedWorker, setSelectedWorker] = useState<WorkerProfile | null>(null);
@@ -294,17 +296,29 @@ export const QrBadgeScannerModal: React.FC<QrBadgeScannerModalProps> = ({
               </div>
 
               {/* Action Buttons */}
-              <div className="pt-2 border-t border-zinc-800 flex items-center justify-end gap-2">
+              <div className="pt-3 border-t border-zinc-800 flex items-center justify-end gap-2 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectWorkerOnly?.(selectedWorker);
+                    onClose();
+                  }}
+                  className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 rounded-xl text-xs font-bold transition flex items-center gap-1.5 border border-zinc-700"
+                >
+                  <UserCheck className="w-3.5 h-3.5 text-zinc-400" />
+                  <span>Pilih Pekerja</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => {
                     onSelectWorkerForAudit?.(selectedWorker);
                     onClose();
                   }}
-                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-sm"
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-purple-950/50"
                 >
-                  <UserCheck className="w-3.5 h-3.5" />
-                  <span>Buka Lembar Audit Skor</span>
+                  <Award className="w-3.5 h-3.5" />
+                  <span>Mulai Audit Matriks</span>
                 </button>
               </div>
             </div>

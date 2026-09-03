@@ -30,6 +30,7 @@ const ShiftHandoverModal = React.lazy(() => import('./components/ShiftHandoverMo
 const AcknowledgeHandoverModal = React.lazy(() => import('./components/AcknowledgeHandoverModal').then(m => ({ default: m.AcknowledgeHandoverModal })));
 const KaizenSubmissionModal = React.lazy(() => import('./components/KaizenSubmissionModal').then(m => ({ default: m.KaizenSubmissionModal })));
 const WorkerHistoryCenterModal = React.lazy(() => import('./components/WorkerHistoryCenterModal').then(m => ({ default: m.WorkerHistoryCenterModal })));
+const WorkerDigitalIdModal = React.lazy(() => import('./components/WorkerDigitalIdModal').then(m => ({ default: m.WorkerDigitalIdModal })));
 import { ShiftHandoverEntity } from './types/handover';
 import { HandoverManager } from './lib/handoverService';
 
@@ -74,8 +75,9 @@ import { AtomicTransactionManager } from './lib/atomicService';
 import { WorkerProfile, RewardItem, RewardHistory, AuditInput, LeaderboardEntry, ScoreHistoryEntry, TierType, Announcement, WorkerBadge, Badge, IncidentReport } from './types/assessment';
 import { RoleEntity } from './domain/RoleEntity';
 import { WorkerEntity } from './domain/WorkerEntity';
+import { SystemConfigService } from './domain/SystemConfigService';
 
-import { Zap, ShieldCheck, Flame, Coins, Trophy, CheckCircle2, AlertCircle, Loader2, Camera, ShieldAlert, BookOpen, Award, Sparkles, Lightbulb, History } from 'lucide-react';
+import { Zap, ShieldCheck, Flame, Coins, Trophy, CheckCircle2, AlertCircle, Loader2, Camera, ShieldAlert, BookOpen, Award, Sparkles, Lightbulb, History, QrCode } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [activeView, setActiveView] = useState<'worker' | 'supervisor' | 'admin'>('worker');
@@ -101,6 +103,7 @@ export const App: React.FC = () => {
   const [showShiftHandoverModal, setShowShiftHandoverModal] = useState(false);
   const [showKaizenModal, setShowKaizenModal] = useState(false);
   const [showHistoryCenterModal, setShowHistoryCenterModal] = useState(false);
+  const [showDigitalIdModal, setShowDigitalIdModal] = useState(false);
   const [unacknowledgedHandovers, setUnacknowledgedHandovers] = useState<ShiftHandoverEntity[]>([]);
   const lastActiveRef = useRef<number>(Date.now());
 
@@ -477,7 +480,7 @@ export const App: React.FC = () => {
   const handleCompleteChecklist = async () => {
     if (!currentWorker || currentWorker.preShiftChecklistDone) return;
 
-    const basePoints = 30;
+    const basePoints = SystemConfigService.getConfig().preShiftRewardPoints;
     const oldWorker = { ...currentWorker };
     const newStreak = currentWorker.streakDays + 1;
     const bonusAwarded = WorkerEntity.calculateStreakBonusPoints(newStreak, basePoints);
@@ -770,170 +773,216 @@ export const App: React.FC = () => {
           <div className="space-y-6 animate-fade-in">
 
             {/* Worker Profile & Action Command Banner */}
-            <div className="card-elevated p-4 sm:p-5 lg:p-6 border border-zinc-800/90 bg-gradient-to-br from-zinc-900/90 via-zinc-950 to-zinc-900/70 shadow-2xl relative overflow-hidden">
-              {/* Ambient background accents */}
-              <div className="absolute top-0 right-0 -mr-20 -mt-20 w-72 h-72 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-72 h-72 bg-purple-500/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="card-elevated p-4 sm:p-5 lg:p-6 border border-zinc-800/90 bg-gradient-to-br from-zinc-900/95 via-zinc-950 to-zinc-900/80 shadow-2xl relative overflow-hidden">
+              {/* Subtle ambient accent */}
+              <div className="absolute top-0 right-0 -mr-24 -mt-24 w-80 h-80 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
 
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-center relative z-10">
-
-                {/* Left Column: Identity & Vital Stats (lg:col-span-5 xl:col-span-4) */}
-                <div className="lg:col-span-5 xl:col-span-4 flex flex-col justify-center space-y-3.5 pr-0 lg:pr-4 border-b lg:border-b-0 lg:border-r border-zinc-800/80 pb-4 lg:pb-0">
-                  <div className="flex items-center gap-3.5">
-                    <div
-                      className="relative shrink-0 group cursor-pointer"
-                      onClick={() => setShowProfilePicModal(true)}
-                      title="Klik untuk ganti foto profil"
-                    >
-                      <WorkerAvatar
-                        src={currentWorker.avatar}
-                        name={currentWorker.name}
-                        className="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl ring-2 ring-zinc-700/80 group-hover:ring-emerald-500 transition shadow-lg"
-                      />
-                      <div className="absolute inset-0 bg-black/50 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition backdrop-blur-xs">
-                        <Camera className="w-5 h-5 text-white" />
-                      </div>
-                      <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-amber-500 rounded-lg flex items-center justify-center shadow-md">
-                        <Trophy className="w-3 h-3 text-zinc-950" />
-                      </div>
+              {/* TOP ROW: Profile Identity (Left) + KPI Vital Stats Strip (Right) */}
+              <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 pb-4 border-b border-zinc-800/80 relative z-10">
+                {/* Identity Block */}
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div
+                    className="relative shrink-0 group cursor-pointer"
+                    onClick={() => setShowProfilePicModal(true)}
+                    title="Klik untuk ganti foto profil"
+                  >
+                    <WorkerAvatar
+                      src={currentWorker.avatar}
+                      name={currentWorker.name}
+                      className="w-13 h-13 sm:w-14 sm:h-14 rounded-2xl ring-2 ring-zinc-700/80 group-hover:ring-emerald-500 transition shadow-lg"
+                    />
+                    <div className="absolute inset-0 bg-black/50 rounded-2xl opacity-0 group-hover:opacity-100 flex items-center justify-center transition backdrop-blur-xs">
+                      <Camera className="w-4 h-4 text-white" />
                     </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className="text-base sm:text-lg font-black text-white truncate tracking-tight">{currentWorker.name}</span>
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                          currentWorker.tier.includes('Champion') ? 'tier-legendary' :
-                          currentWorker.tier.includes('Elite')    ? 'tier-elite' :
-                          currentWorker.tier.includes('Pro')      ? 'tier-pro' : 'tier-novice'
-                        }`}>{currentWorker.tier}</span>
-                      </div>
-                      <p className="text-xs text-zinc-400 font-mono">
-                        {currentWorker.employeeId} · {currentWorker.role}
-                      </p>
-                      <p className="text-[11px] text-zinc-500">
-                        Divisi: <strong className="text-zinc-300 font-semibold">{currentWorker.division}</strong>
-                      </p>
+                    <div className="absolute -bottom-1 -right-1 w-5 h-5 bg-amber-500 rounded-lg flex items-center justify-center shadow-md">
+                      <Trophy className="w-3 h-3 text-zinc-950" />
                     </div>
                   </div>
 
-                  {/* 3 Vital Stats Pills */}
-                  <div className="grid grid-cols-3 gap-2 pt-1">
-                    <div className="bg-zinc-900/90 border border-zinc-800 p-2 rounded-xl text-center">
-                      <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider flex items-center justify-center gap-1">
-                        <Flame className="w-3 h-3 text-amber-400" /> Streak
-                      </div>
-                      <div className="text-xs sm:text-sm font-black text-amber-300 mt-0.5">{currentWorker.streakDays} <span className="text-[10px] font-normal text-zinc-500">Hari</span></div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h1 className="text-base sm:text-lg font-black text-white truncate tracking-tight">
+                        {currentWorker.name}
+                      </h1>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
+                        currentWorker.tier.includes('Champion') ? 'tier-legendary' :
+                        currentWorker.tier.includes('Elite')    ? 'tier-elite' :
+                        currentWorker.tier.includes('Pro')      ? 'tier-pro' : 'tier-novice'
+                      }`}>{currentWorker.tier}</span>
                     </div>
 
-                    <div className="bg-zinc-900/90 border border-zinc-800 p-2 rounded-xl text-center">
-                      <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider flex items-center justify-center gap-1">
-                        <Coins className="w-3 h-3 text-emerald-400" /> Poin
-                      </div>
-                      <div className="text-xs sm:text-sm font-black text-emerald-400 mt-0.5">{currentWorker.totalPoints.toLocaleString()} <span className="text-[10px] font-normal text-zinc-500">PTS</span></div>
+                    <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mt-0.5 flex-wrap">
+                      <span>NIP: <strong className="text-zinc-300 font-bold">{currentWorker.employeeId}</strong></span>
+                      <span className="text-zinc-600">•</span>
+                      {currentWorker.name.trim().toLowerCase() !== currentWorker.role.trim().toLowerCase() && (
+                        <>
+                          <span className="text-zinc-300 font-sans">{currentWorker.role}</span>
+                          <span className="text-zinc-600">•</span>
+                        </>
+                      )}
+                      <span className="font-sans">Divisi: <strong className="text-zinc-300 font-semibold">{currentWorker.division}</strong></span>
                     </div>
 
-                    <div className="bg-zinc-900/90 border border-zinc-800 p-2 rounded-xl text-center">
-                      <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider flex items-center justify-center gap-1">
-                        <Award className="w-3 h-3 text-purple-400" /> Skor BIB
-                      </div>
-                      <div className="text-xs sm:text-sm font-black text-white mt-0.5">{currentWorker.bibScores.totalScore.toFixed(1)}</div>
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setShowDigitalIdModal(true)}
+                        className="px-2.5 py-1 bg-cyan-950/60 hover:bg-cyan-900/80 border border-cyan-500/40 rounded-lg text-[10px] font-bold text-cyan-300 flex items-center gap-1.5 transition shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+                        title="Tampilkan Kartu ID & QR Code SIO Digital"
+                      >
+                        <QrCode className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>Kartu ID & SIO Digital</span>
+                      </button>
                     </div>
                   </div>
                 </div>
 
-                {/* Right Column: 8 Quick Actions in a clean, symmetrical 4x2 grid (lg:col-span-7 xl:col-span-8) */}
-                <div className="lg:col-span-7 xl:col-span-8 grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-2.5">
+                {/* Right: 3 KPI Vital Stats Strip */}
+                <div className="grid grid-cols-3 gap-2 sm:gap-3 w-full lg:w-auto shrink-0">
+                  <div className="bg-zinc-900/90 border border-zinc-800 px-3.5 py-2 sm:py-2.5 rounded-xl text-center lg:text-left flex flex-col lg:flex-row items-center gap-2 lg:gap-3 min-w-[95px] sm:min-w-[115px]">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400 shrink-0">
+                      <Flame className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Streak</div>
+                      <div className="text-xs sm:text-sm font-black text-amber-300 leading-tight">
+                        {currentWorker.streakDays} <span className="text-[10px] font-normal text-zinc-500">Hari</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-zinc-900/90 border border-zinc-800 px-3.5 py-2 sm:py-2.5 rounded-xl text-center lg:text-left flex flex-col lg:flex-row items-center gap-2 lg:gap-3 min-w-[95px] sm:min-w-[115px]">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                      <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Poin</div>
+                      <div className="text-xs sm:text-sm font-black text-emerald-400 leading-tight">
+                        {currentWorker.totalPoints.toLocaleString()} <span className="text-[10px] font-normal text-zinc-500">PTS</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-zinc-900/90 border border-zinc-800 px-3.5 py-2 sm:py-2.5 rounded-xl text-center lg:text-left flex flex-col lg:flex-row items-center gap-2 lg:gap-3 min-w-[95px] sm:min-w-[115px]">
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400 shrink-0">
+                      <Award className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                    </div>
+                    <div>
+                      <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Skor BIB</div>
+                      <div className="text-xs sm:text-sm font-black text-white leading-tight">
+                        {currentWorker.bibScores.totalScore.toFixed(1)} <span className="text-[10px] font-normal text-zinc-500">/ 5.0</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* BOTTOM ROW: Action Command Hub (Clean Symmetrical Grid) */}
+              <div className="pt-3.5 relative z-10">
+                <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                  <Zap className="w-3 h-3 text-zinc-400" />
+                  <span>Aksi Cepat & Kepatuhan Operasional</span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2">
                   {/* 1. Kuis Safety */}
                   <button
                     onClick={() => setShowDailyQuizModal(true)}
                     disabled={currentWorker.dailyQuizCompleted}
-                    className={`h-12 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 shadow-sm ${
+                    className={`h-10 sm:h-11 px-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-sm ${
                       currentWorker.dailyQuizCompleted
-                        ? 'bg-zinc-900/80 border border-zinc-800 text-zinc-600 cursor-default'
-                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/50 hover:scale-[1.02] active:scale-[0.98]'
+                        ? 'bg-zinc-900/80 border border-zinc-800 text-zinc-500 cursor-default'
+                        : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-950/40 hover:scale-[1.02] active:scale-[0.98]'
                     }`}
                   >
-                    <Zap className={`w-4 h-4 shrink-0 ${currentWorker.dailyQuizCompleted ? 'text-zinc-700' : 'text-emerald-100'}`} />
-                    <span className="truncate">{currentWorker.dailyQuizCompleted ? 'Kuis Selesai' : 'Kuis Safety +50'}</span>
-                    {currentWorker.dailyQuizCompleted && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
+                    <Zap className={`w-3.5 h-3.5 shrink-0 ${currentWorker.dailyQuizCompleted ? 'text-zinc-600' : 'text-emerald-100'}`} />
+                    <span className="truncate">
+                      {currentWorker.dailyQuizCompleted
+                        ? 'Kuis Selesai'
+                        : `Kuis Safety +${SystemConfigService.getConfig().dailyQuizRewardPoints}`}
+                    </span>
+                    {currentWorker.dailyQuizCompleted && <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />}
                   </button>
 
                   {/* 2. Pre-Shift */}
                   <button
                     onClick={() => setShowChecklistModal(true)}
                     disabled={currentWorker.preShiftChecklistDone}
-                    className={`h-12 px-3 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 shadow-sm ${
+                    className={`h-10 sm:h-11 px-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-1.5 shadow-sm ${
                       currentWorker.preShiftChecklistDone
-                        ? 'bg-zinc-900/80 border border-zinc-800 text-zinc-600 cursor-default'
-                        : 'bg-zinc-850 hover:bg-zinc-800 border border-cyan-500/40 text-cyan-200 hover:scale-[1.02] active:scale-[0.98]'
+                        ? 'bg-zinc-900/80 border border-zinc-800 text-zinc-500 cursor-default'
+                        : 'bg-zinc-900 hover:bg-zinc-850 border border-cyan-500/50 text-cyan-300 hover:scale-[1.02] active:scale-[0.98]'
                     }`}
                   >
-                    <ShieldCheck className={`w-4 h-4 shrink-0 ${currentWorker.preShiftChecklistDone ? 'text-zinc-700' : 'text-cyan-400'}`} />
-                    <span className="truncate">{currentWorker.preShiftChecklistDone ? 'Checklist OK' : 'Pre-Shift +30'}</span>
-                    {currentWorker.preShiftChecklistDone && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
+                    <ShieldCheck className={`w-3.5 h-3.5 shrink-0 ${currentWorker.preShiftChecklistDone ? 'text-zinc-600' : 'text-cyan-400'}`} />
+                    <span className="truncate">
+                      {currentWorker.preShiftChecklistDone
+                        ? 'Checklist OK'
+                        : `Pre-Shift +${SystemConfigService.getConfig().preShiftRewardPoints}`}
+                    </span>
+                    {currentWorker.preShiftChecklistDone && <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />}
                   </button>
 
                   {/* 3. SOP Micro-Deck */}
                   <button
                     onClick={() => setShowSopModal(true)}
-                    className="h-12 px-3 rounded-xl font-bold text-xs bg-purple-950/60 hover:bg-purple-900/80 border border-purple-500/40 text-purple-200 transition flex items-center justify-center gap-2 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+                    className="h-10 sm:h-11 px-2.5 rounded-xl font-bold text-xs bg-zinc-900 hover:bg-zinc-850 border border-purple-500/40 text-purple-300 transition flex items-center justify-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
                     title="Buka Pustaka SOP Micro-Deck & K3 Academy"
                   >
-                    <BookOpen className="w-4 h-4 text-purple-400 shrink-0" />
-                    <span className="truncate">SOP Micro-Deck</span>
+                    <BookOpen className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                    <span className="truncate">SOP Deck</span>
                   </button>
 
                   {/* 4. Lapor Insiden K3 */}
                   <button
                     onClick={() => setShowIncidentModal(true)}
-                    className="h-12 px-3 rounded-xl font-bold text-xs bg-orange-950/60 hover:bg-orange-900/80 border border-orange-500/40 text-orange-200 transition flex items-center justify-center gap-2 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+                    className="h-10 sm:h-11 px-2.5 rounded-xl font-bold text-xs bg-zinc-900 hover:bg-zinc-850 border border-orange-500/40 text-orange-300 transition flex items-center justify-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
                     title="Laporkan Insiden / Near-Miss K3 Logistik"
                   >
-                    <ShieldAlert className="w-4 h-4 text-orange-400 shrink-0" />
-                    <span className="truncate">Lapor Insiden K3</span>
+                    <ShieldAlert className="w-3.5 h-3.5 text-orange-400 shrink-0" />
+                    <span className="truncate">Lapor Insiden</span>
                   </button>
 
                   {/* 5. Beri Kudo */}
                   <button
                     onClick={() => setShowKudoModal(true)}
-                    className="h-12 px-3 rounded-xl font-bold text-xs bg-sky-950/60 hover:bg-sky-900/80 border border-sky-500/40 text-sky-200 transition flex items-center justify-center gap-2 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+                    className="h-10 sm:h-11 px-2.5 rounded-xl font-bold text-xs bg-zinc-900 hover:bg-zinc-850 border border-sky-500/40 text-sky-300 transition flex items-center justify-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
                     title="Kirim Apresiasi ke Rekan Kerja"
                   >
-                    <Award className="w-4 h-4 text-sky-400 shrink-0" />
+                    <Award className="w-3.5 h-3.5 text-sky-400 shrink-0" />
                     <span className="truncate">Beri Kudo</span>
                   </button>
 
                   {/* 6. Serah Terima Shift */}
                   <button
                     onClick={() => setShowShiftHandoverModal(true)}
-                    className="h-12 px-3 rounded-xl font-bold text-xs bg-indigo-950/60 hover:bg-indigo-900/80 border border-indigo-500/40 text-indigo-200 transition flex items-center justify-center gap-2 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+                    className="h-10 sm:h-11 px-2.5 rounded-xl font-bold text-xs bg-zinc-900 hover:bg-zinc-850 border border-indigo-500/40 text-indigo-300 transition flex items-center justify-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
                     title="Catat Serah Terima (Handover) Antar Shift"
                   >
-                    <AlertCircle className="w-4 h-4 text-indigo-400 shrink-0" />
-                    <span className="truncate">Serah Terima Shift</span>
+                    <AlertCircle className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+                    <span className="truncate">Serah Terima</span>
                   </button>
 
                   {/* 7. Kaizen Inovasi */}
                   <button
                     onClick={() => setShowKaizenModal(true)}
-                    className="h-12 px-3 rounded-xl font-bold text-xs bg-amber-950/60 hover:bg-amber-900/80 border border-amber-500/40 text-amber-200 transition flex items-center justify-center gap-2 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+                    className="h-10 sm:h-11 px-2.5 rounded-xl font-bold text-xs bg-zinc-900 hover:bg-zinc-850 border border-amber-500/40 text-amber-300 transition flex items-center justify-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
                     title="Ajukan Ide Kaizen & Raih Reward Poin!"
                   >
-                    <Sparkles className="w-4 h-4 text-amber-400 shrink-0" />
-                    <span className="truncate">Kaizen Inovasi</span>
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                    <span className="truncate">Kaizen</span>
                   </button>
 
                   {/* 8. Riwayat & Arsip */}
                   <button
                     onClick={() => setShowHistoryCenterModal(true)}
-                    className="h-12 px-3 rounded-xl font-bold text-xs bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 text-zinc-200 transition flex items-center justify-center gap-2 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
+                    className="h-10 sm:h-11 px-2.5 rounded-xl font-bold text-xs bg-zinc-900 hover:bg-zinc-850 border border-zinc-700 text-zinc-300 transition flex items-center justify-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
                     title="Pusat Riwayat Terpadu: Kaizen, Insiden, Handover, Kudo, & Reward"
                   >
-                    <History className="w-4 h-4 text-indigo-400 shrink-0" />
-                    <span className="truncate">Riwayat & Arsip</span>
+                    <History className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+                    <span className="truncate">Riwayat</span>
                   </button>
                 </div>
-
               </div>
             </div>
 
@@ -1183,6 +1232,14 @@ export const App: React.FC = () => {
             handovers={unacknowledgedHandovers}
             currentWorkerId={currentWorker.id}
             onAllAcknowledged={() => setUnacknowledgedHandovers([])}
+          />
+        )}
+
+        {showDigitalIdModal && currentWorker && (
+          <WorkerDigitalIdModal
+            isOpen={showDigitalIdModal}
+            onClose={() => setShowDigitalIdModal(false)}
+            worker={currentWorker}
           />
         )}
       </React.Suspense>

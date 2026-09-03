@@ -34,6 +34,7 @@ import {
 import { KaizenService } from '../lib/kaizenService';
 import { KaizenSuggestionEntity, KaizenStatus, KaizenCategory, KaizenReviewInput } from '../types/kaizen';
 import { PaginationControls } from './PaginationControls';
+import { SystemConfigService } from '../domain/SystemConfigService';
 
 interface KaizenKanbanBoardProps {
   currentUserId?: string;
@@ -186,9 +187,18 @@ export function KaizenKanbanBoard({ currentUserId, isAdmin = false }: KaizenKanb
   };
 
   const openReviewModal = (item: KaizenSuggestionEntity, nextStatus: KaizenStatus) => {
+    const config = SystemConfigService.getConfig();
     setSelectedSuggestion(item);
     setTargetStatus(nextStatus);
-    setRewardPoints(item.reward_points > 0 ? item.reward_points : nextStatus === 'Approved' ? 100 : nextStatus === 'Implemented' ? 250 : 0);
+    setRewardPoints(
+      item.reward_points > 0
+        ? item.reward_points
+        : nextStatus === 'Approved'
+          ? config.kaizenApprovedPoints
+          : nextStatus === 'Implemented'
+            ? config.kaizenImplementedPoints
+            : 0
+    );
     setFeedback(item.reviewer_feedback || '');
     setReviewModalOpen(true);
   };
@@ -797,20 +807,24 @@ export function KaizenKanbanBoard({ currentUserId, isAdmin = false }: KaizenKanb
                   </div>
 
                   <div className="flex gap-2">
-                    {[50, 100, 250, 500].map((pts) => (
-                      <button
-                        key={pts}
-                        type="button"
-                        onClick={() => setRewardPoints(pts)}
-                        className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition ${
-                          rewardPoints === pts
-                            ? 'bg-amber-500 text-black border-amber-400'
-                            : 'bg-zinc-900 text-zinc-300 border-zinc-700 hover:bg-zinc-800'
-                        }`}
-                      >
-                        +{pts}
-                      </button>
-                    ))}
+                    {(() => {
+                      const cfg = SystemConfigService.getConfig();
+                      const options = Array.from(new Set([cfg.kaizenSubmissionPoints, cfg.kaizenApprovedPoints, cfg.kaizenImplementedPoints, 500])).filter(n => n > 0);
+                      return options.map((pts) => (
+                        <button
+                          key={pts}
+                          type="button"
+                          onClick={() => setRewardPoints(pts)}
+                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold border transition ${
+                            rewardPoints === pts
+                              ? 'bg-amber-500 text-black border-amber-400'
+                              : 'bg-zinc-900 text-zinc-300 border-zinc-700 hover:bg-zinc-800'
+                          }`}
+                        >
+                          +{pts}
+                        </button>
+                      ));
+                    })()}
                   </div>
                 </div>
               )}

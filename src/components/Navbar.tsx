@@ -4,6 +4,7 @@ import { WorkerProfile } from '../types/assessment';
 import { RoleEntity } from '../domain/RoleEntity';
 import { WorkerAvatar } from './WorkerAvatar';
 import { NotificationBell } from './NotificationBell';
+import { NetworkStatusBadge } from './NetworkStatusBadge';
 
 interface NavbarProps {
   currentWorker: WorkerProfile;
@@ -97,12 +98,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${(activeMode as any).badgeBg}`}>
                   {(activeMode as any).shortLabel || activeMode.label.split(' ')[0]}
                 </span>
+                <NetworkStatusBadge />
               </div>
             </div>
           </div>
 
-          {/* Right: Help Guide + Notification Bell + Demo Role Mode Switcher + Profile */}
+          {/* Right: Network Status (Mobile) + Help Guide + Notification Bell + Demo Role Mode Switcher + Profile */}
           <div className="flex items-center gap-2">
+            <div className="sm:hidden">
+              <NetworkStatusBadge />
+            </div>
 
             {/* Panduan Aplikasi (Available on Mobile & Desktop) */}
             {onOpenOnboarding && (
@@ -201,8 +206,12 @@ export const Navbar: React.FC<NavbarProps> = ({
               </div>
 
               <div className="hidden xl:block">
-                <div className="text-xs font-bold text-white leading-tight">{currentWorker.name}</div>
-                <div className="text-[10px] text-zinc-500 leading-tight">{currentWorker.role}</div>
+                <div className="text-xs font-bold text-white leading-tight truncate max-w-[150px]">{currentWorker.name}</div>
+                <div className="text-[10px] text-zinc-400 leading-tight truncate max-w-[150px]">
+                  {currentWorker.name.trim().toLowerCase() === currentWorker.role.trim().toLowerCase()
+                    ? `${currentWorker.employeeId} · ${currentWorker.division}`
+                    : currentWorker.role}
+                </div>
               </div>
               {onLogout && (
                 <button

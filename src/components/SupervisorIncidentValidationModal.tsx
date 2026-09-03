@@ -18,6 +18,9 @@ import {
 } from 'lucide-react';
 import { IncidentReport, WorkerProfile } from '../types/assessment';
 import { NotificationEngine } from '../domain/NotificationEngine';
+import { SystemConfigService } from '../domain/SystemConfigService';
+import { IncidentManager } from '../domain/IncidentManager';
+import { IncidentEntity } from '../domain/IncidentEntity';
 import { updateIncidentCapaAndStatus } from '../lib/supabaseService';
 import { ExecutivePDFReportGenerator } from '../lib/pdfReportService';
 import { GDRIVE_FOLDER_URL } from '../lib/googleDriveService';
@@ -56,44 +59,20 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
     setLoading(true);
     setError(null);
 
-    const targetStatus: IncidentReport['status'] = approved
-      ? (status === 'open' ? 'investigating' : status)
-      : 'closed';
-
-    const note = approved
-      ? (resolutionNote.trim() || 'Laporan insiden disetujui & terverifikasi valid oleh Supervisor.')
-      : 'Laporan insiden ditolak (tidak memenuhi standar/kriteria K3).';
-
     try {
-      await updateIncidentCapaAndStatus(incident.id, {
-        status: targetStatus,
-        rootCause: rootCause.trim(),
-        correctiveAction: correctiveAction.trim(),
-        assignedPic: assignedPic.trim(),
-        dueDate,
-        resolutionNote: note,
-        updatedBy: 'Supervisor HSEQ',
+      await IncidentManager.validateAndApplyCapa({
+        incidentId: incident.id,
         workerId: incident.workerId,
+        location: incident.location,
+        incidentType: incident.incidentType,
+        approved,
+        rootCause,
+        correctiveAction,
+        assignedPic,
+        dueDate,
+        resolutionNote,
+        validatorName: 'Supervisor HSEQ',
       });
-
-      // Dispatch real-time OOP Notifications
-      if (approved) {
-        NotificationEngine.addNotification({
-          recipientId: incident.workerId,
-          recipientRole: 'worker',
-          title: '🎉 Laporan Insiden K3 Disetujui! (+50 PTS)',
-          message: `Laporan Anda di ${incident.location} disetujui Supervisor. Poin +50 PTS telah ditambahkan ke akun Anda.`,
-          type: 'incident',
-        });
-      } else {
-        NotificationEngine.addNotification({
-          recipientId: incident.workerId,
-          recipientRole: 'worker',
-          title: 'ℹ️ Update Status Laporan Insiden K3',
-          message: `Laporan insiden Anda di ${incident.location} tidak dapat diproses (Tidak Valid).`,
-          type: 'incident',
-        });
-      }
 
       onSuccess();
       onClose();
@@ -110,6 +89,11 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
       document.body.style.overflow = 'unset';
     };
   }, []);
+
+  const cfg = SystemConfigService.getConfig();
+  const rewardPointsDisplay = (incident.incidentType === 'near_miss' || (incident as any).type === 'near_miss')
+    ? cfg.nearMissRewardPoints
+    : cfg.incidentValidRewardPoints;
 
   const displayPhotoUrl =
     incident.photoUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop&q=80';
@@ -137,7 +121,7 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
                 </span>
               </div>
               <p className="text-xs text-zinc-400 mt-0.5">
-                Pengawasan & Verifikasi Poin Reward (+50 PTS) Pelapor
+                Pengawasan & Verifikasi Poin Reward (+{rewardPointsDisplay} PTS) Pelapor
               </p>
             </div>
           </div>
@@ -318,11 +302,12 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
           <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={() => ExecutivePDFReportGenerator.exportIncidentReportPDF(incident)}
-              className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs rounded-xl transition flex items-center gap-1.5 border border-zinc-700"
+              onClick={() => ExecutivePDFReportGenerator.exportIncidentReportPDF(incident, reporterWorker)}
+              className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs rounded-xl transition flex items-center gap-1.5 border border-zinc-700 shadow-sm"
+              title="Cetak Formulir Berita Acara Pemeriksaan (BAP) Resmi K3"
             >
               <Download className="w-4 h-4 text-emerald-400" />
-              Cetak PDF Insiden
+              Cetak BAP Resmi K3 (PDF)
             </button>
 
             <a

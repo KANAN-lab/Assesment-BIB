@@ -3,6 +3,7 @@
 import { DisciplinaryActionEntity, ViolationLevel, ViolationCategory, SanctionStatus, DisciplinaryStats } from '../types/disciplinary';
 import { NotificationEngine } from '../domain/NotificationEngine';
 import { SystemConfigService } from '../domain/SystemConfigService';
+import { DisciplinaryMatrixEngine } from '../domain/DisciplinaryMatrixEngine';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
@@ -80,23 +81,7 @@ export class DisciplinaryService {
   }
 
   public static getDefaultPointDeduction(level: ViolationLevel): number {
-    const config = SystemConfigService.getConfig();
-    switch (level) {
-      case 'coaching_verbal':
-        return config.verbalCoachingPenaltyPoints;
-      case 'written_warning_1':
-        return config.warningLetter1PenaltyPoints;
-      case 'written_warning_2':
-        return config.warningLetter2PenaltyPoints;
-      case 'written_warning_3':
-        return config.warningLetter3PenaltyPoints;
-      case 'suspension':
-        return config.suspensionPenaltyPoints;
-      case 'remedial_evaluation':
-        return 50;
-      default:
-        return 0;
-    }
+    return DisciplinaryMatrixEngine.calculatePenalty(level);
   }
 
   public static getAllActions(): DisciplinaryActionEntity[] {
@@ -111,7 +96,7 @@ export class DisciplinaryService {
     const actions = this.load();
     return {
       totalActions: actions.length,
-      activeSanctions: actions.filter((a) => a.status === 'active' || a.status === 'in_retraining').length,
+      activeSanctions: actions.filter((a) => DisciplinaryMatrixEngine.isSanctionActive(a)).length,
       verbalCoachings: actions.filter((a) => a.violationLevel === 'coaching_verbal').length,
       warningLetters: actions.filter((a) => a.violationLevel.startsWith('written_warning')).length,
       pendingRetrainings: actions.filter((a) => !a.isRetrainingCompleted && !!a.mandatoryRetrainingSopId).length,
@@ -129,17 +114,15 @@ export class DisciplinaryService {
     const prefix = params.violationLevel === 'coaching_verbal' ? 'CONS' : 'SP';
     const docRef = `${prefix}/DAM-K3/${new Date().getFullYear()}/${String(count).padStart(3, '0')}`;
 
-    // Calculate expiry date
-    const meta = VIOLATION_META[params.violationLevel];
-    const expiryDate = new Date();
-    expiryDate.setMonth(expiryDate.getMonth() + (meta?.validityMonths || 6));
+    // Calculate expiry date using domain engine
+    const expiryDate = DisciplinaryMatrixEngine.calculateExpiryDate(params.violationLevel);
 
     const newAction: DisciplinaryActionEntity = {
       ...params,
       id: `disc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       documentRefNumber: docRef,
       issuedAt: new Date().toISOString(),
-      expiryDate: expiryDate.toISOString().slice(0, 10),
+      expiryDate,
       isRetrainingCompleted: false,
       status: params.mandatoryRetrainingSopId ? 'in_retraining' : (params.status || 'active'),
     };
@@ -153,7 +136,7 @@ export class DisciplinaryService {
       recipientRole: 'worker',
       type: 'system',
       title: `⚠️ Catatan Pembinaan K3: ${docRef}`,
-      message: `Tindakan ${meta?.label || 'Sanksi K3'} telah diterbitkan untuk Anda terkait ${CATEGORY_META[params.violationCategory]?.label || 'Pelanggaran K3'}. Penalti: -${params.pointDeduction} Poin.`,
+      message: `Tindakan ${VIOLATION_META[params.violationLevel]?.label || 'Sanksi K3'} telah diterbitkan untuk Anda terkait ${CATEGORY_META[params.violationCategory]?.label || 'Pelanggaran K3'}. Penalti: -${params.pointDeduction} Poin.`,
     });
 
     return newAction;

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Target, Trophy, Flame, TrendingUp, Award, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { WorkerProfile } from '../types/assessment';
+import { SystemConfigService } from '../domain/SystemConfigService';
 
 interface PerformanceSummaryCardProps {
   worker: WorkerProfile;
@@ -22,8 +23,10 @@ export const PerformanceSummaryCard: React.FC<PerformanceSummaryCardProps> = ({
   const tierGoal = getNextTierGoal(worker.totalPoints, worker.tier);
   const tierProgressPct = Math.min(100, Math.round((worker.totalPoints / tierGoal.targetPoints) * 100));
 
-  // Target poin aktivitas harian per minggu (7 hari x (50 pts kuis + 30 pts checklist) = 560 PTS)
-  const weeklyTargetPts = 560;
+  // Dynamic system point configuration
+  const config = SystemConfigService.getConfig();
+  const dailyTargetPts = config.dailyQuizRewardPoints + config.preShiftRewardPoints;
+  const weeklyTargetPts = dailyTargetPts * 7;
   const currentWeeklyPts = worker.totalPoints % weeklyTargetPts;
   const weeklyPct = Math.min(100, Math.round((currentWeeklyPts / weeklyTargetPts) * 100));
 
@@ -37,7 +40,7 @@ export const PerformanceSummaryCard: React.FC<PerformanceSummaryCardProps> = ({
             Target & Progress Performa
           </h3>
           <p className="text-[11px] text-zinc-500 mt-0.5">
-            Target aktivitas harian: Kuis Safety (+50 PTS) & Pre-Shift (+30 PTS) · 560 PTS/minggu
+            Target aktivitas harian: Kuis Safety (+{config.dailyQuizRewardPoints} PTS) & Pre-Shift (+{config.preShiftRewardPoints} PTS) · {weeklyTargetPts} PTS/minggu
           </p>
         </div>
         <button
@@ -66,7 +69,7 @@ export const PerformanceSummaryCard: React.FC<PerformanceSummaryCardProps> = ({
           <div>
             <div className="flex items-baseline justify-between text-[11px] mb-1">
               <span className="text-white font-bold font-mono">{currentWeeklyPts} / {weeklyTargetPts} PTS</span>
-              <span className="text-zinc-500">Target 80 PTS/hari</span>
+              <span className="text-zinc-500">Target {dailyTargetPts} PTS/hari</span>
             </div>
             <div className="w-full bg-zinc-900 rounded-full h-2 overflow-hidden">
               <div
