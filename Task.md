@@ -426,6 +426,30 @@
   - [x] Integrasi tab baru *"Safety Patrol (Gemba)"* di `src/components/SupervisorConsole.tsx`.
   - [x] Generator ekspor rekap temuan patroli K3 ke format PDF Berita Acara Temuan Lapangan resmi PT. DAYA ANUGRAH MULYA.
 
+---
+
+## Phase 29: Enterprise Cloud Storage Architecture (Google Drive Gateway with User-Bound Structure)
+
+- [x] **Core Service & Types (`src/lib/googleDriveService.ts`)**:
+  - [x] Perluas parameter upload dengan `workerId`, `workerName`, `moduleCategory`, dan `rootFolderId`.
+  - [x] Implementasi kompresi HD client-side otomatis sebelum konversi Base64 untuk efisiensi jaringan gudang.
+  - [x] Ekstrak direct image URL (`https://lh3.googleusercontent.com/d/{fileId}`) untuk rendering tag `<img>` instan di UI.
+  - [x] Hubungkan ke `SystemConfigService` agar URL Webhook dan Root Folder ID dapat dimaintain secara dinamis oleh Admin.
+- [x] **Konfigurasi Gateway Dinamis (`src/domain/SystemConfigService.ts` & `src/components/SystemConfigPanel.tsx`)**:
+  - [x] Tambahkan key `gdriveTargetFolderId` dan `gdriveWebhookUrl` pada schema `SystemConfig`.
+  - [x] Tambahkan field pengaturan Google Drive Bucket di Admin Console tab "Aturan & Config System".
+- [x] **Integrasi Modul Terpusat (User-Bound Folder Binding)**:
+  - [x] **Modul 1: Laporan Insiden K3 (`src/components/IncidentReportModal.tsx`)** ➔ Simpan ke subfolder `/[ID] Nama/Laporan_Insiden/`.
+  - [x] **Modul 2: Safety Patrol K3 (`src/components/SafetyPatrolModal.tsx`)** ➔ Simpan ke subfolder `/[ID] Nama/Safety_Patrol/`.
+  - [x] **Modul 3: Foto Profil Pekerja (`src/components/ProfilePictureModal.tsx`)** ➔ Simpan ke subfolder `/[ID] Nama/Foto_Profil/` dan bind ke `workers.avatar`.
+  - [x] **Modul 4: Sertifikasi SIO MHE (`src/components/MheLicensePanel.tsx`)** ➔ Simpan ke subfolder `/[ID] Nama/SIO_MHE/`.
+  - [x] **Modul 5: Kaizen Inovasi (`src/components/KaizenSubmissionModal.tsx`)** ➔ Simpan ke subfolder `/[ID] Nama/Kaizen_Inovasi/`.
+  - [x] **Modul 6: Manajemen Dokumen SOP (`src/components/SopManagementPanel.tsx`)** ➔ Simpan ke subfolder `/[ID] Nama/Dokumen_SOP/`.
+- [x] **Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` lulus 0 error.
+  - [x] Production build `npm run build` berhasil.
+
+
 
 
 
