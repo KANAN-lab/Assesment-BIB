@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { RewardItem, RewardHistory, TierType } from '../types/assessment';
 import { RewardEntity, TIER_LEVEL_MAP } from '../domain/RewardEntity';
+import { SystemConfigService } from '../domain/SystemConfigService';
 import { PaginationControls } from './PaginationControls';
 import { VoucherQRCode } from './VoucherQRCode';
 import {
@@ -118,7 +119,12 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
     }
   };
 
-  const categories = ['Semua', 'E-Wallet', 'Pulsa & Data', 'Safety Gear', 'Voucher & Perk'];
+  const categories = useMemo(() => {
+    const configCategories = SystemConfigService.getConfig().rewardCategories || [];
+    const fromCatalog = Array.from(new Set(catalog.map((item) => item.category))).filter(Boolean);
+    const combined = Array.from(new Set([...configCategories, ...fromCatalog]));
+    return ['Semua', ...combined];
+  }, [catalog]);
 
   const filteredCatalog = useMemo(() => {
     if (selectedCategory === 'Semua') return catalog;
@@ -254,9 +260,9 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
   const handleOpenCreateModal = () => {
     setEditingItem(null);
     setFormTitle('');
-    setFormCategory('E-Wallet');
-    setFormPointsRequired(500);
-    setFormIconName('Wallet');
+    setFormCategory('Produk Wings (Home Care)');
+    setFormPointsRequired(300);
+    setFormIconName('ShoppingBag');
     setFormDescription('');
     setFormAvailableStock(20);
     setFormMonthlyLimit(25);
@@ -950,7 +956,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                   type="text"
                   value={formTitle}
                   onChange={(e) => setFormTitle(e.target.value)}
-                  placeholder="cth. Saldo GoPay Rp 100.000"
+                  placeholder="cth. So Klin Liquid 1.6L atau Voucher Indomaret"
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                   required
                 />
@@ -966,10 +972,9 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                     required
                   >
                     <option value="" disabled>-- Pilih Kategori Reward --</option>
-                    <option value="E-Wallet">E-Wallet</option>
-                    <option value="Pulsa & Data">Pulsa & Data</option>
-                    <option value="Safety Gear">Safety Gear</option>
-                    <option value="Voucher & Perk">Voucher & Perk</option>
+                    {categories.filter((c) => c !== 'Semua').map((cat) => (
+                      <option key={cat} value={cat}>{cat}</option>
+                    ))}
                   </select>
                 </div>
 

@@ -90,7 +90,7 @@ export const FREQUENCY_OPTIONS = [
 ];
 
 export class SystemConfigService {
-  private static STORAGE_KEY = 'gappy_system_config_v3';
+  private static STORAGE_KEY = 'gappy_system_config_v4';
 
   public static getConfig(): SystemConfig {
     try {
@@ -345,12 +345,13 @@ export class SystemConfigService {
 
       // 10. Dynamic Categories & Master
       rewardCategories: [
-        'E-Wallet',
-        'Pulsa & Data',
-        'Safety Gear',
-        'Voucher & Perk',
-        'Merchandise K3',
-        'Peralatan Kerja',
+        'Produk Wings (Fabric Care)',
+        'Produk Wings (Home Care)',
+        'Produk Wings (Personal Care)',
+        'Produk Wings (Baby Care)',
+        'Produk Wings (Food)',
+        'Produk Wings (Beverage)',
+        'Voucher Belanja',
       ],
       quizCategories: [
         'Safety & APD',

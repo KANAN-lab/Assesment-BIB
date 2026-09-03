@@ -421,16 +421,29 @@ ON CONFLICT (id) DO UPDATE SET
   role = EXCLUDED.role,
   division = EXCLUDED.division;
 
--- Seed: Reward Catalog
+-- Seed: Reward Catalog (Tepat 12 Item: 11 Produk Fisik Wings Group + 1 Voucher Indomaret)
 INSERT INTO reward_catalog (id, title, category, points_required, icon_name, description, available_stock, badge_tag)
 VALUES
-  ('r-1', 'Saldo GoPay Rp 50.000',             'E-Wallet',       500,  'Wallet',      'Voucher saldo digital GoPay instant ke nomor HP terdaftar.',                                25, 'Popular'),
-  ('r-2', 'Saldo OVO / ShopeePay Rp 100.000',  'E-Wallet',       950,  'CreditCard',  'Top-up saldo E-wallet pilihan untuk kebutuhan harian.',                                     14, 'Best Value'),
-  ('r-3', 'Paket Data Telkomsel 15GB',          'Pulsa & Data',   400,  'Wifi',        'Kuota internet cepat untuk kelancaran update aplikasi driver/kurir.',                       40, NULL),
-  ('r-4', 'Rompi Safety Premium High-Vis',      'Safety Gear',    1200, 'ShieldCheck', 'Rompi reflektif 3M kualitas tinggi dengan saku zipper & breathable mesh.',                  8,  'Exclusive'),
-  ('r-5', 'Voucher Belanja Minimarket Rp 75k',  'Voucher & Perk', 700,  'ShoppingBag', 'Voucher fisik/digital Indomaret / Alfamart seluruh Indonesia.',                             19, NULL),
-  ('r-6', 'Prioritas Rute Favorit (1 Minggu)',  'Voucher & Perk', 1500, 'Award',       'Hak istimewa memilih zona rute pengiriman sesuai preferensi kurir.',                        5,  'VIP Perk')
-ON CONFLICT (id) DO NOTHING;
+  ('r-1',  'So Klin Liquid Deterjen Perfume Collection 1.6L',        'Produk Wings (Fabric Care)',   400,  'ShoppingBag', 'Deterjen cair konsentrat pembersih noda pakaian dengan aroma wangi tahan lama.',                        30, 'Popular'),
+  ('r-2',  'Ekonomi Pencuci Piring Power Liquid Jeruk Nipis 750mL',  'Produk Wings (Home Care)',     250,  'ShoppingBag', 'Sabun cuci piring konsentrat ekstrak jeruk nipis ampuh hilangkan lemak dan bau amis.',                45, 'Best Value'),
+  ('r-3',  'Super Sol Karbol Wangi Pine Desinfektan 800mL',          'Produk Wings (Home Care)',     280,  'ShieldCheck', 'Cairan karbol pembersih lantai dengan aroma pinus segar dan formula antibakteri membunuh kuman.',      35, NULL),
+  ('r-4',  'WPC Pembersih Kloset & Porselen Extra Kuat 780mL',       'Produk Wings (Home Care)',     300,  'ShieldCheck', 'Pembersih porselen dan kloset efektif mengangkat kerak membandel seketika untuk sanitasi higienis.',    25, NULL),
+  ('r-5',  'Nuvo Family Sabun Mandi Cair Antibakterial 450mL',       'Produk Wings (Personal Care)', 320,  'Heart',       'Sabun mandi cair keluarga dengan perlindungan antibakteri TCC melawan kuman aktif.',                   40, 'Essential'),
+  ('r-6',  'Giv White Beauty Body Wash Sakura & Pearl 450mL',        'Produk Wings (Personal Care)', 320,  'Award',       'Sabun mandi wangi mewah dengan ekstrak bunga sakura dan mutiara untuk kulit halus terawat.',           35, NULL),
+  ('r-7',  'Zinc Shampoo Anti-Dandruff Refreshing Cool 340mL',       'Produk Wings (Personal Care)', 380,  'Zap',         'Shampo anti ketombe dengan sensasi dingin menthol menyegarkan kulit kepala sepanjang hari.',           30, NULL),
+  ('r-8',  'Ciptadent Maxi Complete Pasta Gigi & Sikat Gigi Pack',   'Produk Wings (Personal Care)', 260,  'ShieldCheck', 'Paket perlindungan gigi menyeluruh Micro Active Foam dan sikat gigi berbulu lembut.',                  50, NULL),
+  ('r-9',  'Kodomo Baby Wipes & Hair & Body Wash Gift Set',          'Produk Wings (Baby Care)',     450,  'Heart',       'Paket sabun mandi bayi 2-in-1 aroma buah segar dan tisu basah lembut non-alkohol higienis.',          20, 'Family Choice'),
+  ('r-10', 'Mie Sedaap All-Variant Special Box (Isi 10 Pcs)',        'Produk Wings (Food)',          350,  'ShoppingBag', 'Paket aneka varian Mie Sedaap kuah dan goreng favorit dengan kriuk bawang gurih renyah.',              40, 'Favorite'),
+  ('r-11', 'Paket Floridina Orange & Teh Javana (Karton Mini 12 Pcs)','Produk Wings (Beverage)',      480,  'ShoppingBag', 'Minuman jus jeruk bulir asli dan teh melati asli siap minum untuk kesegaran harian.',                  25, NULL),
+  ('r-12', 'Voucher Indomaret Rp 100.000',                           'Voucher Belanja',             1000,  'CreditCard',  'Voucher belanja resmi Indomaret untuk kebutuhan belanja harian di seluruh gerai.',                     20, 'Super Reward')
+ON CONFLICT (id) DO UPDATE SET
+  title = EXCLUDED.title,
+  category = EXCLUDED.category,
+  points_required = EXCLUDED.points_required,
+  icon_name = EXCLUDED.icon_name,
+  description = EXCLUDED.description,
+  available_stock = EXCLUDED.available_stock,
+  badge_tag = EXCLUDED.badge_tag;
 
 -- Seed: Quiz Questions (10 Fallback Questions)
 INSERT INTO quiz_questions (id, question, options, correct_answer_index, explanation, points_reward, category)

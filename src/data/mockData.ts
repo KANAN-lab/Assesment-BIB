@@ -54,61 +54,117 @@ export const DAILY_QUIZZES: QuizQuestion[] = [
 export const REWARD_CATALOG: RewardItem[] = [
   {
     id: 'r-1',
-    title: 'Saldo GoPay Rp 50.000',
-    category: 'E-Wallet',
-    pointsRequired: 500,
-    iconName: 'Wallet',
-    description: 'Voucher saldo digital GoPay instant ke nomor HP terdaftar.',
-    availableStock: 25,
+    title: 'So Klin Liquid Deterjen Perfume Collection 1.6L',
+    category: 'Produk Wings (Fabric Care)',
+    pointsRequired: 400,
+    iconName: 'ShoppingBag',
+    description: 'Deterjen cair konsentrat pembersih noda pakaian dengan aroma wangi tahan lama.',
+    availableStock: 30,
     badgeTag: 'Popular'
   },
   {
     id: 'r-2',
-    title: 'Saldo OVO / ShopeePay Rp 100.000',
-    category: 'E-Wallet',
-    pointsRequired: 950,
-    iconName: 'CreditCard',
-    description: 'Top-up saldo E-wallet pilihan untuk kebutuhan harian.',
-    availableStock: 14,
+    title: 'Ekonomi Pencuci Piring Power Liquid Jeruk Nipis 750mL',
+    category: 'Produk Wings (Home Care)',
+    pointsRequired: 250,
+    iconName: 'ShoppingBag',
+    description: 'Sabun cuci piring konsentrat ekstrak jeruk nipis ampuh hilangkan lemak dan bau amis.',
+    availableStock: 45,
     badgeTag: 'Best Value'
   },
   {
     id: 'r-3',
-    title: 'Paket Data Telkomsel 15GB',
-    category: 'Pulsa & Data',
-    pointsRequired: 400,
-    iconName: 'Wifi',
-    description: 'Kuota internet cepat untuk kelancaran update aplikasi driver/kurir.',
-    availableStock: 40
+    title: 'Super Sol Karbol Wangi Pine Desinfektan 800mL',
+    category: 'Produk Wings (Home Care)',
+    pointsRequired: 280,
+    iconName: 'ShieldCheck',
+    description: 'Cairan karbol pembersih lantai dengan aroma pinus segar dan formula antibakteri membunuh kuman.',
+    availableStock: 35
   },
   {
     id: 'r-4',
-    title: 'Rompi Safety Premium High-Vis',
-    category: 'Safety Gear',
-    pointsRequired: 1200,
+    title: 'WPC Pembersih Kloset & Porselen Extra Kuat 780mL',
+    category: 'Produk Wings (Home Care)',
+    pointsRequired: 300,
     iconName: 'ShieldCheck',
-    description: 'Rompi reflektif 3M kualitas tinggi dengan saku zipper & breathable mesh.',
-    availableStock: 8,
-    badgeTag: 'Exclusive'
+    description: 'Pembersih porselen dan kloset efektif mengangkat kerak membandel seketika untuk sanitasi higienis.',
+    availableStock: 25
   },
   {
     id: 'r-5',
-    title: 'Voucher Belanja Minimarket Rp 75.000',
-    category: 'Voucher & Perk',
-    pointsRequired: 700,
-    iconName: 'ShoppingBag',
-    description: 'Voucher fisik/digital Indomaret / Alfamart seluruh Indonesia.',
-    availableStock: 19
+    title: 'Nuvo Family Sabun Mandi Cair Antibakterial 450mL',
+    category: 'Produk Wings (Personal Care)',
+    pointsRequired: 320,
+    iconName: 'Heart',
+    description: 'Sabun mandi cair keluarga dengan perlindungan antibakteri TCC melawan kuman aktif.',
+    availableStock: 40,
+    badgeTag: 'Essential'
   },
   {
     id: 'r-6',
-    title: 'Prioritas Alokasi Rute Favorit (1 Minggu)',
-    category: 'Voucher & Perk',
-    pointsRequired: 1500,
+    title: 'Giv White Beauty Body Wash Sakura & Pearl 450mL',
+    category: 'Produk Wings (Personal Care)',
+    pointsRequired: 320,
     iconName: 'Award',
-    description: 'Hak istimewa memilih zona rute pengiriman sesuai preferensi kurir.',
-    availableStock: 5,
-    badgeTag: 'VIP Perk'
+    description: 'Sabun mandi wangi mewah dengan ekstrak bunga sakura dan mutiara untuk kulit halus terawat.',
+    availableStock: 35
+  },
+  {
+    id: 'r-7',
+    title: 'Zinc Shampoo Anti-Dandruff Refreshing Cool 340mL',
+    category: 'Produk Wings (Personal Care)',
+    pointsRequired: 380,
+    iconName: 'Zap',
+    description: 'Shampo anti ketombe dengan sensasi dingin menthol menyegarkan kulit kepala sepanjang hari.',
+    availableStock: 30
+  },
+  {
+    id: 'r-8',
+    title: 'Ciptadent Maxi Complete Pasta Gigi & Sikat Gigi Pack',
+    category: 'Produk Wings (Personal Care)',
+    pointsRequired: 260,
+    iconName: 'ShieldCheck',
+    description: 'Paket perlindungan gigi menyeluruh Micro Active Foam dan sikat gigi berbulu lembut.',
+    availableStock: 50
+  },
+  {
+    id: 'r-9',
+    title: 'Kodomo Baby Wipes & Hair & Body Wash Gift Set',
+    category: 'Produk Wings (Baby Care)',
+    pointsRequired: 450,
+    iconName: 'Heart',
+    description: 'Paket sabun mandi bayi 2-in-1 aroma buah segar dan tisu basah lembut non-alkohol higienis.',
+    availableStock: 20,
+    badgeTag: 'Family Choice'
+  },
+  {
+    id: 'r-10',
+    title: 'Mie Sedaap All-Variant Special Box (Isi 10 Pcs)',
+    category: 'Produk Wings (Food)',
+    pointsRequired: 350,
+    iconName: 'ShoppingBag',
+    description: 'Paket aneka varian Mie Sedaap kuah dan goreng favorit dengan kriuk bawang gurih renyah.',
+    availableStock: 40,
+    badgeTag: 'Favorite'
+  },
+  {
+    id: 'r-11',
+    title: 'Paket Floridina Orange & Teh Javana (Karton Mini 12 Pcs)',
+    category: 'Produk Wings (Beverage)',
+    pointsRequired: 480,
+    iconName: 'ShoppingBag',
+    description: 'Minuman jus jeruk bulir asli dan teh melati asli siap minum untuk kesegaran harian.',
+    availableStock: 25
+  },
+  {
+    id: 'r-12',
+    title: 'Voucher Indomaret Rp 100.000',
+    category: 'Voucher Belanja',
+    pointsRequired: 1000,
+    iconName: 'CreditCard',
+    description: 'Voucher belanja resmi Indomaret untuk kebutuhan belanja harian di seluruh gerai.',
+    availableStock: 20,
+    badgeTag: 'Super Reward'
   }
 ];
 

@@ -596,7 +596,7 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
                   type="text"
                   value={rewardFormTitle}
                   onChange={(e) => setRewardFormTitle(e.target.value)}
-                  placeholder="cth. Saldo GoPay Rp 100.000"
+                  placeholder="cth. So Klin Liquid 1.6L atau Voucher Indomaret"
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
                   required
                 />
