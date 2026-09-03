@@ -41,7 +41,7 @@ import {
 import { fetchAllSopModules } from '../lib/sopService';
 import { supabase } from '../lib/supabaseClient';
 import { SopSlideshowModal } from './SopSlideshowModal';
-import { uploadFileToGoogleDrive } from '../lib/googleDriveService';
+import { uploadFileToGoogleDrive, formatGoogleDriveImageUrl } from '../lib/googleDriveService';
 import { safeLocalStorageSetItem, sanitizeDataForStorage } from '../lib/storageSanitizer';
 
 interface SopManagementPanelProps {
@@ -64,6 +64,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
   const [creationStep, setCreationStep] = useState<1 | 2>(1); // 1: Pilih Format Dasar, 2: Multi-Slide Editor
   const [formFormat, setFormFormat] = useState<SopPresentationFormat>('micro_deck');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Basic Module Meta Fields
@@ -386,6 +387,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
     handleUpdateActiveSlide({ imageUrl: blobPreviewUrl });
 
     // 2. Unggah otomatis ke Google Drive di folder Administrator / Dokumen_SOP
+    setIsUploadingImage(true);
     try {
       if (onToast) onToast('Mengunggah gambar slide ke Google Drive resmi...');
       const uploadRes = await uploadFileToGoogleDrive(file, {
@@ -393,14 +395,20 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
         workerName: 'System Administrator',
         moduleCategory: 'Dokumen_SOP',
       });
-      if (uploadRes.directUrl || uploadRes.webViewLink) {
+      if (uploadRes.success && (uploadRes.directUrl || uploadRes.webViewLink)) {
         const finalUrl = uploadRes.directUrl || uploadRes.webViewLink;
         handleUpdateActiveSlide({ imageUrl: finalUrl });
         if (onToast) onToast('✓ Berkas slide SOP tersimpan di Google Drive!');
+      } else {
+        const err = uploadRes.error || 'Gagal menyimpan ke Google Drive';
+        console.warn('Gagal upload gambar SOP ke Google Drive:', err);
+        if (onToast) onToast(`⚠️ Upload GDrive gagal: ${err}`);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Gagal upload gambar SOP ke Google Drive:', err);
-      if (onToast) onToast('Gagal terhubung ke Google Drive. Menggunakan gambar default.');
+      if (onToast) onToast(`Gagal terhubung ke Google Drive: ${err?.message || err}`);
+    } finally {
+      setIsUploadingImage(false);
     }
 
     e.target.value = '';
@@ -1249,9 +1257,13 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                               className="relative inline-block max-w-full rounded-lg overflow-hidden shadow-2xl border-2 border-indigo-500/60 cursor-crosshair select-none bg-black transition-all"
                             >
                               <img
-                                src={currentActiveSlide.imageUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
+                                src={formatGoogleDriveImageUrl(currentActiveSlide.imageUrl) || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
                                 alt="Simulator screen"
                                 className="max-h-[480px] w-auto max-w-full block pointer-events-none object-contain"
+                                onError={(e) => {
+                                  const target = e.currentTarget as HTMLImageElement;
+                                  target.src = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80';
+                                }}
                               />
                               {/* Visual Target Hitbox */}
                               <div
@@ -1511,9 +1523,13 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                               className="relative inline-block max-w-full rounded-lg overflow-hidden shadow-2xl border-2 border-amber-500/60 cursor-crosshair select-none bg-black transition-all"
                             >
                               <img
-                                src={currentActiveSlide.imageUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
+                                src={formatGoogleDriveImageUrl(currentActiveSlide.imageUrl) || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
                                 alt="Spot preview"
                                 className="max-h-[480px] w-auto max-w-full block pointer-events-none object-contain"
+                                onError={(e) => {
+                                  const target = e.currentTarget as HTMLImageElement;
+                                  target.src = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80';
+                                }}
                               />
                               {/* Visual Target Tolerance Radius Indicator */}
                               <div
@@ -1788,11 +1804,17 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                     </button>
                     <button
                       type="submit"
-                      disabled={isSubmitting}
-                      className="w-2/3 bg-purple-600 hover:bg-purple-500 text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-purple-900/30"
+                      disabled={isSubmitting || isUploadingImage}
+                      className="w-2/3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-purple-900/30"
                     >
-                      {isSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                      <span>Simpan & Terbitkan Modul ({editingSlides.length} Slide)</span>
+                      {(isSubmitting || isUploadingImage) && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      <span>
+                        {isUploadingImage
+                          ? 'Mengunggah ke Drive...'
+                          : isSubmitting
+                          ? 'Menerbitkan Modul...'
+                          : `Simpan & Terbitkan Modul (${editingSlides.length} Slide)`}
+                      </span>
                     </button>
                   </div>
 

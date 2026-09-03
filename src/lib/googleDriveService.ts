@@ -170,7 +170,7 @@ export async function uploadFileToGoogleDrive(
           const webViewLink =
             parsed.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
           const directUrl =
-            parsed.directUrl || `https://lh3.googleusercontent.com/d/${fileId}`;
+            parsed.directUrl || `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`;
 
           return {
             success: true,
@@ -181,25 +181,16 @@ export async function uploadFileToGoogleDrive(
             targetFolderUrl: parsed.targetFolderUrl || `https://drive.google.com/drive/folders/${effectiveRootId}`,
             folderPath: parsed.folderPath || `${workerName} > ${moduleCategory}`,
           };
-        } else if (parsed.message) {
-          console.warn('[GDrive WebApp Warning]', parsed.message);
+        } else if (parsed.message || parsed.status === 'error') {
+          const errMsg = parsed.message || 'Gagal menyimpan ke Google Drive (Status error).';
+          console.warn('[GDrive WebApp Error]', errMsg);
+          throw new Error(errMsg);
         }
       }
     }
 
-    // Fallback: Kembalikan Data URL agar visualisasi tetap tampil di UI jika WebApp belum di-deploy
-    const fallbackId = `gdrive_local_${timestamp}`;
-    const directDataUrl = `data:${file.type || 'image/jpeg'};base64,${base64Data}`;
-
-    return {
-      success: true,
-      fileId: fallbackId,
-      webViewLink: `https://drive.google.com/drive/folders/${effectiveRootId}`,
-      directUrl: directDataUrl,
-      userFolderUrl: `https://drive.google.com/drive/folders/${effectiveRootId}`,
-      targetFolderUrl: `https://drive.google.com/drive/folders/${effectiveRootId}`,
-      folderPath: `[Lokal] ${workerName} > ${moduleCategory}`,
-    };
+    // Jika WebApp belum diatur
+    throw new Error('Google Drive Webhook belum dikonfigurasi.');
   } catch (err: any) {
     console.warn('Google Drive WebApp upload result exception:', err);
     return {
@@ -210,3 +201,34 @@ export async function uploadFileToGoogleDrive(
     };
   }
 }
+
+/**
+ * Mengonversi link Google Drive (view, open, sharing, lh3) menjadi thumbnail/image URL
+ * yang valid dan kompatibel secara native dengan tag <img> HTML.
+ */
+export function formatGoogleDriveImageUrl(url?: string): string {
+  if (!url || typeof url !== 'string') return '';
+  const trimmed = url.trim();
+  if (!trimmed) return '';
+
+  // Jika berupa data: atau blob: atau URL http biasa non-drive
+  if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+    return trimmed;
+  }
+
+  // Ekstrak ID file Google Drive dari berbagai variasi URL
+  const matchFileD = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  const matchIdParam = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  const matchLh3 = trimmed.match(/googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
+  const matchThumbnail = trimmed.match(/\/thumbnail\?id=([a-zA-Z0-9_-]+)/);
+
+  const fileId = matchFileD?.[1] || matchIdParam?.[1] || matchLh3?.[1] || matchThumbnail?.[1];
+
+  if (fileId) {
+    // Thumbnail CDN resolusi tinggi (w1600) paling stabil dan tidak terhalang auth cookie Google
+    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`;
+  }
+
+  return trimmed;
+}
+

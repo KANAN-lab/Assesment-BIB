@@ -24,6 +24,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { SopModule, SopSlide } from '../types/sop';
+import { formatGoogleDriveImageUrl } from '../lib/googleDriveService';
 
 interface SopSlideshowModalProps {
   module: SopModule;
@@ -515,9 +516,13 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
                 <div className="w-full bg-zinc-950/80 border border-zinc-800 rounded-2xl p-2 flex items-center justify-center overflow-hidden min-h-[260px] max-h-[550px] shadow-xl">
                   <div className="relative inline-block max-w-full select-none rounded-xl overflow-hidden shadow-2xl">
                     <img
-                      src={currentSlide.imageUrl}
+                      src={formatGoogleDriveImageUrl(currentSlide.imageUrl)}
                       alt={currentSlide.title}
                       className="max-h-[500px] w-auto max-w-full block object-contain pointer-events-none"
+                      onError={(e) => {
+                        const target = e.currentTarget as HTMLImageElement;
+                        target.src = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80';
+                      }}
                     />
                     {currentSlide.hotspots.map((hs) => (
                       <button
@@ -604,9 +609,13 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
                   className="relative inline-block max-w-full cursor-crosshair select-none rounded-xl overflow-hidden shadow-2xl group transition-all"
                 >
                   <img
-                    src={currentSlide.imageUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
+                    src={formatGoogleDriveImageUrl(currentSlide.imageUrl) || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
                     alt="WMS Simulation Screen"
                     className="max-h-[560px] w-auto max-w-full block pointer-events-none object-contain"
+                    onError={(e) => {
+                      const target = e.currentTarget as HTMLImageElement;
+                      target.src = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80';
+                    }}
                   />
 
                   {/* Target Hit Box (With Pulsing Guide) */}
@@ -675,9 +684,13 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
                   className="relative inline-block max-w-full cursor-crosshair select-none rounded-xl overflow-hidden shadow-2xl group transition-all"
                 >
                   <img
-                    src={currentSlide.imageUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
+                    src={formatGoogleDriveImageUrl(currentSlide.imageUrl) || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
                     alt="Spot the mistake field photo"
                     className="max-h-[560px] w-auto max-w-full block pointer-events-none object-contain"
+                    onError={(e) => {
+                      const target = e.currentTarget as HTMLImageElement;
+                      target.src = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80';
+                    }}
                   />
 
                   {/* Revealed Hazard Highlight */}
@@ -743,9 +756,13 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
               {currentSlide.imageUrl && (
                 <div className="rounded-xl overflow-hidden border border-zinc-800 bg-zinc-950">
                   <img
-                    src={currentSlide.imageUrl}
+                    src={formatGoogleDriveImageUrl(currentSlide.imageUrl)}
                     alt="Document page"
                     className="w-full object-contain max-h-80 mx-auto"
+                    onError={(e) => {
+                      const target = e.currentTarget as HTMLImageElement;
+                      target.src = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80';
+                    }}
                   />
                 </div>
               )}

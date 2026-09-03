@@ -15,7 +15,12 @@ export const FALLBACK_IMAGE_CDN =
  */
 export function isBase64DataUrl(val: unknown): boolean {
   if (typeof val !== 'string') return false;
-  return val.startsWith('data:image/') || val.startsWith('data:application/') || (val.startsWith('data:') && val.length > 500);
+  return (
+    val.startsWith('data:image/') ||
+    val.startsWith('data:application/') ||
+    val.startsWith('blob:') ||
+    (val.startsWith('data:') && val.length > 500)
+  );
 }
 
 /**
