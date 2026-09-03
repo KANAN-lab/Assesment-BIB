@@ -23,8 +23,13 @@ import {
   UserCheck,
   RotateCcw,
   Eye,
-  CheckCircle
+  CheckCircle,
+  Camera,
+  Upload,
+  Loader2,
+  X
 } from 'lucide-react';
+import { uploadFileToGoogleDrive } from '../lib/googleDriveService';
 import { WorkerProfile } from '../types/assessment';
 import {
   DisciplinaryActionEntity,
@@ -73,6 +78,8 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
   const [mandatoryRetrainingSopId, setMandatoryRetrainingSopId] = useState('');
   const [actionPlan, setActionPlan] = useState('');
   const [evidencePhotoUrl, setEvidencePhotoUrl] = useState('');
+  const [evidencePhotoFile, setEvidencePhotoFile] = useState<File | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const [issuerName, setIssuerName] = useState(currentUserName);
 
   // Modal / Verification State
@@ -135,7 +142,7 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
   }, [actions, levelFilter, categoryFilter, statusFilter, divisionFilter, search]);
 
   // Submit New Action
-  const handleSubmitNewAction = (e: React.FormEvent) => {
+  const handleSubmitNewAction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedWorkerId) {
       alert('Pilih pekerja logistik terlebih dahulu!');
@@ -159,6 +166,27 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
 
     const sop = sopModules.find((s) => s.id === mandatoryRetrainingSopId);
 
+    let finalEvidenceUrl = evidencePhotoUrl.trim() || undefined;
+
+    if (evidencePhotoFile) {
+      setIsUploadingPhoto(true);
+      try {
+        const upRes = await uploadFileToGoogleDrive(evidencePhotoFile, {
+          workerId: worker.id,
+          workerName: worker.name,
+          moduleCategory: 'Sanksi_Disiplin',
+          customFilename: `SANKSI_${worker.employeeId || worker.id}_${Date.now()}.jpg`,
+        });
+        if (upRes.directUrl || upRes.webViewLink) {
+          finalEvidenceUrl = upRes.directUrl || upRes.webViewLink;
+        }
+      } catch (err) {
+        console.warn('Gagal upload bukti sanksi ke Google Drive:', err);
+      } finally {
+        setIsUploadingPhoto(false);
+      }
+    }
+
     DisciplinaryService.issueSanction({
       workerId: worker.id,
       workerName: worker.name,
@@ -175,7 +203,7 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
       mandatoryRetrainingSopTitle: sop ? `[${sop.code}] ${sop.title}` : undefined,
       issuedBy: issuerName || 'Supervisor HSE',
       actionPlan: actionPlan || undefined,
-      evidencePhotoUrl: evidencePhotoUrl || undefined,
+      evidencePhotoUrl: finalEvidenceUrl,
     });
 
     // Reset Form
@@ -187,6 +215,8 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
     setMandatoryRetrainingSopId('');
     setActionPlan('');
     setEvidencePhotoUrl('');
+    setEvidencePhotoFile(null);
+    setSelectedWorkerId('');
     setActiveSubTab('list');
   };
 
@@ -698,15 +728,70 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-zinc-300 mb-1">URL Bukti Foto Kejadian (Opsional)</label>
-              <input
-                type="text"
-                value={evidencePhotoUrl}
-                onChange={(e) => setEvidencePhotoUrl(e.target.value)}
-                placeholder="https://..."
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-rose-500"
-              />
+            {/* Bukti Foto Kejadian */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-zinc-300">
+                Bukti Foto Kejadian <span className="text-zinc-500">(Opsional)</span>
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                <label className="cursor-pointer inline-flex items-center gap-2 px-3.5 py-2.5 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 rounded-xl text-xs font-bold text-rose-300 transition shadow-sm shrink-0">
+                  <Camera className="w-4 h-4 text-rose-400" />
+                  <span>{evidencePhotoFile ? 'Ganti Foto' : 'Jepret / Unggah Bukti'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setEvidencePhotoFile(file);
+                      const reader = new FileReader();
+                      reader.onload = () => setEvidencePhotoUrl(reader.result as string);
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
+                <div className="flex-1 w-full">
+                  <input
+                    type="text"
+                    value={evidencePhotoUrl}
+                    onChange={(e) => {
+                      setEvidencePhotoUrl(e.target.value);
+                      setEvidencePhotoFile(null);
+                    }}
+                    placeholder="Atau tempel link URL foto: https://..."
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              </div>
+              {evidencePhotoUrl && (
+                <div className="flex items-center gap-2.5 p-2 bg-zinc-950/80 border border-zinc-800 rounded-xl">
+                  <img
+                    src={evidencePhotoUrl}
+                    alt="Preview Bukti"
+                    className="w-12 h-12 object-cover rounded-lg border border-zinc-700"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-bold text-zinc-300 truncate">
+                      {evidencePhotoFile ? evidencePhotoFile.name : 'Link foto bukti terpasang'}
+                    </p>
+                    <p className="text-[10px] text-rose-400">
+                      {evidencePhotoFile ? '✓ Siap diunggah otomatis ke Google Drive (Sanksi_Disiplin)' : 'Pratinjau Foto Aktif'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEvidencePhotoFile(null);
+                      setEvidencePhotoUrl('');
+                    }}
+                    className="text-zinc-500 hover:text-rose-400 p-1 rounded-lg"
+                    title="Hapus foto"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

@@ -22,8 +22,12 @@ import {
   Edit2,
   CheckCircle,
   HelpCircle,
-  Star
+  Star,
+  Upload,
+  Loader2,
+  X
 } from 'lucide-react';
+import { uploadFileToGoogleDrive } from '../lib/googleDriveService';
 import { WorkerProfile } from '../types/assessment';
 import {
   WarehouseZone5s,
@@ -73,6 +77,9 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
   const [correctiveAction, setCorrectiveAction] = useState('');
   const [beforePhotoUrl, setBeforePhotoUrl] = useState('');
   const [afterPhotoUrl, setAfterPhotoUrl] = useState('');
+  const [beforePhotoFile, setBeforePhotoFile] = useState<File | null>(null);
+  const [afterPhotoFile, setAfterPhotoFile] = useState<File | null>(null);
+  const [isUploadingPhotos, setIsUploadingPhotos] = useState(false);
 
   // Zone Management Form State
   const [newZoneName, setNewZoneName] = useState('');
@@ -117,11 +124,49 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
   const liveRating = Audit5sService.calculateRating(liveTotalScore);
 
   // Submit New Audit Record
-  const handleSubmitAudit = (e: React.FormEvent) => {
+  const handleSubmitAudit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedZoneId) {
       alert('Pilih wilayah / zona gudang yang diaudit terlebih dahulu!');
       return;
+    }
+
+    const targetZone = zones.find((z) => z.id === selectedZoneId);
+    const safeZoneName = targetZone ? targetZone.name.replace(/[^a-zA-Z0-9]/g, '_') : 'Zona';
+
+    let finalBeforeUrl = beforePhotoUrl.trim() || undefined;
+    let finalAfterUrl = afterPhotoUrl.trim() || undefined;
+
+    if (beforePhotoFile || afterPhotoFile) {
+      setIsUploadingPhotos(true);
+      try {
+        if (beforePhotoFile) {
+          const upRes = await uploadFileToGoogleDrive(beforePhotoFile, {
+            workerId: currentUserName ? currentUserName.replace(/[^a-zA-Z0-9]/g, '_') : 'Auditor',
+            workerName: auditorName || currentUserName || 'Auditor 5R',
+            moduleCategory: 'Audit_5R_5S',
+            customFilename: `5R_Before_${safeZoneName}_${Date.now()}.jpg`,
+          });
+          if (upRes.directUrl || upRes.webViewLink) {
+            finalBeforeUrl = upRes.directUrl || upRes.webViewLink;
+          }
+        }
+        if (afterPhotoFile) {
+          const upRes = await uploadFileToGoogleDrive(afterPhotoFile, {
+            workerId: currentUserName ? currentUserName.replace(/[^a-zA-Z0-9]/g, '_') : 'Auditor',
+            workerName: auditorName || currentUserName || 'Auditor 5R',
+            moduleCategory: 'Audit_5R_5S',
+            customFilename: `5R_After_${safeZoneName}_${Date.now()}.jpg`,
+          });
+          if (upRes.directUrl || upRes.webViewLink) {
+            finalAfterUrl = upRes.directUrl || upRes.webViewLink;
+          }
+        }
+      } catch (err) {
+        console.warn('Gagal mengunggah foto 5R ke Google Drive:', err);
+      } finally {
+        setIsUploadingPhotos(false);
+      }
     }
 
     Audit5sService.submitAuditRecord({
@@ -131,8 +176,8 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
       scores,
       findingsDescription: findingsDescription || undefined,
       correctiveAction: correctiveAction || undefined,
-      beforePhotoUrl: beforePhotoUrl || undefined,
-      afterPhotoUrl: afterPhotoUrl || undefined,
+      beforePhotoUrl: finalBeforeUrl,
+      afterPhotoUrl: finalAfterUrl,
     });
 
     // Reset Form
@@ -141,6 +186,8 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
     setCorrectiveAction('');
     setBeforePhotoUrl('');
     setAfterPhotoUrl('');
+    setBeforePhotoFile(null);
+    setAfterPhotoFile(null);
     setActiveSubTab('leaderboard');
   };
 
@@ -646,26 +693,136 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-zinc-300 mb-1">URL Foto Kondisi Sebelum (Before)</label>
-              <input
-                type="text"
-                value={beforePhotoUrl}
-                onChange={(e) => setBeforePhotoUrl(e.target.value)}
-                placeholder="https://..."
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-teal-500"
-              />
+            {/* Foto Kondisi Sebelum (Before) */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-zinc-300">
+                Foto Kondisi Sebelum (Before)
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                <label className="cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 rounded-xl text-xs font-bold text-teal-300 transition shadow-sm shrink-0">
+                  <Camera className="w-4 h-4 text-teal-400" />
+                  <span>{beforePhotoFile ? 'Ganti Foto' : 'Jepret / Unggah Foto'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setBeforePhotoFile(file);
+                      const reader = new FileReader();
+                      reader.onload = () => setBeforePhotoUrl(reader.result as string);
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
+                <div className="flex-1 w-full">
+                  <input
+                    type="text"
+                    value={beforePhotoUrl}
+                    onChange={(e) => {
+                      setBeforePhotoUrl(e.target.value);
+                      setBeforePhotoFile(null);
+                    }}
+                    placeholder="Atau tempel link URL foto: https://..."
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+              </div>
+              {beforePhotoUrl && (
+                <div className="flex items-center gap-2.5 p-2 bg-zinc-950/80 border border-zinc-800 rounded-xl">
+                  <img
+                    src={beforePhotoUrl}
+                    alt="Preview Before"
+                    className="w-12 h-12 object-cover rounded-lg border border-zinc-700"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-bold text-zinc-300 truncate">
+                      {beforePhotoFile ? beforePhotoFile.name : 'Link foto sebelum terpasang'}
+                    </p>
+                    <p className="text-[10px] text-teal-400">
+                      {beforePhotoFile ? '✓ Siap diunggah otomatis ke Google Drive (Audit_5R_5S)' : 'Pratinjau Foto Aktif'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setBeforePhotoFile(null);
+                      setBeforePhotoUrl('');
+                    }}
+                    className="text-zinc-500 hover:text-rose-400 p-1 rounded-lg"
+                    title="Hapus foto"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-zinc-300 mb-1">URL Foto Kondisi Sesudah (After)</label>
-              <input
-                type="text"
-                value={afterPhotoUrl}
-                onChange={(e) => setAfterPhotoUrl(e.target.value)}
-                placeholder="https://..."
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-teal-500"
-              />
+            {/* Foto Kondisi Sesudah (After) */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-zinc-300">
+                Foto Kondisi Sesudah (After)
+              </label>
+              <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+                <label className="cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 rounded-xl text-xs font-bold text-teal-300 transition shadow-sm shrink-0">
+                  <Camera className="w-4 h-4 text-teal-400" />
+                  <span>{afterPhotoFile ? 'Ganti Foto' : 'Jepret / Unggah Foto'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setAfterPhotoFile(file);
+                      const reader = new FileReader();
+                      reader.onload = () => setAfterPhotoUrl(reader.result as string);
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
+                <div className="flex-1 w-full">
+                  <input
+                    type="text"
+                    value={afterPhotoUrl}
+                    onChange={(e) => {
+                      setAfterPhotoUrl(e.target.value);
+                      setAfterPhotoFile(null);
+                    }}
+                    placeholder="Atau tempel link URL foto: https://..."
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-teal-500"
+                  />
+                </div>
+              </div>
+              {afterPhotoUrl && (
+                <div className="flex items-center gap-2.5 p-2 bg-zinc-950/80 border border-zinc-800 rounded-xl">
+                  <img
+                    src={afterPhotoUrl}
+                    alt="Preview After"
+                    className="w-12 h-12 object-cover rounded-lg border border-zinc-700"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[11px] font-bold text-zinc-300 truncate">
+                      {afterPhotoFile ? afterPhotoFile.name : 'Link foto sesudah terpasang'}
+                    </p>
+                    <p className="text-[10px] text-teal-400">
+                      {afterPhotoFile ? '✓ Siap diunggah otomatis ke Google Drive (Audit_5R_5S)' : 'Pratinjau Foto Aktif'}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAfterPhotoFile(null);
+                      setAfterPhotoUrl('');
+                    }}
+                    className="text-zinc-500 hover:text-rose-400 p-1 rounded-lg"
+                    title="Hapus foto"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
