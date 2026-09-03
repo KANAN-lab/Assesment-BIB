@@ -97,7 +97,7 @@ export async function uploadFileToGoogleDrive(
   let moduleCategory: GDriveModuleCategory = 'General_Uploads';
   let customFilename: string | undefined = undefined;
   let rootFolderId = legacyFolderId;
-  let compressImage = true;
+  let compressImage = false;
 
   if (typeof optionsOrFilename === 'string') {
     customFilename = optionsOrFilename;

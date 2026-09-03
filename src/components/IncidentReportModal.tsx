@@ -77,41 +77,12 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
 
     const origKb = Math.round(file.size / 1024);
     setOriginalSizeKb(origKb);
-    setCompressing(true);
+    setCompressedSizeKb(origKb);
+    setCompressionRatio('100% Kualitas Asli (Lossless)');
+    setCompressing(false);
     setError(null);
-
-    try {
-      // Library browser-image-compression configuration (90% HD Sharpness)
-      const options = {
-        maxSizeMB: 1.5,
-        maxWidthOrHeight: 2560,
-        useWebWorker: true,
-        initialQuality: 0.90,
-        fileType: 'image/jpeg',
-      };
-
-      const { default: imageCompression } = await import('browser-image-compression');
-      const compressedBlob = await imageCompression(file, options);
-      const compKb = Math.round(compressedBlob.size / 1024);
-      setCompressedSizeKb(compKb);
-
-      const ratio = (((origKb - compKb) / origKb) * 100).toFixed(0);
-      setCompressionRatio(`${ratio}% (Dari ${origKb} KB → ${compKb} KB, Kualitas 90% HD)`);
-
-      const compressedFile = new File([compressedBlob], file.name, { type: 'image/jpeg' });
-      setPhotoFile(compressedFile);
-
-      // Create preview
-      const previewUrl = URL.createObjectURL(compressedBlob);
-      setPhotoPreview(previewUrl);
-    } catch (err: any) {
-      console.warn('Gagal mengompresi foto via library:', err);
-      setError('Gagal mengompresi foto via library. Menggunakan file asli.');
-      setPhotoFile(file);
-      setPhotoPreview(URL.createObjectURL(file));
-    } finally {
-      setCompressing(false);
-    }
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
