@@ -631,7 +631,7 @@ ALTER TABLE worker_role_mutations ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all for worker_role_mutations" ON worker_role_mutations;
 CREATE POLICY "Allow all for worker_role_mutations" ON worker_role_mutations FOR ALL TO public USING (true) WITH CHECK (true);
 
--- Automatic Database Trigger: Auto-Award +50 PTS di level Server PostgreSQL saat status berubah jadi disetujui
+-- Automatic Database Trigger: Auto-Award Dynamic Points (+75 Near-Miss / +50 Insiden) di level Server PostgreSQL saat status disetujui
 CREATE OR REPLACE FUNCTION trg_fn_award_incident_points()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -639,15 +639,23 @@ SECURITY DEFINER
 AS $$
 DECLARE
   v_target_worker_id TEXT;
+  v_reward_points INTEGER := 50;
 BEGIN
   IF (OLD.status = 'open' OR OLD.points_awarded = FALSE OR OLD.points_awarded IS NULL)
      AND (NEW.status IN ('investigating', 'resolved', 'closed')) THEN
      
      v_target_worker_id := NEW.worker_id;
 
+     -- Near-miss diberi apresiasi ekstra (75 PTS) dibandingkan insiden biasa (50 PTS)
+     IF NEW.incident_type = 'near_miss' THEN
+       v_reward_points := 75;
+     ELSE
+       v_reward_points := 50;
+     END IF;
+
      IF v_target_worker_id IS NOT NULL AND v_target_worker_id <> '' THEN
        UPDATE workers
-       SET total_points = total_points + 50,
+       SET total_points = total_points + v_reward_points,
            updated_at = now()
        WHERE id = v_target_worker_id OR employee_id = v_target_worker_id;
 
@@ -1719,22 +1727,24 @@ INSERT INTO system_point_configs (id, config_data, updated_by)
 VALUES (
   'default_config',
   '{
-    "dailyQuizPoints": 50,
-    "dailyQuiz100Bonus": 25,
-    "preShiftChecklistPoints": 30,
-    "sopCompletionPoints": 50,
-    "incidentReportPoints": 40,
-    "nearMissBonusPoints": 20,
+    "auditFrequencyDays": 7,
+    "auditFrequencyLabel": "1x / Minggu",
+    "dailyQuizRewardPoints": 50,
+    "perfectQuizBonusPoints": 25,
+    "preShiftRewardPoints": 30,
+    "sopCompletionDefaultPoints": 50,
+    "incidentValidRewardPoints": 50,
+    "nearMissRewardPoints": 75,
     "kaizenSubmissionPoints": 50,
     "kaizenApprovedPoints": 150,
     "kaizenImplementedPoints": 300,
-    "kudoReceivedPoints": 10,
-    "kudoSentPoints": 5,
-    "audit5sGoldPoints": 100,
-    "audit5sSilverPoints": 50,
-    "audit5sBronzePoints": 25,
-    "sioRegistrationPoints": 100,
-    "sioRenewalPoints": 75,
+    "kudoSentPoints": 10,
+    "kudoReceivedPoints": 25,
+    "audit5sGoldRewardPoints": 200,
+    "audit5sSilverRewardPoints": 100,
+    "audit5sBronzeRewardPoints": 50,
+    "sioRegisteredRewardPoints": 100,
+    "sioRenewedRewardPoints": 150,
     "verbalCoachingPenaltyPoints": 25,
     "warningLetter1PenaltyPoints": 100,
     "warningLetter2PenaltyPoints": 250,
@@ -1757,7 +1767,7 @@ ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
     'kaizen_submitted', 'kaizen_approved', 'disciplinary_issued',
     'disciplinary_retraining_completed', 'audit_5s_completed',
     'sio_registered', 'ppe_distributed', 'ppe_damaged',
-    'notification_broadcast'
+    'notification_broadcast', 'role_mutated'
   )
 );
 
