@@ -76,7 +76,7 @@ def check_env():
     if not env_file.exists():
         add("ERROR", "ENV", ".env.local tidak ditemukan. Supabase tidak akan berfungsi.")
         return
-    content = env_file.read_text()
+    content = read(env_file)
     if "VITE_SUPABASE_URL" not in content:
         add("ERROR", "ENV", ".env.local tidak memiliki VITE_SUPABASE_URL")
     else:
@@ -95,7 +95,7 @@ def check_gitignore():
     if not gi.exists():
         add("WARN", "GIT", ".gitignore tidak ditemukan")
         return
-    content = gi.read_text()
+    content = read(gi)
     if ".env.local" not in content and ".env*" not in content:
         add("ERROR", "SECURITY", ".gitignore tidak mengecualikan .env.local — API key bisa ter-commit!")
     else:
@@ -108,7 +108,7 @@ def check_supabase_client():
     if not client_file.exists():
         add("ERROR", "SUPABASE", "src/lib/supabaseClient.ts tidak ditemukan")
         return
-    content = client_file.read_text()
+    content = read(client_file)
     if "createClient" not in content:
         add("ERROR", "SUPABASE", "supabaseClient.ts tidak memanggil createClient()")
     else:
@@ -135,7 +135,7 @@ def check_supabase_service():
         "completeWorkerChecklist",
         "supervisorAuditWorker",
     ]
-    content = service_file.read_text()
+    content = read(service_file)
     for fn in required_functions:
         if f"export async function {fn}" not in content and f"export function {fn}" not in content:
             add("ERROR", "SUPABASE", f"Fungsi '{fn}' tidak ditemukan di supabaseService.ts")
@@ -293,7 +293,7 @@ def check_sql_setup():
         add("WARN", "SQL", "supabase_setup.sql tidak ditemukan. Schema mungkin belum di-deploy.")
         return
 
-    content = sql_file.read_text()
+    content = read(sql_file)
     required = [
         ("CREATE TABLE.*workers", "Tabel workers"),
         ("CREATE TABLE.*reward_catalog", "Tabel reward_catalog"),

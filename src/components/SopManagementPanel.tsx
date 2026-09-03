@@ -24,6 +24,10 @@ import {
   ShieldAlert,
   ListOrdered,
   FileCheck2,
+  Upload,
+  Target,
+  Sliders,
+  Maximize2,
 } from 'lucide-react';
 import {
   SopModule,
@@ -365,6 +369,24 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
       }
       return next;
     });
+  };
+
+  const handleImageFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 8 * 1024 * 1024) {
+      if (onToast) onToast('Ukuran file gambar maksimal 8MB!');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (loadEvt) => {
+      if (typeof loadEvt.target?.result === 'string') {
+        handleUpdateActiveSlide({ imageUrl: loadEvt.target.result });
+        if (onToast) onToast('Gambar/Screenshot berhasil dimuat!');
+      }
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
   };
 
   const handleAddSlide = (type: SopSlideType) => {
@@ -1145,179 +1167,500 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
 
                       {/* ── TYPE: INTERACTIVE SIMULATOR ── */}
                       {currentActiveSlide.slideType === 'interactive_simulator' && (
-                        <div className="space-y-3 bg-indigo-950/20 p-3 rounded-xl border border-indigo-500/30">
-                          <label className="block text-[11px] text-indigo-300 font-bold">
-                            🎮 Konfigurasi Screenshot & Zona Target Klik
-                          </label>
-                          <input
-                            type="text"
-                            value={currentActiveSlide.imageUrl || ''}
-                            onChange={(e) => handleUpdateActiveSlide({ imageUrl: e.target.value })}
-                            placeholder="URL Gambar Screenshot WMS..."
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                          />
-
-                          {/* Hitbox Coordinate Picker */}
-                          <div
-                            onClick={(e) => {
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              const clickX = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-                              const clickY = Math.round(((e.clientY - rect.top) / rect.height) * 100);
-                              const w = currentActiveSlide.simulatorConfig?.targetWidthPercent || 40;
-                              const h = currentActiveSlide.simulatorConfig?.targetHeightPercent || 20;
-                              handleUpdateActiveSlide({
-                                simulatorConfig: {
-                                  ...(currentActiveSlide.simulatorConfig || {
-                                    taskInstruction: 'Klik tombol target di layar',
-                                    hintText: 'Perhatikan tombol yang menyala',
-                                  }),
-                                  targetXPercent: Math.max(0, Math.min(80, clickX - Math.round(w / 2))),
-                                  targetYPercent: Math.max(0, Math.min(80, clickY - Math.round(h / 2))),
-                                  targetWidthPercent: w,
-                                  targetHeightPercent: h,
-                                },
-                              });
-                            }}
-                            className="relative rounded-xl overflow-hidden border-2 border-indigo-500/50 bg-black cursor-crosshair max-h-56 flex items-center justify-center select-none"
-                          >
-                            <img
-                              src={currentActiveSlide.imageUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
-                              alt="Simulator screen"
-                              className="w-full h-full object-cover max-h-56 pointer-events-none"
-                            />
-                            <div
-                              style={{
-                                left: `${currentActiveSlide.simulatorConfig?.targetXPercent || 30}%`,
-                                top: `${currentActiveSlide.simulatorConfig?.targetYPercent || 40}%`,
-                                width: `${currentActiveSlide.simulatorConfig?.targetWidthPercent || 40}%`,
-                                height: `${currentActiveSlide.simulatorConfig?.targetHeightPercent || 20}%`,
-                              }}
-                              className="absolute border-2 border-emerald-400 bg-emerald-500/25 rounded flex items-center justify-center pointer-events-none shadow-[0_0_15px_rgba(16,185,129,0.5)]"
-                            >
-                              <span className="text-[9px] font-black text-white bg-black/80 px-1 rounded">
-                                {currentActiveSlide.simulatorConfig?.highlightLabel || 'TARGET'}
-                              </span>
-                            </div>
+                        <div className="space-y-3 bg-indigo-950/20 p-3.5 rounded-xl border border-indigo-500/30">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs text-indigo-300 font-bold flex items-center gap-1.5">
+                              🎮 Konfigurasi Screenshot & Zona Target Klik
+                            </label>
+                            <span className="text-[10px] text-zinc-400 bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-500/30">
+                              Full Screen (Zero Crop)
+                            </span>
                           </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[10px] text-zinc-400 mb-0.5">Tugas untuk Pekerja</label>
+                          {/* Image Source: URL or File Upload */}
+                          <div className="space-y-1.5">
+                            <div className="flex gap-2">
                               <input
                                 type="text"
-                                value={currentActiveSlide.simulatorConfig?.taskInstruction || ''}
-                                onChange={(e) =>
-                                  handleUpdateActiveSlide({
-                                    simulatorConfig: {
-                                      ...(currentActiveSlide.simulatorConfig || { targetXPercent: 30, targetYPercent: 40, targetWidthPercent: 40, targetHeightPercent: 20, hintText: '' }),
-                                      taskInstruction: e.target.value,
-                                    },
-                                  })
-                                }
-                                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                                value={currentActiveSlide.imageUrl || ''}
+                                onChange={(e) => handleUpdateActiveSlide({ imageUrl: e.target.value })}
+                                placeholder="URL Gambar Screenshot WMS atau Unggah File..."
+                                className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:border-indigo-500 focus:outline-none"
                               />
+                              <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors shadow-md">
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>Unggah File</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleImageFileUpload}
+                                  className="hidden"
+                                />
+                              </label>
                             </div>
-                            <div>
-                              <label className="block text-[10px] text-zinc-400 mb-0.5">Petunjuk jika Salah (Hint)</label>
-                              <input
-                                type="text"
-                                value={currentActiveSlide.simulatorConfig?.hintText || ''}
-                                onChange={(e) =>
-                                  handleUpdateActiveSlide({
-                                    simulatorConfig: {
-                                      ...(currentActiveSlide.simulatorConfig || { targetXPercent: 30, targetYPercent: 40, targetWidthPercent: 40, targetHeightPercent: 20, taskInstruction: '' }),
-                                      hintText: e.target.value,
-                                    },
-                                  })
-                                }
-                                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                            <p className="text-[10px] text-zinc-400">
+                              Mendukung format PNG, JPG, atau WebP dari scanner PDA, aplikasi WMS, atau desktop. Gambar tampil utuh 100% tanpa terpotong.
+                            </p>
+                          </div>
+
+                          {/* Zero-Crop Hitbox Canvas Stage */}
+                          <div className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 flex flex-col items-center justify-center min-h-[280px] max-h-[580px] overflow-auto shadow-inner">
+                            <div
+                              onClick={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                if (rect.width === 0 || rect.height === 0) return;
+                                const clickX = Math.round(((e.clientX - rect.left) / rect.width) * 100);
+                                const clickY = Math.round(((e.clientY - rect.top) / rect.height) * 100);
+                                const w = currentActiveSlide.simulatorConfig?.targetWidthPercent || 30;
+                                const h = currentActiveSlide.simulatorConfig?.targetHeightPercent || 15;
+                                handleUpdateActiveSlide({
+                                  simulatorConfig: {
+                                    ...(currentActiveSlide.simulatorConfig || {
+                                      taskInstruction: 'Klik tombol target di layar',
+                                      hintText: 'Perhatikan tombol yang menyala',
+                                    }),
+                                    targetXPercent: Math.max(0, Math.min(100 - w, clickX - Math.round(w / 2))),
+                                    targetYPercent: Math.max(0, Math.min(100 - h, clickY - Math.round(h / 2))),
+                                    targetWidthPercent: w,
+                                    targetHeightPercent: h,
+                                  },
+                                });
+                              }}
+                              className="relative inline-block max-w-full rounded-lg overflow-hidden shadow-2xl border-2 border-indigo-500/60 cursor-crosshair select-none bg-black transition-all"
+                            >
+                              <img
+                                src={currentActiveSlide.imageUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
+                                alt="Simulator screen"
+                                className="max-h-[480px] w-auto max-w-full block pointer-events-none object-contain"
                               />
+                              {/* Visual Target Hitbox */}
+                              <div
+                                style={{
+                                  left: `${currentActiveSlide.simulatorConfig?.targetXPercent || 30}%`,
+                                  top: `${currentActiveSlide.simulatorConfig?.targetYPercent || 40}%`,
+                                  width: `${currentActiveSlide.simulatorConfig?.targetWidthPercent || 30}%`,
+                                  height: `${currentActiveSlide.simulatorConfig?.targetHeightPercent || 15}%`,
+                                }}
+                                className="absolute border-2 border-emerald-400 bg-emerald-500/25 rounded flex items-center justify-center pointer-events-none shadow-[0_0_20px_rgba(16,185,129,0.6)] transition-all"
+                              >
+                                <span className="text-[10px] font-black text-emerald-200 bg-black/85 px-1.5 py-0.5 rounded border border-emerald-500/40 shadow">
+                                  {currentActiveSlide.simulatorConfig?.highlightLabel || '👉 TARGET'}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-zinc-400 mt-2 flex items-center gap-1">
+                              💡 Ketuk langsung titik tombol pada gambar di atas, atau sesuaikan ukuran & posisinya lewat slider di bawah:
+                            </span>
+                          </div>
+
+                          {/* Hitbox Customization Controls */}
+                          <div className="bg-zinc-900/90 border border-zinc-800 rounded-xl p-3 space-y-3">
+                            <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                              <span className="text-[11px] font-bold text-indigo-300 flex items-center gap-1.5">
+                                <Target className="w-3.5 h-3.5 text-indigo-400" />
+                                Penyesuaian Dimensi & Posisi Kotak Target (Hitbox)
+                              </span>
+                              <span className="text-[10px] text-zinc-400 font-mono">
+                                Pos: X={currentActiveSlide.simulatorConfig?.targetXPercent || 30}%, Y={currentActiveSlide.simulatorConfig?.targetYPercent || 40}% | Dim: {currentActiveSlide.simulatorConfig?.targetWidthPercent || 30}% × {currentActiveSlide.simulatorConfig?.targetHeightPercent || 15}%
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px]">
+                              <div>
+                                <label className="block text-zinc-400 mb-1">
+                                  Lebar Target: <span className="text-white font-bold">{currentActiveSlide.simulatorConfig?.targetWidthPercent || 30}%</span>
+                                </label>
+                                <input
+                                  type="range"
+                                  min={5}
+                                  max={90}
+                                  value={currentActiveSlide.simulatorConfig?.targetWidthPercent || 30}
+                                  onChange={(e) => {
+                                    const w = Number(e.target.value);
+                                    const curX = currentActiveSlide.simulatorConfig?.targetXPercent || 30;
+                                    handleUpdateActiveSlide({
+                                      simulatorConfig: {
+                                        ...(currentActiveSlide.simulatorConfig || { targetXPercent: 30, targetYPercent: 40, targetHeightPercent: 15, taskInstruction: '', hintText: '' }),
+                                        targetWidthPercent: w,
+                                        targetXPercent: Math.min(curX, 100 - w),
+                                      },
+                                    });
+                                  }}
+                                  className="w-full accent-indigo-500 cursor-pointer"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-zinc-400 mb-1">
+                                  Tinggi Target: <span className="text-white font-bold">{currentActiveSlide.simulatorConfig?.targetHeightPercent || 15}%</span>
+                                </label>
+                                <input
+                                  type="range"
+                                  min={5}
+                                  max={70}
+                                  value={currentActiveSlide.simulatorConfig?.targetHeightPercent || 15}
+                                  onChange={(e) => {
+                                    const h = Number(e.target.value);
+                                    const curY = currentActiveSlide.simulatorConfig?.targetYPercent || 40;
+                                    handleUpdateActiveSlide({
+                                      simulatorConfig: {
+                                        ...(currentActiveSlide.simulatorConfig || { targetXPercent: 30, targetYPercent: 40, targetWidthPercent: 30, taskInstruction: '', hintText: '' }),
+                                        targetHeightPercent: h,
+                                        targetYPercent: Math.min(curY, 100 - h),
+                                      },
+                                    });
+                                  }}
+                                  className="w-full accent-indigo-500 cursor-pointer"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-zinc-400 mb-1">
+                                  Posisi X (Kiri-Kanan): <span className="text-white font-bold">{currentActiveSlide.simulatorConfig?.targetXPercent || 30}%</span>
+                                </label>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={100 - (currentActiveSlide.simulatorConfig?.targetWidthPercent || 30)}
+                                  value={currentActiveSlide.simulatorConfig?.targetXPercent || 30}
+                                  onChange={(e) => {
+                                    handleUpdateActiveSlide({
+                                      simulatorConfig: {
+                                        ...(currentActiveSlide.simulatorConfig || { targetYPercent: 40, targetWidthPercent: 30, targetHeightPercent: 15, taskInstruction: '', hintText: '' }),
+                                        targetXPercent: Number(e.target.value),
+                                      },
+                                    });
+                                  }}
+                                  className="w-full accent-emerald-500 cursor-pointer"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-zinc-400 mb-1">
+                                  Posisi Y (Atas-Bawah): <span className="text-white font-bold">{currentActiveSlide.simulatorConfig?.targetYPercent || 40}%</span>
+                                </label>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={100 - (currentActiveSlide.simulatorConfig?.targetHeightPercent || 15)}
+                                  value={currentActiveSlide.simulatorConfig?.targetYPercent || 40}
+                                  onChange={(e) => {
+                                    handleUpdateActiveSlide({
+                                      simulatorConfig: {
+                                        ...(currentActiveSlide.simulatorConfig || { targetXPercent: 30, targetWidthPercent: 30, targetHeightPercent: 15, taskInstruction: '', hintText: '' }),
+                                        targetYPercent: Number(e.target.value),
+                                      },
+                                    });
+                                  }}
+                                  className="w-full accent-emerald-500 cursor-pointer"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-zinc-800">
+                              <div>
+                                <label className="block text-[10px] text-zinc-400 mb-0.5">Label pada Kotak Target</label>
+                                <input
+                                  type="text"
+                                  value={currentActiveSlide.simulatorConfig?.highlightLabel || ''}
+                                  onChange={(e) =>
+                                    handleUpdateActiveSlide({
+                                      simulatorConfig: {
+                                        ...(currentActiveSlide.simulatorConfig || { targetXPercent: 30, targetYPercent: 40, targetWidthPercent: 30, targetHeightPercent: 15, taskInstruction: '', hintText: '' }),
+                                        highlightLabel: e.target.value,
+                                      },
+                                    })
+                                  }
+                                  placeholder="Cth: [PUTAWAY STORAGE] atau 👉 KLIK INI"
+                                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-zinc-400 mb-0.5">Pesan Berhasil (Saat Sukses Klik)</label>
+                                <input
+                                  type="text"
+                                  value={currentActiveSlide.simulatorConfig?.successMessage || ''}
+                                  onChange={(e) =>
+                                    handleUpdateActiveSlide({
+                                      simulatorConfig: {
+                                        ...(currentActiveSlide.simulatorConfig || { targetXPercent: 30, targetYPercent: 40, targetWidthPercent: 30, targetHeightPercent: 15, taskInstruction: '', hintText: '' }),
+                                        successMessage: e.target.value,
+                                      },
+                                    })
+                                  }
+                                  placeholder="Cth: Tepat! Menu Putaway Terbuka."
+                                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-[10px] text-zinc-400 mb-0.5">Tugas untuk Pekerja</label>
+                                <input
+                                  type="text"
+                                  value={currentActiveSlide.simulatorConfig?.taskInstruction || ''}
+                                  onChange={(e) =>
+                                    handleUpdateActiveSlide({
+                                      simulatorConfig: {
+                                        ...(currentActiveSlide.simulatorConfig || { targetXPercent: 30, targetYPercent: 40, targetWidthPercent: 30, targetHeightPercent: 15, hintText: '' }),
+                                        taskInstruction: e.target.value,
+                                      },
+                                    })
+                                  }
+                                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-zinc-400 mb-0.5">Petunjuk jika Salah (Hint)</label>
+                                <input
+                                  type="text"
+                                  value={currentActiveSlide.simulatorConfig?.hintText || ''}
+                                  onChange={(e) =>
+                                    handleUpdateActiveSlide({
+                                      simulatorConfig: {
+                                        ...(currentActiveSlide.simulatorConfig || { targetXPercent: 30, targetYPercent: 40, targetWidthPercent: 30, targetHeightPercent: 15, taskInstruction: '' }),
+                                        hintText: e.target.value,
+                                      },
+                                    })
+                                  }
+                                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                                />
+                              </div>
                             </div>
                           </div>
                         </div>
                       )}
 
-                      {/* ── TYPE: SPOT THE MISTAKE ── */}
+                      {/* ── TYPE: SPOT THE MISTAKE (HAZARD HUNT) ── */}
                       {currentActiveSlide.slideType === 'spot_the_mistake' && (
-                        <div className="space-y-3 bg-amber-950/20 p-3 rounded-xl border border-amber-500/30">
-                          <label className="block text-[11px] text-amber-300 font-bold">
-                            🔍 Konfigurasi Foto Lapangan & Titik Bahaya
-                          </label>
-                          <input
-                            type="text"
-                            value={currentActiveSlide.imageUrl || ''}
-                            onChange={(e) => handleUpdateActiveSlide({ imageUrl: e.target.value })}
-                            placeholder="URL Foto Lapangan..."
-                            className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                          />
-
-                          <div
-                            onClick={(e) => {
-                              const rect = e.currentTarget.getBoundingClientRect();
-                              const clickX = Math.round(((e.clientX - rect.left) / rect.width) * 100);
-                              const clickY = Math.round(((e.clientY - rect.top) / rect.height) * 100);
-                              handleUpdateActiveSlide({
-                                spotMistakeConfig: {
-                                  ...(currentActiveSlide.spotMistakeConfig || {
-                                    challengePrompt: 'Temukan bahaya!',
-                                    hazardName: 'Bahaya K3',
-                                    explanation: 'Penjelasan K3',
-                                  }),
-                                  targetXPercent: clickX,
-                                  targetYPercent: clickY,
-                                  toleranceRadiusPercent: 15,
-                                },
-                              });
-                            }}
-                            className="relative rounded-xl overflow-hidden border-2 border-amber-500/50 bg-black cursor-crosshair max-h-56 flex items-center justify-center select-none"
-                          >
-                            <img
-                              src={currentActiveSlide.imageUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
-                              alt="Spot preview"
-                              className="w-full h-full object-cover max-h-56 pointer-events-none"
-                            />
-                            <div
-                              style={{
-                                left: `${currentActiveSlide.spotMistakeConfig?.targetXPercent || 50}%`,
-                                top: `${currentActiveSlide.spotMistakeConfig?.targetYPercent || 50}%`,
-                              }}
-                              className="absolute -translate-x-1/2 -translate-y-1/2 w-12 h-12 rounded-full border-2 border-rose-500 bg-rose-500/30 animate-pulse pointer-events-none flex items-center justify-center shadow-[0_0_20px_rgba(244,63,94,0.6)]"
-                            >
-                              <span className="text-xs">⚠️</span>
-                            </div>
+                        <div className="space-y-3 bg-amber-950/20 p-3.5 rounded-xl border border-amber-500/30">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs text-amber-300 font-bold flex items-center gap-1.5">
+                              🔍 Konfigurasi Foto Lapangan & Titik Bahaya (Hazard Hunt)
+                            </label>
+                            <span className="text-[10px] text-zinc-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-500/30">
+                              Full Photo (Zero Crop)
+                            </span>
                           </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <div>
-                              <label className="block text-[10px] text-zinc-400 mb-0.5">Tantangan untuk Pekerja</label>
+                          {/* Photo Source: URL or File Upload */}
+                          <div className="space-y-1.5">
+                            <div className="flex gap-2">
                               <input
                                 type="text"
-                                value={currentActiveSlide.spotMistakeConfig?.challengePrompt || ''}
-                                onChange={(e) =>
-                                  handleUpdateActiveSlide({
-                                    spotMistakeConfig: {
-                                      ...(currentActiveSlide.spotMistakeConfig || { targetXPercent: 50, targetYPercent: 50, toleranceRadiusPercent: 15, hazardName: '', explanation: '' }),
-                                      challengePrompt: e.target.value,
-                                    },
-                                  })
-                                }
-                                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                                value={currentActiveSlide.imageUrl || ''}
+                                onChange={(e) => handleUpdateActiveSlide({ imageUrl: e.target.value })}
+                                placeholder="URL Foto Lapangan atau Unggah File..."
+                                className="flex-1 bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:border-amber-500 focus:outline-none"
                               />
+                              <label className="cursor-pointer px-3 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 transition-colors shadow-md">
+                                <Upload className="w-3.5 h-3.5" />
+                                <span>Unggah Foto</span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleImageFileUpload}
+                                  className="hidden"
+                                />
+                              </label>
                             </div>
+                            <p className="text-[10px] text-zinc-400">
+                              Foto dokumentasi lapangan K3/inspeksi gudang tampil utuh 100%. Bebas menentukan letak anomali bahaya di sudut manapun.
+                            </p>
+                          </div>
+
+                          {/* Zero-Crop Hazard Canvas Stage */}
+                          <div className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-3 flex flex-col items-center justify-center min-h-[280px] max-h-[580px] overflow-auto shadow-inner">
+                            <div
+                              onClick={(e) => {
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                if (rect.width === 0 || rect.height === 0) return;
+                                const clickX = Math.round(((e.clientX - rect.left) / rect.width) * 100);
+                                const clickY = Math.round(((e.clientY - rect.top) / rect.height) * 100);
+                                handleUpdateActiveSlide({
+                                  spotMistakeConfig: {
+                                    ...(currentActiveSlide.spotMistakeConfig || {
+                                      challengePrompt: 'Temukan bahaya!',
+                                      hazardName: 'Bahaya K3',
+                                      explanation: 'Penjelasan K3',
+                                      toleranceRadiusPercent: 15,
+                                    }),
+                                    targetXPercent: clickX,
+                                    targetYPercent: clickY,
+                                  },
+                                });
+                              }}
+                              className="relative inline-block max-w-full rounded-lg overflow-hidden shadow-2xl border-2 border-amber-500/60 cursor-crosshair select-none bg-black transition-all"
+                            >
+                              <img
+                                src={currentActiveSlide.imageUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
+                                alt="Spot preview"
+                                className="max-h-[480px] w-auto max-w-full block pointer-events-none object-contain"
+                              />
+                              {/* Visual Target Tolerance Radius Indicator */}
+                              <div
+                                style={{
+                                  left: `${currentActiveSlide.spotMistakeConfig?.targetXPercent || 50}%`,
+                                  top: `${currentActiveSlide.spotMistakeConfig?.targetYPercent || 50}%`,
+                                  width: `${(currentActiveSlide.spotMistakeConfig?.toleranceRadiusPercent || 15) * 2}%`,
+                                  height: `${(currentActiveSlide.spotMistakeConfig?.toleranceRadiusPercent || 15) * 2}%`,
+                                }}
+                                className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-rose-500 bg-rose-500/25 animate-pulse pointer-events-none flex items-center justify-center shadow-[0_0_25px_rgba(244,63,94,0.7)]"
+                              >
+                                <span className="text-xs bg-black/80 px-1 py-0.5 rounded-full border border-rose-500/60 shadow">
+                                  ⚠️
+                                </span>
+                              </div>
+                            </div>
+                            <span className="text-[10px] text-zinc-400 mt-2 flex items-center gap-1">
+                              💡 Klik langsung pada foto lapangan di atas untuk menetapkan titik bahaya, atau atur slider posisi & toleransi di bawah:
+                            </span>
+                          </div>
+
+                          {/* Hazard Hunt Customization Controls */}
+                          <div className="bg-zinc-900/90 border border-zinc-800 rounded-xl p-3 space-y-3">
+                            <div className="flex items-center justify-between border-b border-zinc-800 pb-2">
+                              <span className="text-[11px] font-bold text-amber-300 flex items-center gap-1.5">
+                                <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+                                Pengaturan Titik Target & Radius Toleransi Klik
+                              </span>
+                              <span className="text-[10px] text-zinc-400 font-mono">
+                                Posisi: X={currentActiveSlide.spotMistakeConfig?.targetXPercent || 50}%, Y={currentActiveSlide.spotMistakeConfig?.targetYPercent || 50}% | Toleransi: ±{currentActiveSlide.spotMistakeConfig?.toleranceRadiusPercent || 15}%
+                              </span>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[11px]">
+                              <div>
+                                <label className="block text-zinc-400 mb-1">
+                                  Radius Toleransi: <span className="text-white font-bold">{currentActiveSlide.spotMistakeConfig?.toleranceRadiusPercent || 15}%</span>
+                                </label>
+                                <input
+                                  type="range"
+                                  min={5}
+                                  max={30}
+                                  value={currentActiveSlide.spotMistakeConfig?.toleranceRadiusPercent || 15}
+                                  onChange={(e) => {
+                                    handleUpdateActiveSlide({
+                                      spotMistakeConfig: {
+                                        ...(currentActiveSlide.spotMistakeConfig || { targetXPercent: 50, targetYPercent: 50, challengePrompt: '', hazardName: '', explanation: '' }),
+                                        toleranceRadiusPercent: Number(e.target.value),
+                                      },
+                                    });
+                                  }}
+                                  className="w-full accent-rose-500 cursor-pointer"
+                                />
+                                <span className="text-[9px] text-zinc-500">Semakin besar, semakin mudah diklik pekerja</span>
+                              </div>
+                              <div>
+                                <label className="block text-zinc-400 mb-1">
+                                  Posisi Horisontal X: <span className="text-white font-bold">{currentActiveSlide.spotMistakeConfig?.targetXPercent || 50}%</span>
+                                </label>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={100}
+                                  value={currentActiveSlide.spotMistakeConfig?.targetXPercent || 50}
+                                  onChange={(e) => {
+                                    handleUpdateActiveSlide({
+                                      spotMistakeConfig: {
+                                        ...(currentActiveSlide.spotMistakeConfig || { targetYPercent: 50, toleranceRadiusPercent: 15, challengePrompt: '', hazardName: '', explanation: '' }),
+                                        targetXPercent: Number(e.target.value),
+                                      },
+                                    });
+                                  }}
+                                  className="w-full accent-amber-500 cursor-pointer"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-zinc-400 mb-1">
+                                  Posisi Vertikal Y: <span className="text-white font-bold">{currentActiveSlide.spotMistakeConfig?.targetYPercent || 50}%</span>
+                                </label>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={100}
+                                  value={currentActiveSlide.spotMistakeConfig?.targetYPercent || 50}
+                                  onChange={(e) => {
+                                    handleUpdateActiveSlide({
+                                      spotMistakeConfig: {
+                                        ...(currentActiveSlide.spotMistakeConfig || { targetXPercent: 50, toleranceRadiusPercent: 15, challengePrompt: '', hazardName: '', explanation: '' }),
+                                        targetYPercent: Number(e.target.value),
+                                      },
+                                    });
+                                  }}
+                                  className="w-full accent-amber-500 cursor-pointer"
+                                />
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-zinc-800">
+                              <div>
+                                <label className="block text-[10px] text-zinc-400 mb-0.5">Tantangan untuk Pekerja</label>
+                                <input
+                                  type="text"
+                                  value={currentActiveSlide.spotMistakeConfig?.challengePrompt || ''}
+                                  onChange={(e) =>
+                                    handleUpdateActiveSlide({
+                                      spotMistakeConfig: {
+                                        ...(currentActiveSlide.spotMistakeConfig || { targetXPercent: 50, targetYPercent: 50, toleranceRadiusPercent: 15, hazardName: '', explanation: '' }),
+                                        challengePrompt: e.target.value,
+                                      },
+                                    })
+                                  }
+                                  placeholder="Cth: Temukan 1 potensi bahaya pada foto!"
+                                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-zinc-400 mb-0.5">Nama Bahaya K3</label>
+                                <input
+                                  type="text"
+                                  value={currentActiveSlide.spotMistakeConfig?.hazardName || ''}
+                                  onChange={(e) =>
+                                    handleUpdateActiveSlide({
+                                      spotMistakeConfig: {
+                                        ...(currentActiveSlide.spotMistakeConfig || { targetXPercent: 50, targetYPercent: 50, toleranceRadiusPercent: 15, challengePrompt: '', explanation: '' }),
+                                        hazardName: e.target.value,
+                                      },
+                                    })
+                                  }
+                                  placeholder="Cth: Tumpukan Miring Overhang (> 10cm)"
+                                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] text-zinc-400 mb-0.5">Batas Waktu Tantangan (Detik)</label>
+                                <input
+                                  type="number"
+                                  min={5}
+                                  max={60}
+                                  value={currentActiveSlide.spotMistakeConfig?.timeLimitSeconds || 20}
+                                  onChange={(e) =>
+                                    handleUpdateActiveSlide({
+                                      spotMistakeConfig: {
+                                        ...(currentActiveSlide.spotMistakeConfig || { targetXPercent: 50, targetYPercent: 50, toleranceRadiusPercent: 15, challengePrompt: '', hazardName: '', explanation: '' }),
+                                        timeLimitSeconds: Number(e.target.value),
+                                      },
+                                    })
+                                  }
+                                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                                />
+                              </div>
+                            </div>
+
                             <div>
-                              <label className="block text-[10px] text-zinc-400 mb-0.5">Nama Bahaya K3</label>
-                              <input
-                                type="text"
-                                value={currentActiveSlide.spotMistakeConfig?.hazardName || ''}
+                              <label className="block text-[10px] text-zinc-400 mb-0.5">Penjelasan & Prosedur K3 Benar (Muncul setelah terungkap)</label>
+                              <textarea
+                                rows={2}
+                                value={currentActiveSlide.spotMistakeConfig?.explanation || ''}
                                 onChange={(e) =>
                                   handleUpdateActiveSlide({
                                     spotMistakeConfig: {
-                                      ...(currentActiveSlide.spotMistakeConfig || { targetXPercent: 50, targetYPercent: 50, toleranceRadiusPercent: 15, challengePrompt: '', explanation: '' }),
-                                      hazardName: e.target.value,
+                                      ...(currentActiveSlide.spotMistakeConfig || { targetXPercent: 50, targetYPercent: 50, toleranceRadiusPercent: 15, challengePrompt: '', hazardName: '' }),
+                                      explanation: e.target.value,
                                     },
                                   })
                                 }
-                                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                                placeholder="Jelaskan mengapa kondisi ini berbahaya dan bagaimana tindakan korektif K3 yang wajib dilakukan..."
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white resize-none"
                               />
                             </div>
                           </div>

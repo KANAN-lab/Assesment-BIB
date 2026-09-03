@@ -511,35 +511,33 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
           {/* ─── FORMAT 4: interactive_hotspot (Canvas Overlay + Cards) ─── */}
           {currentSlide.slideType === 'interactive_hotspot' && currentSlide.hotspots && (
             <div className="space-y-3">
-              <p className="text-xs text-zinc-400">{currentSlide.content}</p>
-              
-              {/* Visual Pin Overlay on Image */}
               {currentSlide.imageUrl && (
-                <div className="relative rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-950 max-h-72 flex items-center justify-center select-none shadow-xl">
-                  <img
-                    src={currentSlide.imageUrl}
-                    alt={currentSlide.title}
-                    className="w-full h-full object-cover max-h-72"
-                  />
-                  {currentSlide.hotspots.map((hs) => (
-                    <button
-                      key={hs.id}
-                      onClick={() => setActiveHotspotId(activeHotspotId === hs.id ? null : hs.id)}
-                      style={{ left: `${hs.xPercent}%`, top: `${hs.yPercent}%` }}
-                      className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 flex items-center justify-center p-1.5 rounded-full transition-all duration-300 shadow-lg cursor-pointer ${
-                        activeHotspotId === hs.id
-                          ? 'bg-purple-500 ring-4 ring-purple-400/50 scale-125'
-                          : hs.status === 'critical'
-                          ? 'bg-rose-500 hover:scale-110 animate-bounce'
-                          : hs.status === 'check'
-                          ? 'bg-amber-500 hover:scale-110 animate-pulse'
-                          : 'bg-emerald-500 hover:scale-110'
-                      }`}
-                      title={hs.label}
-                    >
-                      <span className="w-3 h-3 rounded-full bg-white shadow-inner block" />
-                    </button>
-                  ))}
+                <div className="w-full bg-zinc-950/80 border border-zinc-800 rounded-2xl p-2 flex items-center justify-center overflow-hidden min-h-[260px] max-h-[550px] shadow-xl">
+                  <div className="relative inline-block max-w-full select-none rounded-xl overflow-hidden shadow-2xl">
+                    <img
+                      src={currentSlide.imageUrl}
+                      alt={currentSlide.title}
+                      className="max-h-[500px] w-auto max-w-full block object-contain pointer-events-none"
+                    />
+                    {currentSlide.hotspots.map((hs) => (
+                      <button
+                        key={hs.id}
+                        onClick={() => setActiveHotspotId(activeHotspotId === hs.id ? null : hs.id)}
+                        style={{ left: `${hs.xPercent}%`, top: `${hs.yPercent}%` }}
+                        className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 flex items-center justify-center p-1.5 rounded-full transition-all duration-300 shadow-lg cursor-pointer ${
+                          activeHotspotId === hs.id
+                            ? 'bg-purple-500 ring-4 ring-purple-400/50 scale-125'
+                            : hs.status === 'critical'
+                            ? 'bg-rose-500 hover:scale-110 animate-bounce'
+                            : hs.status === 'check'
+                            ? 'bg-amber-500 hover:scale-110 animate-pulse'
+                            : 'bg-emerald-500 hover:scale-110'
+                        }`}
+                      >
+                        <span className="w-2.5 h-2.5 rounded-full bg-white block" />
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
 
@@ -600,47 +598,49 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
               </div>
 
               {/* Interactive Screenshot Click Canvas */}
-              <div
-                onClick={handleSimulatorScreenClick}
-                className="relative rounded-2xl overflow-hidden border-2 border-zinc-800 bg-zinc-950 cursor-crosshair select-none shadow-2xl group max-h-96 flex items-center justify-center"
-              >
-                <img
-                  src={currentSlide.imageUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
-                  alt="WMS Simulation Screen"
-                  className="w-full h-full object-cover max-h-96 pointer-events-none"
-                />
-
-                {/* Target Hit Box (With Pulsing Guide) */}
+              <div className="w-full bg-zinc-950/90 border border-zinc-800 rounded-2xl p-2.5 flex items-center justify-center overflow-hidden min-h-[280px] max-h-[620px] shadow-2xl">
                 <div
-                  style={{
-                    left: `${currentSlide.simulatorConfig.targetXPercent}%`,
-                    top: `${currentSlide.simulatorConfig.targetYPercent}%`,
-                    width: `${currentSlide.simulatorConfig.targetWidthPercent}%`,
-                    height: `${currentSlide.simulatorConfig.targetHeightPercent}%`,
-                  }}
-                  className={`absolute z-20 rounded-xl border-2 transition-all flex items-center justify-center p-1 pointer-events-none ${
-                    simSuccess
-                      ? 'border-emerald-400 bg-emerald-500/30 shadow-[0_0_25px_rgba(16,185,129,0.7)] scale-105'
-                      : 'border-emerald-400/80 bg-emerald-500/15 animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.3)]'
-                  }`}
+                  onClick={handleSimulatorScreenClick}
+                  className="relative inline-block max-w-full cursor-crosshair select-none rounded-xl overflow-hidden shadow-2xl group transition-all"
                 >
-                  <span className="text-[10px] font-black text-emerald-300 bg-black/80 px-2 py-0.5 rounded shadow">
-                    {simSuccess ? '✓ TEPAT!' : (currentSlide.simulatorConfig.highlightLabel || 'KLIK DI SINI')}
-                  </span>
-                </div>
+                  <img
+                    src={currentSlide.imageUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
+                    alt="WMS Simulation Screen"
+                    className="max-h-[560px] w-auto max-w-full block pointer-events-none object-contain"
+                  />
 
-                {/* Success Overlay Banner */}
-                {simSuccess && (
-                  <div className="absolute inset-0 bg-emerald-950/40 backdrop-blur-[2px] z-30 flex flex-col items-center justify-center p-4 text-center animate-fade-in pointer-events-none">
-                    <div className="w-12 h-12 rounded-full bg-emerald-500 text-black flex items-center justify-center font-black text-xl mb-2 shadow-xl animate-bounce">
-                      ✓
-                    </div>
-                    <h4 className="text-sm font-black text-white mb-1">
-                      {currentSlide.simulatorConfig.successMessage || 'Langkah Berhasil Diselesaikan!'}
-                    </h4>
-                    <p className="text-xs text-emerald-300">Beralih ke langkah berikutnya...</p>
+                  {/* Target Hit Box (With Pulsing Guide) */}
+                  <div
+                    style={{
+                      left: `${currentSlide.simulatorConfig.targetXPercent}%`,
+                      top: `${currentSlide.simulatorConfig.targetYPercent}%`,
+                      width: `${currentSlide.simulatorConfig.targetWidthPercent}%`,
+                      height: `${currentSlide.simulatorConfig.targetHeightPercent}%`,
+                    }}
+                    className={`absolute z-20 rounded-xl border-2 transition-all flex items-center justify-center p-1 pointer-events-none ${
+                      simSuccess
+                        ? 'border-emerald-400 bg-emerald-500/30 shadow-[0_0_25px_rgba(16,185,129,0.7)] scale-105'
+                        : 'border-emerald-400/80 bg-emerald-500/15 animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                    }`}
+                  >
+                    <span className="text-[10px] font-black text-emerald-300 bg-black/80 px-2 py-0.5 rounded shadow">
+                      {simSuccess ? '✓ TEPAT!' : (currentSlide.simulatorConfig.highlightLabel || 'KLIK DI SINI')}
+                    </span>
                   </div>
-                )}
+
+                  {/* Success Overlay Banner */}
+                  {simSuccess && (
+                    <div className="absolute inset-0 bg-emerald-950/40 backdrop-blur-[2px] z-30 flex flex-col items-center justify-center p-4 text-center animate-fade-in pointer-events-none">
+                      <div className="w-12 h-12 rounded-full bg-emerald-500 text-black flex items-center justify-center font-black text-xl mb-2 shadow-xl animate-bounce">
+                        ✓
+                      </div>
+                      <h4 className="text-sm font-black text-white mb-1">
+                        {currentSlide.simulatorConfig.successMessage || 'Langkah Berhasil Diselesaikan!'}
+                      </h4>
+                      <p className="text-xs text-emerald-300">Beralih ke langkah berikutnya...</p>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Error / Hint Feedback Toast */}
@@ -669,30 +669,34 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
               </div>
 
               {/* Photo Anomaly Click Area */}
-              <div
-                onClick={handleSpotMistakeClick}
-                className="relative rounded-2xl overflow-hidden border-2 border-zinc-800 bg-zinc-950 cursor-crosshair select-none shadow-2xl max-h-96 flex items-center justify-center group"
-              >
-                <img
-                  src={currentSlide.imageUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
-                  alt="Spot the mistake field photo"
-                  className="w-full h-full object-cover max-h-96 pointer-events-none"
-                />
+              <div className="w-full bg-zinc-950/90 border border-zinc-800 rounded-2xl p-2.5 flex items-center justify-center overflow-hidden min-h-[280px] max-h-[620px] shadow-2xl">
+                <div
+                  onClick={handleSpotMistakeClick}
+                  className="relative inline-block max-w-full cursor-crosshair select-none rounded-xl overflow-hidden shadow-2xl group transition-all"
+                >
+                  <img
+                    src={currentSlide.imageUrl || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
+                    alt="Spot the mistake field photo"
+                    className="max-h-[560px] w-auto max-w-full block pointer-events-none object-contain"
+                  />
 
-                {/* Revealed Hazard Highlight */}
-                {spotRevealed && (
-                  <div
-                    style={{
-                      left: `${currentSlide.spotMistakeConfig.targetXPercent}%`,
-                      top: `${currentSlide.spotMistakeConfig.targetYPercent}%`,
-                    }}
-                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none animate-fade-in"
-                  >
-                    <div className="w-20 h-20 rounded-full border-4 border-rose-500 bg-rose-500/30 animate-pulse shadow-[0_0_30px_rgba(244,63,94,0.8)] flex items-center justify-center">
-                      <span className="text-xl">⚠️</span>
+                  {/* Revealed Hazard Highlight */}
+                  {spotRevealed && (
+                    <div
+                      style={{
+                        left: `${currentSlide.spotMistakeConfig.targetXPercent}%`,
+                        top: `${currentSlide.spotMistakeConfig.targetYPercent}%`,
+                        width: `${(currentSlide.spotMistakeConfig.toleranceRadiusPercent || 15) * 2}%`,
+                        height: `${(currentSlide.spotMistakeConfig.toleranceRadiusPercent || 15) * 2}%`,
+                      }}
+                      className="absolute -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none animate-fade-in flex items-center justify-center"
+                    >
+                      <div className="w-full h-full rounded-full border-4 border-rose-500 bg-rose-500/30 animate-pulse shadow-[0_0_30px_rgba(244,63,94,0.8)] flex items-center justify-center">
+                        <span className="text-xl">⚠️</span>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
 
               {/* Result Explanation Card */}
