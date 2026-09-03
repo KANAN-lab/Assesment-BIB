@@ -41,6 +41,7 @@ import {
 import { fetchAllSopModules } from '../lib/sopService';
 import { supabase } from '../lib/supabaseClient';
 import { SopSlideshowModal } from './SopSlideshowModal';
+import { uploadFileToGoogleDrive } from '../lib/googleDriveService';
 
 interface SopManagementPanelProps {
   currentAdminId?: string;
@@ -371,21 +372,40 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
     });
   };
 
-  const handleImageFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 8 * 1024 * 1024) {
-      if (onToast) onToast('Ukuran file gambar maksimal 8MB!');
+    if (file.size > 15 * 1024 * 1024) {
+      if (onToast) onToast('Ukuran file gambar maksimal 15MB!');
       return;
     }
+
+    // 1. Tampilkan preview langsung di UI
     const reader = new FileReader();
     reader.onload = (loadEvt) => {
       if (typeof loadEvt.target?.result === 'string') {
         handleUpdateActiveSlide({ imageUrl: loadEvt.target.result });
-        if (onToast) onToast('Gambar/Screenshot berhasil dimuat!');
       }
     };
     reader.readAsDataURL(file);
+
+    // 2. Unggah otomatis ke Google Drive di folder Administrator / Dokumen_SOP
+    try {
+      if (onToast) onToast('Mengunggah gambar slide ke Google Drive resmi...');
+      const uploadRes = await uploadFileToGoogleDrive(file, {
+        workerId: 'SYS-ADMIN',
+        workerName: 'System Administrator',
+        moduleCategory: 'Dokumen_SOP',
+      });
+      if (uploadRes.directUrl || uploadRes.webViewLink) {
+        const finalUrl = uploadRes.directUrl || uploadRes.webViewLink;
+        handleUpdateActiveSlide({ imageUrl: finalUrl });
+        if (onToast) onToast('✓ Berkas slide SOP tersimpan di Google Drive!');
+      }
+    } catch (err) {
+      console.warn('Gagal upload gambar SOP ke Google Drive:', err);
+    }
+
     e.target.value = '';
   };
 

@@ -1222,6 +1222,7 @@ export const App: React.FC = () => {
             isOpen={showKaizenModal}
             onClose={() => setShowKaizenModal(false)}
             currentWorkerId={currentWorker.id}
+            currentWorkerName={currentWorker.name}
             onSubmitted={() => {
               loadDataForWorker(currentWorker.id);
             }}

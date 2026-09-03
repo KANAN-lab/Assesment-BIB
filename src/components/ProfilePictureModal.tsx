@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { X, CheckCircle, Camera, Image, Sparkles, Upload, Loader2, AlertCircle } from 'lucide-react';
 import { uploadWorkerAvatarFile } from '../lib/supabaseService';
+import { uploadFileToGoogleDrive } from '../lib/googleDriveService';
 import { WorkerAvatar } from './WorkerAvatar';
 
 interface ProfilePictureModalProps {
@@ -51,12 +52,24 @@ export const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({
     setUploadError(null);
 
     try {
-      const publicUrl = await uploadWorkerAvatarFile(workerId, file);
-      setSelectedUrl(publicUrl);
-      onSaveAvatar(publicUrl);
+      // Unggah otomatis ke Google Drive di folder khusus pekerja: /[ID] Nama/Foto_Profil/
+      const gdriveRes = await uploadFileToGoogleDrive(file, {
+        workerId,
+        workerName,
+        moduleCategory: 'Foto_Profil',
+      });
+
+      let finalUrl = gdriveRes.directUrl || gdriveRes.webViewLink;
+
+      if (!finalUrl) {
+        finalUrl = await uploadWorkerAvatarFile(workerId, file);
+      }
+
+      setSelectedUrl(finalUrl);
+      onSaveAvatar(finalUrl);
       onClose();
     } catch (err: any) {
-      setUploadError(err.message || 'Gagal mengunggah foto ke Supabase Storage.');
+      setUploadError(err.message || 'Gagal mengunggah foto profil.');
     } finally {
       setUploading(false);
     }

@@ -1,18 +1,48 @@
 /**
  * Service untuk mengunggah berkas secara otomatis & terprogram langsung ke Google Drive
- * Target Folder ID: 16p6cnEb7o6zOF2jFcPm3z7Md-Utntrkr
+ * Menggunakan arsitektur Gateway Google Apps Script dengan User-Bound Folder Provisioning.
+ *
+ * Target Root Folder ID: 16p6cnEb7o6zOF2jFcPm3z7Md-Utntrkr
  */
 
-export const GDRIVE_TARGET_FOLDER_ID = '16p6cnEb7o6zOF2jFcPm3z7Md-Utntrkr';
-export const GDRIVE_FOLDER_URL = `https://drive.google.com/drive/folders/${GDRIVE_TARGET_FOLDER_ID}`;
+import imageCompression from 'browser-image-compression';
+import { SystemConfigService } from '../domain/SystemConfigService';
 
-// Endpoint WebApp Google Apps Script dari .env.local (VITE_GDRIVE_UPLOAD_WEBHOOK)
+export const DEFAULT_GDRIVE_ROOT_FOLDER_ID = '16p6cnEb7o6zOF2jFcPm3z7Md-Utntrkr';
+export const GDRIVE_TARGET_FOLDER_ID = DEFAULT_GDRIVE_ROOT_FOLDER_ID;
+export const GDRIVE_FOLDER_URL = `https://drive.google.com/drive/folders/${DEFAULT_GDRIVE_ROOT_FOLDER_ID}`;
+
+// Endpoint WebApp Google Apps Script dari .env / SystemConfig
 export const GDRIVE_WEBHOOK_URL = import.meta.env.VITE_GDRIVE_UPLOAD_WEBHOOK || '';
+
+export type GDriveModuleCategory =
+  | 'Laporan_Insiden'
+  | 'Safety_Patrol'
+  | 'Foto_Profil'
+  | 'SIO_MHE'
+  | 'Kaizen_Inovasi'
+  | 'Audit_5R_5S'
+  | 'Dokumen_SOP'
+  | 'Katalog_Reward'
+  | string;
+
+export interface GDriveUploadOptions {
+  workerId?: string;
+  workerName?: string;
+  moduleCategory?: GDriveModuleCategory;
+  customFilename?: string;
+  rootFolderId?: string;
+  compressImage?: boolean;
+}
 
 export interface GDriveUploadResult {
   success: boolean;
   fileId?: string;
   webViewLink?: string;
+  directUrl?: string;
+  userFolderUrl?: string;
+  targetFolderUrl?: string;
+  folderPath?: string;
   error?: string;
 }
 
@@ -33,26 +63,88 @@ export async function fileToBase64(file: File | Blob): Promise<string> {
 }
 
 /**
- * Mengunggah berkas terkompresi HD secara otomatis & terprogram ke Google Drive via Google Apps Script WebApp
+ * Kompresi gambar client-side HD otomatis untuk menghemat bandwidth gudang & kuota Drive
+ */
+export async function compressImageIfAppropriate(file: File): Promise<File | Blob> {
+  if (!file.type.startsWith('image/')) return file;
+  // Jika file sudah kecil (<= 300KB), tidak perlu dikompresi lagi
+  if (file.size <= 300 * 1024) return file;
+
+  try {
+    const options = {
+      maxSizeMB: 0.35, // Target ~350 KB
+      maxWidthOrHeight: 1600, // HD resolution
+      useWebWorker: true,
+    };
+    return await imageCompression(file, options);
+  } catch (err) {
+    console.warn('[GDrive Service] Kompresi gambar dilewati, menggunakan file asli:', err);
+    return file;
+  }
+}
+
+/**
+ * Mengunggah berkas secara otomatis & terprogram ke Google Drive
+ * Mendukung pembagian folder otomatis per user (User-Bound Directory) dan per modul.
  */
 export async function uploadFileToGoogleDrive(
   file: File,
-  customFilename?: string,
-  folderId: string = GDRIVE_TARGET_FOLDER_ID
+  optionsOrFilename?: string | GDriveUploadOptions,
+  legacyFolderId?: string
 ): Promise<GDriveUploadResult> {
-  const filename = customFilename || file.name || `Bukti_K3_${Date.now()}.jpg`;
+  let workerId = 'GENERAL';
+  let workerName = 'Pekerja';
+  let moduleCategory: GDriveModuleCategory = 'General_Uploads';
+  let customFilename: string | undefined = undefined;
+  let rootFolderId = legacyFolderId;
+  let compressImage = true;
+
+  if (typeof optionsOrFilename === 'string') {
+    customFilename = optionsOrFilename;
+  } else if (typeof optionsOrFilename === 'object' && optionsOrFilename !== null) {
+    workerId = optionsOrFilename.workerId || workerId;
+    workerName = optionsOrFilename.workerName || workerName;
+    moduleCategory = optionsOrFilename.moduleCategory || moduleCategory;
+    customFilename = optionsOrFilename.customFilename;
+    rootFolderId = optionsOrFilename.rootFolderId || rootFolderId;
+    if (optionsOrFilename.compressImage !== undefined) {
+      compressImage = optionsOrFilename.compressImage;
+    }
+  }
+
+  const timestamp = Date.now();
+  const cleanCategory = moduleCategory.replace(/[^a-zA-Z0-9_-]/g, '_');
+  const filename =
+    customFilename ||
+    `DAM_${cleanCategory}_${workerId}_${timestamp}.${file.name.split('.').pop() || 'jpg'}`;
 
   try {
-    const base64Data = await fileToBase64(file);
+    // 1. Kompresi gambar jika tipe image
+    let fileToUpload: File | Blob = file;
+    if (compressImage) {
+      fileToUpload = await compressImageIfAppropriate(file);
+    }
+
+    // 2. Encode ke Base64
+    const base64Data = await fileToBase64(fileToUpload);
+
+    // 3. Baca konfigurasi dinamis
+    const config = SystemConfigService.getConfig();
+    const effectiveRootId =
+      rootFolderId || config.gdriveTargetFolderId || DEFAULT_GDRIVE_ROOT_FOLDER_ID;
+    const webhookUrl =
+      config.gdriveWebhookUrl || import.meta.env.VITE_GDRIVE_UPLOAD_WEBHOOK || GDRIVE_WEBHOOK_URL;
 
     const payload = JSON.stringify({
-      folderId,
+      rootFolderId: effectiveRootId,
+      folderId: effectiveRootId,
+      workerId,
+      workerName,
+      moduleCategory,
       filename,
       mimeType: file.type || 'image/jpeg',
       base64Data,
     });
-
-    const webhookUrl = GDRIVE_WEBHOOK_URL || import.meta.env.VITE_GDRIVE_UPLOAD_WEBHOOK;
 
     if (webhookUrl && webhookUrl.startsWith('http')) {
       // Mengirimkan POST ke Google Apps Script WebApp dengan header text/plain (CORS safe)
@@ -73,25 +165,47 @@ export async function uploadFileToGoogleDrive(
           parsed = { status: 'success' };
         }
 
-        return {
-          success: true,
-          fileId: parsed.fileId || `gdrive_${Date.now()}`,
-          webViewLink: parsed.webViewLink || GDRIVE_FOLDER_URL,
-        };
+        if (parsed.status === 'success' || parsed.fileId) {
+          const fileId = parsed.fileId || `gdrive_${timestamp}`;
+          const webViewLink =
+            parsed.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
+          const directUrl =
+            parsed.directUrl || `https://lh3.googleusercontent.com/d/${fileId}`;
+
+          return {
+            success: true,
+            fileId,
+            webViewLink,
+            directUrl,
+            userFolderUrl: parsed.userFolderUrl || `https://drive.google.com/drive/folders/${effectiveRootId}`,
+            targetFolderUrl: parsed.targetFolderUrl || `https://drive.google.com/drive/folders/${effectiveRootId}`,
+            folderPath: parsed.folderPath || `${workerName} > ${moduleCategory}`,
+          };
+        } else if (parsed.message) {
+          console.warn('[GDrive WebApp Warning]', parsed.message);
+        }
       }
     }
 
-    // Reference fallback jika WebApp URL belum dimasukkan ke .env.local
+    // Fallback: Kembalikan Data URL agar visualisasi tetap tampil di UI jika WebApp belum di-deploy
+    const fallbackId = `gdrive_local_${timestamp}`;
+    const directDataUrl = `data:${file.type || 'image/jpeg'};base64,${base64Data}`;
+
     return {
       success: true,
-      fileId: `gdrive_sync_${Date.now()}`,
-      webViewLink: GDRIVE_FOLDER_URL,
+      fileId: fallbackId,
+      webViewLink: `https://drive.google.com/drive/folders/${effectiveRootId}`,
+      directUrl: directDataUrl,
+      userFolderUrl: `https://drive.google.com/drive/folders/${effectiveRootId}`,
+      targetFolderUrl: `https://drive.google.com/drive/folders/${effectiveRootId}`,
+      folderPath: `[Lokal] ${workerName} > ${moduleCategory}`,
     };
   } catch (err: any) {
-    console.warn('Google Drive WebApp upload result:', err);
+    console.warn('Google Drive WebApp upload result exception:', err);
     return {
-      success: true,
-      fileId: `gdrive_sync_${Date.now()}`,
+      success: false,
+      error: err?.message || String(err),
+      fileId: `gdrive_err_${timestamp}`,
       webViewLink: GDRIVE_FOLDER_URL,
     };
   }

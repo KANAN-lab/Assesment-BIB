@@ -125,29 +125,38 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
     try {
       let photoUrlData: string | undefined = undefined;
 
-      // 1. Programmatic Automatic Upload directly to Google Drive Server
+      // 1. Programmatic Automatic Upload directly to Google Drive Server with User-Bound Subfolder
       if (photoFile) {
-        setUploadStep('Mengunggah berkas terkompresi otomatis ke Google Drive...');
+        setUploadStep('Mengunggah berkas bukti otomatis ke Google Drive...');
         const formattedDate = new Date().toISOString().slice(0, 10);
         const cleanWorkerName = workerName.replace(/[^a-zA-Z0-9]/g, '_');
-        const gdriveFilename = `Bukti_K3_Insiden_${cleanWorkerName}_${formattedDate}.jpg`;
+        const gdriveFilename = `DAM_Insiden_${cleanWorkerName}_${formattedDate}_${Date.now()}.jpg`;
 
-        const gdriveRes = await uploadFileToGoogleDrive(photoFile, gdriveFilename, GDRIVE_TARGET_FOLDER_ID);
+        const gdriveRes = await uploadFileToGoogleDrive(photoFile, {
+          workerId,
+          workerName,
+          moduleCategory: 'Laporan_Insiden',
+          customFilename: gdriveFilename,
+        });
+
         if (gdriveRes.webViewLink) {
           setGdriveFileUrl(gdriveRes.webViewLink);
+        }
+        if (gdriveRes.directUrl) {
+          photoUrlData = gdriveRes.directUrl;
         }
       }
 
       setUploadStep('Menyimpan laporan insiden ke Supabase Database...');
 
-      if (photoFile) {
+      if (!photoUrlData && photoFile) {
         photoUrlData = await new Promise<string>((resolve) => {
           const reader = new FileReader();
           reader.onloadend = () => resolve(reader.result as string);
           reader.onerror = () => resolve('https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop&q=80');
           reader.readAsDataURL(photoFile);
         });
-      } else {
+      } else if (!photoUrlData) {
         photoUrlData = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop&q=80';
       }
 

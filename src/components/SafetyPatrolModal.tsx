@@ -14,6 +14,7 @@ import {
   FINDING_TYPE_CONFIG
 } from '../types/safetyPatrol';
 import { SafetyPatrolService } from '../domain/SafetyPatrolService';
+import { uploadFileToGoogleDrive } from '../lib/googleDriveService';
 
 interface SafetyPatrolModalProps {
   workers: WorkerProfile[];
@@ -39,6 +40,7 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
     new Date(Date.now() + 86400000 * 2).toISOString().slice(0, 10)
   );
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -54,6 +56,7 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
       return;
     }
 
+    setPhotoFile(file);
     const reader = new FileReader();
     reader.onload = () => {
       setPhotoPreview(reader.result as string);
@@ -73,6 +76,20 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
     setSubmitting(true);
     setErrorMsg(null);
     try {
+      let finalPhotoUrl = photoPreview;
+
+      // Unggah foto temuan patroli K3 ke Google Drive folder user/supervisor
+      if (photoFile) {
+        const uploadRes = await uploadFileToGoogleDrive(photoFile, {
+          workerId: currentSupervisorId,
+          workerName: currentSupervisorName,
+          moduleCategory: 'Safety_Patrol',
+        });
+        if (uploadRes.directUrl) {
+          finalPhotoUrl = uploadRes.directUrl;
+        }
+      }
+
       const record = await SafetyPatrolService.createPatrolRecord({
         supervisorId: currentSupervisorId,
         supervisorName: currentSupervisorName,
@@ -82,7 +99,7 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
         findingType,
         severity,
         description: description.trim(),
-        photoUrl: photoPreview,
+        photoUrl: finalPhotoUrl,
         assignedPicId: assignedWorker?.id || null,
         assignedPicName: assignedWorker?.name || null,
         status: findingType === 'Good Practice' ? 'Resolved' : 'Open',

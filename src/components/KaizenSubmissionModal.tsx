@@ -17,11 +17,14 @@ import {
 } from 'lucide-react';
 import { KaizenService } from '../lib/kaizenService';
 import { KaizenCategory, KaizenInput } from '../types/kaizen';
+import { uploadFileToGoogleDrive } from '../lib/googleDriveService';
+import { Camera, Image as ImageIcon } from 'lucide-react';
 
 interface KaizenSubmissionModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentWorkerId: string;
+  currentWorkerName?: string;
   onSubmitted?: () => void;
 }
 
@@ -68,6 +71,7 @@ export function KaizenSubmissionModal({
   isOpen,
   onClose,
   currentWorkerId,
+  currentWorkerName = 'Pekerja',
   onSubmitted
 }: KaizenSubmissionModalProps) {
   const [title, setTitle] = useState('');
@@ -75,6 +79,8 @@ export function KaizenSubmissionModal({
   const [currentCondition, setCurrentCondition] = useState('');
   const [proposedSolution, setProposedSolution] = useState('');
   const [expectedImpact, setExpectedImpact] = useState('');
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -91,12 +97,30 @@ export function KaizenSubmissionModal({
     setLoading(true);
     setError(null);
 
+    let uploadedPhotoUrl: string | undefined = undefined;
+    if (photoFile) {
+      try {
+        const uploadRes = await uploadFileToGoogleDrive(photoFile, {
+          workerId: currentWorkerId,
+          workerName: currentWorkerName,
+          moduleCategory: 'Kaizen_Inovasi',
+          customFilename: `KAIZEN_${currentWorkerId}_${Date.now()}.jpg`,
+        });
+        if (uploadRes.directUrl || uploadRes.webViewLink) {
+          uploadedPhotoUrl = uploadRes.directUrl || uploadRes.webViewLink;
+        }
+      } catch (err) {
+        console.warn('Gagal upload bukti foto Kaizen ke Google Drive:', err);
+      }
+    }
+
     const input: KaizenInput = {
       title,
       category,
       currentCondition,
       proposedSolution,
-      expectedImpact: expectedImpact.trim() || undefined
+      expectedImpact: expectedImpact.trim() || undefined,
+      photoBeforeUrl: uploadedPhotoUrl || photoPreview || undefined,
     };
 
     const res = await KaizenService.submitSuggestion(currentWorkerId, input);
@@ -263,6 +287,38 @@ export function KaizenSubmissionModal({
                 placeholder="Contoh: Menghemat waktu pencarian barang ~15 menit per shift"
                 className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
               />
+            </div>
+
+            {/* Unggah Foto Bukti (Google Drive Integration) */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-zinc-400 flex items-center gap-1">
+                <Camera className="w-3.5 h-3.5 text-amber-400" />
+                <span>Foto Bukti Lapangan (Sebelum Perbaikan) <span className="text-zinc-500">(Opsional)</span></span>
+              </label>
+              <div className="flex items-center gap-3">
+                <label className="cursor-pointer inline-flex items-center gap-2 px-3.5 py-2 bg-zinc-900 hover:bg-zinc-800 border border-zinc-800 rounded-xl text-xs font-bold text-zinc-300 transition">
+                  <ImageIcon className="w-4 h-4 text-amber-400" />
+                  <span>{photoFile ? 'Ganti Foto' : 'Pilih / Jepret Foto'}</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setPhotoFile(file);
+                      const reader = new FileReader();
+                      reader.onload = () => setPhotoPreview(reader.result as string);
+                      reader.readAsDataURL(file);
+                    }}
+                  />
+                </label>
+                {photoFile && (
+                  <span className="text-xs text-amber-400 truncate max-w-xs">
+                    ✓ {photoFile.name} (akan disimpan ke Google Drive)
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Footer Form */}

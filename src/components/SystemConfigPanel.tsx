@@ -20,7 +20,10 @@ import {
   Tag,
   Plus,
   X,
-  HardHat
+  HardHat,
+  Cloud,
+  ExternalLink,
+  Folder
 } from 'lucide-react';
 import {
   SystemConfigService,
@@ -895,6 +898,72 @@ export const SystemConfigPanel: React.FC<SystemConfigPanelProps> = ({ onToast })
               <Plus className="w-3.5 h-3.5" />
               <span>Tambah Kategori APD</span>
             </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 11. Cloud Storage & Google Drive Gateway Integration */}
+      <div className="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4 sm:p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Cloud className="w-4 h-4 text-sky-400" />
+            <h3 className="text-sm font-bold text-white">
+              11. Cloud Storage & Google Drive Gateway Integration
+            </h3>
+          </div>
+          {config.gdriveTargetFolderId && (
+            <a
+              href={`https://drive.google.com/drive/folders/${config.gdriveTargetFolderId}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1 bg-sky-500/10 hover:bg-sky-500/20 text-sky-400 border border-sky-500/30 rounded-lg text-xs font-bold transition"
+            >
+              <Folder className="w-3.5 h-3.5" />
+              <span>Buka Root Drive</span>
+              <ExternalLink className="w-3 h-3 ml-0.5" />
+            </a>
+          )}
+        </div>
+
+        <p className="text-xs text-zinc-400 leading-relaxed">
+          Seluruh berkas unggahan pekerja & administrator (Insiden K3, Patroli, Foto Profil, SIO, Kaizen, SOP) otomatis tersimpan ke folder Google Drive resmi dengan struktur subfolder per user <code className="text-sky-300 font-mono text-[11px]">[NIP] Nama/Kategori</code>.
+        </p>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs font-bold text-zinc-300 mb-1">
+              Google Drive Root Folder ID
+            </label>
+            <input
+              type="text"
+              value={config.gdriveTargetFolderId || ''}
+              onChange={(e) =>
+                setConfig((prev) => ({ ...prev, gdriveTargetFolderId: e.target.value.trim() }))
+              }
+              placeholder="Contoh: 16p6cnEb7o6zOF2jFcPm3z7Md-Utntrkr"
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-sky-500 font-mono"
+            />
+            <p className="text-[11px] text-zinc-500 mt-1">
+              ID Folder Google Drive yang menjadi wadah penampung berkas utama.
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-zinc-300 mb-1">
+              Google Apps Script WebApp Webhook URL
+            </label>
+            <input
+              type="url"
+              value={config.gdriveWebhookUrl || ''}
+              onChange={(e) =>
+                setConfig((prev) => ({ ...prev, gdriveWebhookUrl: e.target.value.trim() }))
+              }
+              placeholder="https://script.google.com/macros/s/.../exec"
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-sky-500 font-mono"
+            />
+            <p className="text-[11px] text-zinc-500 mt-1">
+              URL Webhook deployment Google Apps Script (Assesment-DAM Gateway).
+            </p>
           </div>
         </div>
       </div>

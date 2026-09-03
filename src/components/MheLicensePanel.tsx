@@ -35,6 +35,7 @@ import { WorkerProfile } from '../types/assessment';
 import { WorkerAvatar } from './WorkerAvatar';
 import { PaginationControls } from './PaginationControls';
 import { SioAiService, ExtractedSioData } from '../lib/sioAiService';
+import { uploadFileToGoogleDrive } from '../lib/googleDriveService';
 
 interface MheLicensePanelProps {
   workers: WorkerProfile[];
@@ -69,6 +70,8 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
   const [isAiScanning, setIsAiScanning] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [uploadedSioFile, setUploadedSioFile] = useState<File | null>(null);
+  const [isUploadingToDrive, setIsUploadingToDrive] = useState(false);
   const [extractedMeta, setExtractedMeta] = useState<ExtractedSioData | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -179,6 +182,7 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setUploadedSioFile(file);
 
     // Reset input for repeated selections
     e.target.value = '';
@@ -234,11 +238,31 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
     }
   };
 
-  const handleSaveLicense = (e: React.FormEvent) => {
+  const handleSaveLicense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formWorkerId || !formLicenseType || !formLicenseNumber.trim() || !formIssuedDate || !formExpiryDate) {
       alert('Mohon lengkapi semua data wajib: Pilih Pekerja, Jenis Sertifikasi SIO, Nomor SIO, Tanggal Terbit, dan Tanggal Kedaluwarsa.');
       return;
+    }
+
+    let gdriveDocumentUrl = editingLicense?.documentUrl;
+    if (uploadedSioFile) {
+      try {
+        setIsUploadingToDrive(true);
+        const uploadRes = await uploadFileToGoogleDrive(uploadedSioFile, {
+          workerId: formWorkerId,
+          workerName: formWorkerName,
+          moduleCategory: 'SIO_MHE',
+          customFilename: `SIO_${formLicenseNumber.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.jpg`,
+        });
+        if (uploadRes.directUrl || uploadRes.webViewLink) {
+          gdriveDocumentUrl = uploadRes.directUrl || uploadRes.webViewLink;
+        }
+      } catch (err) {
+        console.warn('Gagal mengunggah SIO ke Google Drive:', err);
+      } finally {
+        setIsUploadingToDrive(false);
+      }
     }
 
     if (editingLicense) {
@@ -253,6 +277,7 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
         issuedDate: formIssuedDate,
         expiryDate: formExpiryDate,
         notes: formNotes.trim(),
+        documentUrl: gdriveDocumentUrl,
       });
       showToast(`SIO ${formLicenseNumber} berhasil diperbarui!`);
     } else {
@@ -267,11 +292,13 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
         issuedDate: formIssuedDate,
         expiryDate: formExpiryDate,
         notes: formNotes.trim(),
+        documentUrl: gdriveDocumentUrl,
       });
       showToast(`SIO baru untuk ${formWorkerName} berhasil didaftarkan!`);
     }
 
     setIsModalOpen(false);
+    setUploadedSioFile(null);
     loadData();
   };
 

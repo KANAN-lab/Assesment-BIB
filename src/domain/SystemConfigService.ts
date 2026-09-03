@@ -80,6 +80,10 @@ export interface SystemConfig {
   quizCategories: string[];
   ppeCategories: PpeCategoryConfig[];
   masterTiers: string[];
+
+  // 11. Cloud Storage & Google Drive Integration
+  gdriveTargetFolderId: string;
+  gdriveWebhookUrl: string;
 }
 
 export const FREQUENCY_OPTIONS = [
@@ -378,6 +382,10 @@ export class SystemConfigService {
         'Elite Logistician',
         'Legendary Champion',
       ],
+
+      // 11. Cloud Storage & Google Drive Integration (Root Folder & Webhook)
+      gdriveTargetFolderId: '16p6cnEb7o6zOF2jFcPm3z7Md-Utntrkr',
+      gdriveWebhookUrl: (import.meta.env.VITE_GDRIVE_UPLOAD_WEBHOOK as string) || '',
     };
   }
 }
