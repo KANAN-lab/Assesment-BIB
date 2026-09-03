@@ -955,6 +955,8 @@ CREATE TABLE IF NOT EXISTS sop_modules (
   updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+ALTER TABLE sop_modules ADD COLUMN IF NOT EXISTS presentation_format TEXT DEFAULT 'micro_deck';
+
 CREATE TABLE IF NOT EXISTS worker_sop_progress (
   id                   TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   worker_id            TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,

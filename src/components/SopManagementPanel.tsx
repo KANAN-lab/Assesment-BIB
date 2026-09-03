@@ -576,7 +576,6 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
         description: formDesc.trim(),
         category: formCategory,
         difficulty: formDifficulty,
-        presentation_format: formFormat,
         target_divisions: formTargetDivs,
         target_roles: formTargetRoles,
         estimated_minutes: formEstMinutes,
