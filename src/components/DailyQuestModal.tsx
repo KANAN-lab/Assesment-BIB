@@ -326,8 +326,7 @@ export const DailyQuestModal: React.FC<DailyQuestModalProps> = ({
                 Aturan Integritas Kuis & Proteksi Anti-Cheat
               </h3>
               <p className="text-xs text-zinc-400">
-                Kuis K3 harian khusus untuk <strong className="font-bold text-zinc-200">{workerName || 'Pekerja'}</strong>
-                {workerRole && workerRole !== workerName ? ` (${workerRole})` : ''}.
+                Kuis K3 harian khusus untuk <strong className="text-white font-bold">{workerName || 'Pekerja'}</strong> ({workerRole}).
               </p>
             </div>
             <div className="space-y-2.5 mb-6">

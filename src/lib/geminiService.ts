@@ -5,7 +5,7 @@ import matrixData from '../data/matrixData.json';
 
 // ─── Gappy AI Safety & SOP Quiz Engine (100% Dynamic AI & Matrix Driven) ───────
 
-const CACHE_KEY_PREFIX = 'gappy_quiz_v3_';
+const CACHE_KEY_PREFIX = 'bib_quiz_v3_';
 
 function getTodayCacheKey(workerId?: string, role?: string, division?: string): string {
   const today = new Date().toISOString().split('T')[0];
@@ -33,7 +33,7 @@ function setCachedQuiz(quizzes: QuizQuestion[], workerId?: string, role?: string
     const currentKey = getTodayCacheKey(workerId, role, division);
     // Clear old or outdated caches
     for (const key of Object.keys(localStorage)) {
-      if ((key.startsWith('bib_quiz') || key.startsWith('gappy_quiz')) && key !== currentKey) {
+      if (key.startsWith('bib_quiz') && key !== currentKey) {
         localStorage.removeItem(key);
       }
     }
@@ -42,93 +42,6 @@ function setCachedQuiz(quizzes: QuizQuestion[], workerId?: string, role?: string
     // ignore storage errors
   }
 }
-
-export const DEFAULT_FALLBACK_K3_QUIZZES: QuizQuestion[] = [
-  {
-    id: 'q-fb-1',
-    question: 'Sebelum mengoperasikan alat berat (MHE) atau kendaraan operasional di gudang, langkah pertama yang wajib dilakukan operator adalah?',
-    options: [
-      'Langsung menghidupkan mesin dan jalan cepat',
-      'Melakukan pre-use inspection (pengecekan visual keliling & fungsi rem/lampu)',
-      'Memuat palet terlebih dahulu',
-      'Menunggu instruksi supervisor'
-    ],
-    correctAnswerIndex: 1,
-    explanation: 'Pre-use inspection adalah SOP wajib sebelum operasi untuk mendeteksi potensi kerusakan dan menjamin kelaikan unit.',
-    pointsReward: 50,
-    category: 'Safety & APD'
-  },
-  {
-    id: 'q-fb-2',
-    question: 'Berapa batas tinggi aman maksimum penumpukan palet di area staging indoor gudang logistik standar?',
-    options: [
-      'Bebas selama forklift dapat menjangkau',
-      'Maksimum 3 palet atau sesuai marka batas garis visual dinding',
-      'Maksimum 8 palet jika lantai rata',
-      'Sesuai kehendak tim helper'
-    ],
-    correctAnswerIndex: 1,
-    explanation: 'Batas tumpukan 3 palet menjaga pusat gravitasi dan stabilitas untuk mencegah bahaya roboh pada pekerja sekitar.',
-    pointsReward: 50,
-    category: 'Safety & APD'
-  },
-  {
-    id: 'q-fb-3',
-    question: 'Alat Pelindung Diri (APD) primer yang wajib digunakan saat berada di dalam area operasional gudang aktif adalah?',
-    options: [
-      'Sandal jepit dan topi santai',
-      'Helm safety, rompi high-vis, dan safety shoes berujung baja (steel toe)',
-      'Rompi saja tanpa alas kaki khusus',
-      'Kacamata hitam santai'
-    ],
-    correctAnswerIndex: 1,
-    explanation: 'Kombinasi helm, rompi visibilitas tinggi, dan sepatu safety adalah standar minimum K3 untuk perlindungan benturan dan kejatuhan beban.',
-    pointsReward: 50,
-    category: 'Safety & APD'
-  },
-  {
-    id: 'q-fb-4',
-    question: 'Ketika menangani barang dengan tanda "FRAGILE / PECAH BELAH", tindakan yang paling sesuai dengan SOP Zero Damage adalah?',
-    options: [
-      'Menumpuknya di tumpukan paling dasar agar stabil',
-      'Menempatkan di bagian paling atas dengan bantalan pelindung serta posisi stabil',
-      'Melemparkannya ke atas palet',
-      'Menumpuk karton berat di atasnya'
-    ],
-    correctAnswerIndex: 1,
-    explanation: 'Barang fragile harus ditempatkan di lapisan atas tanpa beban berat di atasnya untuk mencegah kerusakan isi paket.',
-    pointsReward: 50,
-    category: 'SOP Logistics'
-  },
-  {
-    id: 'q-fb-5',
-    question: 'Saat menemukan potensi bahaya (hazard) seperti tumpahan oli di jalur lintasan pejalan kaki/forklift, tindakan tepat adalah?',
-    options: [
-      'Membiarkannya dan menunggu pergantian shift',
-      'Segera pasang barikade/rambu peringatan bahaya dan tangani dengan spill kit',
-      'Melompati genangan oli tersebut',
-      'Menutupi dengan kardus bekas lalu pergi'
-    ],
-    correctAnswerIndex: 1,
-    explanation: 'Pemasangan barikade peringatan dan penanganan segera dengan spill kit mencegah kecelakaan terpeleset fatal atau selip roda forklift.',
-    pointsReward: 50,
-    category: 'Safety & APD'
-  },
-  {
-    id: 'q-fb-6',
-    question: 'Jarak aman minimum saat mengemudikan armada atau forklift di belakang unit kendaraan lain di area pergudangan adalah?',
-    options: [
-      '0.5 meter (rapat)',
-      'Minimal 3 panjang kendaraan (aturan 3 detik)',
-      '10 cm',
-      'Bebas selama klakson dibunyikan'
-    ],
-    correctAnswerIndex: 1,
-    explanation: 'Jarak 3 detik memberi ruang reaksi cukup jika kendaraan di depan berhenti mendadak.',
-    pointsReward: 50,
-    category: 'Defensive Driving'
-  }
-];
 
 let activeSupabaseApiKey: string | null = null;
 
@@ -198,51 +111,31 @@ async function fetchQuizzesFromSupabase(division?: string, role?: string): Promi
       .from('quiz_questions')
       .select('*');
 
-    if (error || !data || data.length === 0) {
-      return DEFAULT_FALLBACK_K3_QUIZZES;
-    }
+    if (error || !data || data.length === 0) return [];
 
     const targetRole = (role || '').toLowerCase().trim();
     const targetDiv = (division || '').toLowerCase().trim();
 
-    // 1. Role / division specific match
-    let pool = data.filter((item: any) => {
+    // 1. Ambil soal yang spesifik sesuai role dan divisi
+    const specificMatches = data.filter((item: any) => {
       const itemRole = (item.role || '').toLowerCase().trim();
       const itemDiv = (item.division || '').toLowerCase().trim();
-
-      const roleMatch = targetRole && targetRole !== 'general' && itemRole && itemRole !== 'general' &&
-        (itemRole.includes(targetRole) || targetRole.includes(itemRole));
-      const divMatch = targetDiv && targetDiv !== 'general' && itemDiv && itemDiv !== 'general' &&
-        (itemDiv.includes(targetDiv) || targetDiv.includes(itemDiv));
-
-      return roleMatch || divMatch;
+      const roleMatches = Boolean(targetRole && itemRole && (itemRole.includes(targetRole) || targetRole.includes(itemRole)));
+      const divMatches = Boolean(targetDiv && itemDiv && (itemDiv.includes(targetDiv) || targetDiv.includes(itemDiv)));
+      return roleMatches || divMatches;
     });
 
-    // 2. Jika kurang dari 5, tambahkan soal umum/general dari Supabase
-    if (pool.length < 5) {
-      const generalQuestions = data.filter((item: any) => {
-        const itemRole = (item.role || '').toLowerCase().trim();
-        const itemDiv = (item.division || '').toLowerCase().trim();
-        const isAlready = pool.some((p) => p.id === item.id);
-        const isGeneral = !itemRole || itemRole === 'general' || !itemDiv || itemDiv === 'general';
-        return !isAlready && isGeneral;
-      });
-      pool = [...pool, ...generalQuestions];
-    }
+    // 2. Ambil soal umum K3/SOP gudang sebagai pelengkap
+    const generalQuestions = data.filter((item: any) => {
+      const itemRole = (item.role || 'general').toLowerCase().trim();
+      const itemDiv = (item.division || 'general').toLowerCase().trim();
+      return (itemRole === 'general' || itemDiv === 'general') && !specificMatches.some((s) => s.id === item.id);
+    });
 
-    // 3. Jika masih kurang dari 5, ambil soal apapun yang tersedia di bank
-    if (pool.length < 5) {
-      const remaining = data.filter((item: any) => !pool.some((p) => p.id === item.id));
-      pool = [...pool, ...remaining];
-    }
+    const combined = [...specificMatches, ...generalQuestions];
+    if (combined.length < 5) return [];
 
-    // 4. Jika tetap kurang dari 5, supplement dengan default bank
-    if (pool.length < 5) {
-      const needed = 5 - pool.length;
-      pool = [...pool, ...DEFAULT_FALLBACK_K3_QUIZZES.slice(0, needed)];
-    }
-
-    return pool.map((item: any) => ({
+    return combined.map((item: any) => ({
       id: item.id,
       question: item.question,
       options: typeof item.options === 'string' ? JSON.parse(item.options) : item.options,
@@ -252,8 +145,8 @@ async function fetchQuizzesFromSupabase(division?: string, role?: string): Promi
       category: item.category || 'Safety & APD',
     }));
   } catch (err) {
-    console.warn('⚠️ [Gappy AI / Supabase] Gagal mengambil bank soal dari Supabase, gunakan default bank:', err);
-    return DEFAULT_FALLBACK_K3_QUIZZES;
+    console.warn('⚠️ [Gappy AI / Supabase] Gagal mengambil bank soal dari Supabase:', err);
+    return [];
   }
 }
 
@@ -411,18 +304,15 @@ export async function generateDailyQuiz(
     return personalizedQuiz;
   }
 
-  // 3. Generate via Gappy AI API (100% Dynamic Engine)
+  // 3. Generate via Gappy AI API (Fast Flash Models)
   const apiKey = await resolveGeminiApiKey();
 
   if (!isValidGeminiApiKey(apiKey)) {
-    console.log('ℹ️ [GappyService] Menggunakan bank soal standar K3 (API key belum diatur).');
-    const shuffled = [...DEFAULT_FALLBACK_K3_QUIZZES].sort(() => Math.random() - 0.5).slice(0, 5);
-    setCachedQuiz(shuffled, workerId, role, division);
-    return shuffled;
+    console.warn('⚠️ [GappyService] VITE_GEMINI_API_KEY belum dikonfigurasi.');
+    return [];
   }
 
-  // Model resmi Google Gemini yang aktif dan berkecepatan tinggi
-  const candidateModels = ['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-1.5-pro'];
+  const candidateModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   const genAI = new GoogleGenerativeAI(apiKey!.trim());
 
   for (const modelName of candidateModels) {
@@ -430,12 +320,10 @@ export async function generateDailyQuiz(
       const model = genAI.getGenerativeModel({ model: modelName });
       const promptText = QUIZ_PROMPT(division, role, workerName, workerId, tier);
 
-      // Tambahkan timeout 6 detik agar UI tidak pernah loading terlalu lama
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout model ${modelName} (6s)`)), 6000)
+        setTimeout(() => reject(new Error(`Timeout model ${modelName} (7s)`)), 7000)
       );
-
-      const result = await Promise.race([model.generateContent(promptText), timeoutPromise]);
+      const result: any = await Promise.race([model.generateContent(promptText), timeoutPromise]);
       const text = result.response.text().trim();
 
       const jsonText = text
@@ -450,33 +338,49 @@ export async function generateDailyQuiz(
         continue;
       }
 
-      const validated = parsed.filter(
-        (q) =>
-          q.question &&
-          Array.isArray(q.options) &&
-          q.options.length >= 2 &&
-          typeof q.correctAnswerIndex === 'number'
-      );
+      const validated = parsed
+        .filter(
+          (q) =>
+            q.question &&
+            Array.isArray(q.options) &&
+            q.options.length >= 2 &&
+            typeof q.correctAnswerIndex === 'number'
+        )
+        .map((q) => ({
+          ...q,
+          category: q.category || 'Safety & APD',
+        }));
 
       if (validated.length > 0) {
-        console.log(`✅ [Gappy AI] Berhasil membuat ${validated.length} soal K3 personal untuk ${workerName || workerId} (${modelName})!`);
+        // Acak opsi jawaban (A, B, C, D) per pekerja agar tidak bisa saling contek
+        const shuffledValidated = validated.map((q, idx) => {
+          const originalCorrect = q.options[q.correctAnswerIndex];
+          const shuffledOptions = [...q.options].sort(() => Math.random() - 0.5);
+          const newCorrectIndex = shuffledOptions.indexOf(originalCorrect);
+          return {
+            ...q,
+            id: `gappy-q-${workerId || 'user'}-${idx}-${Date.now()}`,
+            options: shuffledOptions,
+            correctAnswerIndex: newCorrectIndex >= 0 ? newCorrectIndex : 0,
+          };
+        });
+
+        console.log(`✅ [Gappy AI] Berhasil membuat ${shuffledValidated.length} soal K3 personal untuk ${workerName || workerId} (${modelName})!`);
         lastModelNameUsed = modelName;
-        setCachedQuiz(validated, workerId, role, division);
+        setCachedQuiz(shuffledValidated, workerId, role, division);
 
-        // Simpan soal buatan AI ke Supabase secara otomatis untuk memupuk bank soal!
-        saveQuizzesToSupabase(validated, division, role).catch(() => {});
+        // Simpan soal buatan AI ke Supabase secara otomatis untuk memperkaya bank soal
+        saveQuizzesToSupabase(shuffledValidated, division, role);
 
-        return validated;
+        return shuffledValidated;
       }
     } catch (err: any) {
-      console.warn(`[Gappy AI] Model ${modelName} dilewati (${err?.message || err}), mencoba model berikutnya...`);
+      console.warn(`[Gappy AI] Model ${modelName} melempar error: ${err?.message || err}, mencoba model berikutnya...`);
     }
   }
 
-  console.warn('⚠️ [Gappy AI] Menggunakan bank soal standar K3 terverifikasi.');
-  const fallback = [...DEFAULT_FALLBACK_K3_QUIZZES].sort(() => Math.random() - 0.5).slice(0, 5);
-  setCachedQuiz(fallback, workerId, role, division);
-  return fallback;
+  console.warn('⚠️ [Gappy AI] Gappy AI API tidak merespon.');
+  return [];
 }
 
 // ─── Admin Audit & Monitoring Helpers ─────────────────────────────────────────
@@ -493,7 +397,7 @@ export interface QuizStatusMeta {
   lastModelUsed: string;
 }
 
-let lastModelNameUsed = 'gemini-3.6-flash';
+let lastModelNameUsed = 'gemini-2.5-flash';
 
 export function clearQuizCache(): void {
   try {
@@ -558,7 +462,7 @@ export async function forceRefreshDailyQuiz(
     );
   }
 
-  const candidateModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.7-flash'];
+  const candidateModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
   const genAI = new GoogleGenerativeAI(apiKey!.trim());
 
   let lastErrorMsg = '';
@@ -567,7 +471,11 @@ export async function forceRefreshDailyQuiz(
     try {
       const model = genAI.getGenerativeModel({ model: modelName });
       const promptText = QUIZ_PROMPT(division, role, workerName, workerId);
-      const result = await model.generateContent(promptText);
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Timeout model ${modelName} (7s)`)), 7000)
+      );
+      const result: any = await Promise.race([model.generateContent(promptText), timeoutPromise]);
       const text = result.response.text().trim();
 
       const jsonText = text
