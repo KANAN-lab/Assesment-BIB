@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useIdempotentSubmit } from '../hooks/useIdempotentSubmit';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -81,7 +82,11 @@ export function KaizenSubmissionModal({
   const [expectedImpact, setExpectedImpact] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
+  const { submit: idempSubmit, isSubmitting: loading, idempotencyError, clearIdempotencyError } = useIdempotentSubmit({
+    workerId: currentWorkerId,
+    formType: 'kaizen',
+    getPayload: () => ({ title, category, currentCondition, proposedSolution }),
+  });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -94,52 +99,58 @@ export function KaizenSubmissionModal({
       return;
     }
 
-    setLoading(true);
+    clearIdempotencyError();
     setError(null);
 
-    let uploadedPhotoUrl: string | undefined = undefined;
-    if (photoFile) {
-      try {
-        const uploadRes = await uploadFileToGoogleDrive(photoFile, {
-          workerId: currentWorkerId,
-          workerName: currentWorkerName,
-          moduleCategory: 'Kaizen_Inovasi',
-          customFilename: `KAIZEN_${currentWorkerId}_${Date.now()}.jpg`,
-        });
-        if (uploadRes.directUrl || uploadRes.webViewLink) {
-          uploadedPhotoUrl = uploadRes.directUrl || uploadRes.webViewLink;
+    await idempSubmit(async () => {
+      const { IdempotencyEngine } = await import('../domain/IdempotencyEngine');
+      const idemp = IdempotencyEngine.generateKey(currentWorkerId, 'kaizen', { title, category, currentCondition, proposedSolution });
+
+      let uploadedPhotoUrl: string | undefined = undefined;
+      if (photoFile) {
+        try {
+          const uploadRes = await uploadFileToGoogleDrive(photoFile, {
+            workerId: currentWorkerId,
+            workerName: currentWorkerName,
+            moduleCategory: 'Kaizen_Inovasi',
+            customFilename: `KAIZEN_${currentWorkerId}_${Date.now()}.jpg`,
+          });
+          if (uploadRes.directUrl || uploadRes.webViewLink) {
+            uploadedPhotoUrl = uploadRes.directUrl || uploadRes.webViewLink;
+          }
+        } catch (err) {
+          console.warn('Gagal upload bukti foto Kaizen ke Google Drive:', err);
         }
-      } catch (err) {
-        console.warn('Gagal upload bukti foto Kaizen ke Google Drive:', err);
       }
-    }
 
-    const input: KaizenInput = {
-      title,
-      category,
-      currentCondition,
-      proposedSolution,
-      expectedImpact: expectedImpact.trim() || undefined,
-      photoBeforeUrl: uploadedPhotoUrl || photoPreview || undefined,
-    };
+      const input: KaizenInput = {
+        title,
+        category,
+        currentCondition,
+        proposedSolution,
+        expectedImpact: expectedImpact.trim() || undefined,
+        photoBeforeUrl: uploadedPhotoUrl || photoPreview || undefined,
+      };
 
-    const res = await KaizenService.submitSuggestion(currentWorkerId, input);
-    setLoading(false);
+      const res = await KaizenService.submitSuggestion(currentWorkerId, input, idemp);
 
-    if (res.success) {
-      setSuccess(true);
-      setTimeout(() => {
-        setSuccess(false);
-        setTitle('');
-        setCurrentCondition('');
-        setProposedSolution('');
-        setExpectedImpact('');
-        onClose();
-        if (onSubmitted) onSubmitted();
-      }, 1500);
-    } else {
-      setError(res.error || 'Terjadi kesalahan saat mengirim saran Kaizen.');
-    }
+      if (res.success) {
+        setSuccess(true);
+        setTimeout(() => {
+          setSuccess(false);
+          setTitle('');
+          setCurrentCondition('');
+          setProposedSolution('');
+          setExpectedImpact('');
+          onClose();
+          if (onSubmitted) onSubmitted();
+        }, 1500);
+      } else {
+        setError(res.error || 'Terjadi kesalahan saat mengirim saran Kaizen.');
+      }
+    }).catch((err: any) => {
+      setError(err.message || 'Gagal mengirim saran Kaizen.');
+    });
   };
 
   return createPortal(
@@ -187,6 +198,12 @@ export function KaizenSubmissionModal({
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4 custom-scrollbar">
+            {idempotencyError && (
+              <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-400 flex items-center gap-2">
+                <AlertTriangle className="w-4 h-4 shrink-0" />
+                <span>{idempotencyError}</span>
+              </div>
+            )}
             {error && (
               <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-xs text-rose-400 flex items-center gap-2">
                 <AlertTriangle className="w-4 h-4 shrink-0" />

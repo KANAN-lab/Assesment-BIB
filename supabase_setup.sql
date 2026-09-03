@@ -615,6 +615,8 @@ ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS root_cause TEXT;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS corrective_action TEXT;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS assigned_pic TEXT;
 ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS due_date DATE;
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_incident_reports_idempotency_key ON incident_reports(idempotency_key) WHERE idempotency_key IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_incident_reports_worker ON incident_reports(worker_id);
 CREATE INDEX IF NOT EXISTS idx_incident_reports_status ON incident_reports(status, created_at DESC);
@@ -1107,6 +1109,8 @@ ALTER TABLE shift_handovers DROP CONSTRAINT IF EXISTS shift_handovers_handover_c
 ALTER TABLE shift_handovers ADD CONSTRAINT shift_handovers_handover_category_check CHECK (
   handover_category IN ('MHE & Peralatan', 'Operasional & Target', 'Kebersihan & 5R', 'Kebersihan & 5S', 'Administrasi & Dokumen', 'Infrastruktur Gudang', 'K3 & Insiden', 'Lainnya')
 );
+ALTER TABLE shift_handovers ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_shift_handovers_idempotency_key ON shift_handovers(idempotency_key) WHERE idempotency_key IS NOT NULL;
 
 ALTER TABLE shift_handovers ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow read all for shift_handovers" ON shift_handovers;
@@ -1214,6 +1218,9 @@ CREATE TABLE IF NOT EXISTS kaizen_suggestions (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE kaizen_suggestions ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_kaizen_suggestions_idempotency_key ON kaizen_suggestions(idempotency_key) WHERE idempotency_key IS NOT NULL;
 
 ALTER TABLE kaizen_suggestions ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow read all for kaizen_suggestions" ON kaizen_suggestions;
@@ -1833,6 +1840,8 @@ CREATE TABLE IF NOT EXISTS safety_patrol_logs (
 CREATE INDEX IF NOT EXISTS idx_safety_patrol_status ON safety_patrol_logs(status, severity);
 CREATE INDEX IF NOT EXISTS idx_safety_patrol_date ON safety_patrol_logs(patrol_date DESC);
 CREATE INDEX IF NOT EXISTS idx_safety_patrol_zone ON safety_patrol_logs(zone_id);
+ALTER TABLE safety_patrol_logs ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_safety_patrol_logs_idempotency_key ON safety_patrol_logs(idempotency_key) WHERE idempotency_key IS NOT NULL;
 
 ALTER TABLE safety_patrol_logs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all access to safety_patrol_logs" ON safety_patrol_logs;

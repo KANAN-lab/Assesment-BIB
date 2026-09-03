@@ -42,6 +42,7 @@ import {
   VIOLATION_META,
   CATEGORY_META,
 } from '../lib/disciplinaryService';
+import { IdempotencyEngine } from '../domain/IdempotencyEngine';
 import { fetchAllSopModules } from '../lib/sopService';
 import { SopModule } from '../types/sop';
 
@@ -187,24 +188,43 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
       }
     }
 
-    DisciplinaryService.issueSanction({
-      workerId: worker.id,
-      workerName: worker.name,
-      employeeId: worker.employeeId,
-      division: worker.division,
-      role: worker.role,
-      violationLevel,
-      violationCategory,
-      incidentDate,
-      location,
-      description,
-      pointDeduction: Number(pointDeduction) || 0,
-      mandatoryRetrainingSopId: sop?.id,
-      mandatoryRetrainingSopTitle: sop ? `[${sop.code}] ${sop.title}` : undefined,
-      issuedBy: issuerName || 'Supervisor HSE',
-      actionPlan: actionPlan || undefined,
-      evidencePhotoUrl: finalEvidenceUrl,
-    });
+    // Generate idempotency key dari konten sanksi
+    const idemp = IdempotencyEngine.generateKey(
+      worker.id,
+      'disciplinary',
+      { workerId: worker.id, violationLevel, violationCategory, incidentDate, location, description }
+    );
+    const guard = IdempotencyEngine.guard(idemp);
+    if (!guard.allowed) {
+      alert(guard.reason || 'Sanksi dengan data ini sudah diterbitkan. Harap tunggu sebelum mengirim ulang.');
+      return;
+    }
+
+    try {
+      DisciplinaryService.issueSanction({
+        workerId: worker.id,
+        workerName: worker.name,
+        employeeId: worker.employeeId,
+        division: worker.division,
+        role: worker.role,
+        violationLevel,
+        violationCategory,
+        incidentDate,
+        location,
+        description,
+        pointDeduction: Number(pointDeduction) || 0,
+        mandatoryRetrainingSopId: sop?.id,
+        mandatoryRetrainingSopTitle: sop ? `[${sop.code}] ${sop.title}` : undefined,
+        issuedBy: issuerName || 'Supervisor HSE',
+        actionPlan: actionPlan || undefined,
+        evidencePhotoUrl: finalEvidenceUrl,
+        idempotencyKey: idemp,
+      });
+      IdempotencyEngine.release(idemp, true);
+    } catch (err) {
+      IdempotencyEngine.release(idemp, false);
+      throw err;
+    }
 
     // Reset Form
     setSelectedWorkerId('');

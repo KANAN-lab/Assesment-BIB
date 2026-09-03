@@ -62,7 +62,8 @@ export class SafetyPatrolService {
    * Catat temuan patroli baru (Gemba Walk Quick Tour)
    */
   public static async createPatrolRecord(
-    entry: Omit<SafetyPatrolRecord, 'id' | 'createdAt' | 'updatedAt'>
+    entry: Omit<SafetyPatrolRecord, 'id' | 'createdAt' | 'updatedAt'>,
+    idempotencyKey?: string
   ): Promise<SafetyPatrolRecord> {
     const id = `patrol-${Date.now()}`;
     const newRecord: SafetyPatrolRecord = {
@@ -72,6 +73,9 @@ export class SafetyPatrolService {
       updatedAt: new Date().toISOString(),
     };
 
+    // Derive idempotency key dari record ID jika tidak disediakan dari luar
+    const idemp = idempotencyKey ?? `idemp-patrol-${id}`;
+
     // 1. Simpan ke local cache segera
     const current = this.getFromLocal();
     const updated = [newRecord, ...current];
@@ -79,7 +83,7 @@ export class SafetyPatrolService {
 
     // 2. Kirim ke Supabase
     try {
-      const { error } = await supabase.from('safety_patrol_logs').insert({
+      const insertPayload: Record<string, any> = {
         id: newRecord.id,
         supervisor_id: newRecord.supervisorId,
         supervisor_name: newRecord.supervisorName,
@@ -96,10 +100,25 @@ export class SafetyPatrolService {
         due_date: newRecord.dueDate,
         resolution_notes: newRecord.resolutionNotes,
         points_awarded: newRecord.pointsAwarded ?? false,
-      });
+        idempotency_key: idemp,
+      };
+
+      const { error } = await supabase.from('safety_patrol_logs').insert(insertPayload);
 
       if (error) {
-        throw error;
+        // Duplikat dari server — data sudah ada, tidak perlu queue offline
+        if (error.code === '23505') {
+          console.info('[SafetyPatrolService] Duplikat patrol diabaikan (idempotency_key sudah ada).');
+          return newRecord;
+        }
+        // Kolom idempotency_key belum ada di skema — retry tanpa kolom itu
+        if (error.message.includes('idempotency_key') || error.message.includes('column')) {
+          delete insertPayload.idempotency_key;
+          const retry = await supabase.from('safety_patrol_logs').insert(insertPayload);
+          if (retry.error) throw retry.error;
+        } else {
+          throw error;
+        }
       }
     } catch (err: any) {
       console.warn('Gagal sinkronisasi patrol ke Supabase, simpan ke antrean offline:', err);
@@ -109,13 +128,14 @@ export class SafetyPatrolService {
         subtitle: newRecord.description,
         workerId: newRecord.supervisorId,
         workerName: newRecord.supervisorName,
-        idempotencyKey: `idemp-patrol-${newRecord.id}`,
+        idempotencyKey: idemp,
         payload: newRecord,
       });
     }
 
     return newRecord;
   }
+
 
   /**
    * Update status temuan & catatan tindakan perbaikan

@@ -5,17 +5,27 @@ export class HandoverManager {
   /**
    * Submit log serah terima baru
    */
-  static async submitHandover(authorId: string, input: HandoverInput): Promise<ShiftHandoverEntity> {
-    const { data, error } = await supabase
+  static async submitHandover(
+    authorId: string,
+    input: HandoverInput,
+    idempotencyKey?: string
+  ): Promise<ShiftHandoverEntity> {
+    const insertPayload: Record<string, any> = {
+      author_id: authorId,
+      shift_type: input.shiftType,
+      next_supervisor_id: input.nextSupervisorId,
+      handover_category: input.handoverCategory,
+      condition_status: input.conditionStatus,
+      notes: input.notes,
+    };
+
+    if (idempotencyKey) {
+      insertPayload.idempotency_key = idempotencyKey;
+    }
+
+    let { data, error } = await supabase
       .from('shift_handovers')
-      .insert({
-        author_id: authorId,
-        shift_type: input.shiftType,
-        next_supervisor_id: input.nextSupervisorId,
-        handover_category: input.handoverCategory,
-        condition_status: input.conditionStatus,
-        notes: input.notes
-      })
+      .insert(insertPayload)
       .select(`
         *,
         author:workers!author_id (name, avatar),
@@ -23,7 +33,26 @@ export class HandoverManager {
       `)
       .single();
 
+    // Fallback jika kolom idempotency_key belum ada di skema
+    if (error && (error.message.includes('idempotency_key') || error.message.includes('column'))) {
+      delete insertPayload.idempotency_key;
+      const retry = await supabase
+        .from('shift_handovers')
+        .insert(insertPayload)
+        .select(`
+          *,
+          author:workers!author_id (name, avatar),
+          acknowledged_by_worker:workers!acknowledged_by (name)
+        `)
+        .single();
+      data = retry.data;
+      error = retry.error;
+    }
+
     if (error) {
+      if (error.code === '23505') {
+        throw new Error('Log serah terima ini sudah pernah dikirim sebelumnya.');
+      }
       console.error('Error submitting handover:', error);
       throw new Error(error.message);
     }

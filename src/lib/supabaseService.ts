@@ -1441,7 +1441,8 @@ export function saveIncidentCapaCache(
 
 export async function createIncidentReport(
   workerId: string,
-  payload: Omit<IncidentReport, 'id' | 'workerId' | 'workerName' | 'createdAt' | 'resolvedAt' | 'resolutionNote' | 'status'>
+  payload: Omit<IncidentReport, 'id' | 'workerId' | 'workerName' | 'createdAt' | 'resolvedAt' | 'resolutionNote' | 'status'>,
+  idempotencyKey?: string
 ): Promise<IncidentReport> {
   const insertPayload: Record<string, any> = {
     worker_id: workerId,
@@ -1455,6 +1456,9 @@ export async function createIncidentReport(
   if (payload.photoUrl) {
     insertPayload.photo_url = payload.photoUrl;
   }
+  if (idempotencyKey) {
+    insertPayload.idempotency_key = idempotencyKey;
+  }
 
   let { data, error } = await supabase
     .from('incident_reports')
@@ -1462,9 +1466,10 @@ export async function createIncidentReport(
     .select('*')
     .single();
 
-  // Retry fallback jika kolom photo_url belum ada di skema Supabase database
-  if (error && (error.message.includes('photo_url') || error.message.includes('column'))) {
+  // Retry fallback jika kolom photo_url atau idempotency_key belum ada di skema
+  if (error && (error.message.includes('photo_url') || error.message.includes('idempotency_key') || error.message.includes('column'))) {
     delete insertPayload.photo_url;
+    delete insertPayload.idempotency_key;
     const retry = await supabase
       .from('incident_reports')
       .insert(insertPayload)
@@ -1472,6 +1477,11 @@ export async function createIncidentReport(
       .single();
     data = retry.data;
     error = retry.error;
+  }
+
+  // Server-side duplicate rejection (UNIQUE constraint violation)
+  if (error && error.code === '23505') {
+    throw new Error('Laporan insiden dengan data ini sudah pernah dikirim. Harap cek riwayat laporan Anda.');
   }
 
   if (error) throw new Error(`Gagal membuat laporan insiden: ${error.message}`);

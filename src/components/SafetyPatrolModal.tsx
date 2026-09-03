@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useIdempotentSubmit } from '../hooks/useIdempotentSubmit';
 import { createPortal } from 'react-dom';
 import {
   ShieldAlert, Camera, X, AlertTriangle, CheckCircle2, User,
@@ -41,7 +42,11 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
   );
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const { submit: idempSubmit, isSubmitting: submitting, idempotencyError, clearIdempotencyError } = useIdempotentSubmit({
+    workerId: currentSupervisorId,
+    formType: 'patrol',
+    getPayload: () => ({ selectedZoneId, findingType, severity, description: description.trim(), assignedPicId }),
+  });
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const selectedZone = WAREHOUSE_PATROL_ZONES.find((z) => z.id === selectedZoneId) || WAREHOUSE_PATROL_ZONES[0];
@@ -73,9 +78,19 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
 
     const assignedWorker = workers.find((w) => w.id === assignedPicId || w.employeeId === assignedPicId);
 
-    setSubmitting(true);
+    clearIdempotencyError();
     setErrorMsg(null);
-    try {
+
+    await idempSubmit(async () => {
+      const { IdempotencyEngine } = await import('../domain/IdempotencyEngine');
+      const idemp = IdempotencyEngine.generateKey(currentSupervisorId, 'patrol', {
+        selectedZoneId,
+        findingType,
+        severity,
+        description: description.trim(),
+        assignedPicId,
+      });
+
       let finalPhotoUrl = photoPreview;
 
       // Unggah foto temuan patroli K3 ke Google Drive folder user/supervisor
@@ -107,15 +122,13 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
         resolutionNotes: findingType === 'Good Practice' ? 'Praktik positif langsung dicatat & diapresiasi.' : null,
         resolvedAt: findingType === 'Good Practice' ? new Date().toISOString() : null,
         pointsAwarded: findingType === 'Good Practice',
-      });
+      }, idemp);
 
       onSuccess(record);
       onClose();
-    } catch (err: any) {
+    }).catch((err: any) => {
       setErrorMsg(err.message || 'Gagal menyimpan temuan patroli.');
-    } finally {
-      setSubmitting(false);
-    }
+    });
   };
 
   return createPortal(
@@ -153,6 +166,13 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
             <X className="w-5 h-5" />
           </button>
         </div>
+
+        {idempotencyError && (
+          <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-2 text-amber-300 text-xs">
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-400" />
+            <span>{idempotencyError}</span>
+          </div>
+        )}
 
         {errorMsg && (
           <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl flex items-start gap-2 text-rose-300 text-xs">

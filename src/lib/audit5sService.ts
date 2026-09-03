@@ -141,13 +141,23 @@ export class Audit5sService {
     beforePhotoUrl?: string;
     afterPhotoUrl?: string;
     auditDate?: string;
+    idempotencyKey?: string;
   }): Audit5sRecord {
     const zones = this.getAllZones();
     const zone = zones.find((z) => z.id === params.zoneId);
     if (!zone) throw new Error('Zona gudang tidak ditemukan');
 
     const records = this.getAllRecords();
-    const count = records.length + 1;
+
+    // Guard: cegah duplikat di localStorage jika idempotencyKey sudah ada
+    if (params.idempotencyKey) {
+      const existing = records.find((r) => (r as any).idempotencyKey === params.idempotencyKey);
+      if (existing) {
+        console.info('[Audit5sService] Duplikat audit diabaikan (idempotencyKey sudah ada):', params.idempotencyKey);
+        return existing;
+      }
+    }
+
     const auditRefNumber = SystemConfigService.generateDocumentNumber('audit_5s', { code: zone.division });
 
     // Average of 5 pillars computed via OOP Domain Engine
@@ -173,7 +183,8 @@ export class Audit5sService {
       allocatedRewardPoints: points,
       status,
       createdAt: new Date().toISOString(),
-    };
+      ...(params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : {}),
+    } as Audit5sRecord & { idempotencyKey?: string };
 
     records.unshift(newRecord);
     this.saveRecords(records);
@@ -198,6 +209,7 @@ export class Audit5sService {
 
     return newRecord;
   }
+
 
   public static getStats(): Audit5sStats {
     const zones = this.getAllZones();

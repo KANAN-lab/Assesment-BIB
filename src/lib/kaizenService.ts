@@ -7,23 +7,30 @@ export class KaizenService {
    */
   static async submitSuggestion(
     authorId: string,
-    input: KaizenInput
+    input: KaizenInput,
+    idempotencyKey?: string
   ): Promise<{ success: boolean; data?: KaizenSuggestionEntity; error?: string }> {
     try {
+      const insertPayload: Record<string, any> = {
+        author_id: authorId,
+        title: input.title.trim(),
+        category: input.category,
+        current_condition: input.currentCondition.trim(),
+        proposed_solution: input.proposedSolution.trim(),
+        expected_impact: input.expectedImpact ? input.expectedImpact.trim() : null,
+        photo_before_url: input.photoBeforeUrl || null,
+        photo_after_url: input.photoAfterUrl || null,
+        status: 'Submitted',
+        reward_points: 0,
+      };
+
+      if (idempotencyKey) {
+        insertPayload.idempotency_key = idempotencyKey;
+      }
+
       const { data, error } = await supabase
         .from('kaizen_suggestions')
-        .insert({
-          author_id: authorId,
-          title: input.title.trim(),
-          category: input.category,
-          current_condition: input.currentCondition.trim(),
-          proposed_solution: input.proposedSolution.trim(),
-          expected_impact: input.expectedImpact ? input.expectedImpact.trim() : null,
-          photo_before_url: input.photoBeforeUrl || null,
-          photo_after_url: input.photoAfterUrl || null,
-          status: 'Submitted',
-          reward_points: 0
-        })
+        .insert(insertPayload)
         .select(`
           *,
           author:workers!author_id (name, avatar, role, division),
@@ -31,27 +38,50 @@ export class KaizenService {
         `)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        // Server-side duplicate rejection
+        if (error.code === '23505') {
+          return { success: false, error: 'Usulan Kaizen dengan isi yang sama sudah pernah dikirim.' };
+        }
+        // Fallback: kolom idempotency_key belum ada di skema
+        if (error.message.includes('idempotency_key') || error.message.includes('column')) {
+          delete insertPayload.idempotency_key;
+          const retry = await supabase
+            .from('kaizen_suggestions')
+            .insert(insertPayload)
+            .select(`*, author:workers!author_id (name, avatar, role, division), reviewer:workers!reviewer_id (name)`)
+            .single();
+          if (retry.error) throw retry.error;
+          await supabase.from('activity_log').insert({
+            worker_id: authorId,
+            action: 'kaizen_submitted',
+            detail: `Mengajukan ide Kaizen: "${input.title.slice(0, 30)}..."`,
+          });
+          return { success: true, data: this.mapToEntity(retry.data) };
+        }
+        throw error;
+      }
 
       // Log activity
       await supabase.from('activity_log').insert({
         worker_id: authorId,
         action: 'kaizen_submitted',
-        detail: `Mengajukan ide Kaizen: "${input.title.slice(0, 30)}..."`
+        detail: `Mengajukan ide Kaizen: "${input.title.slice(0, 30)}..."`,
       });
 
       return {
         success: true,
-        data: this.mapToEntity(data)
+        data: this.mapToEntity(data),
       };
     } catch (err: any) {
       console.error('Error submitting Kaizen suggestion:', err);
       return {
         success: false,
-        error: err.message || 'Gagal mengirim usulan Kaizen'
+        error: err.message || 'Gagal mengirim usulan Kaizen',
       };
     }
   }
+
 
   /**
    * Mengambil semua ide Kaizen untuk Admin/Supervisor (Kanban Board)

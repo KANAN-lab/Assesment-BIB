@@ -85,7 +85,8 @@ VITE_GDRIVE_UPLOAD_WEBHOOK=https://script.google.com/macros/s/your_gas_script_id
 ```
 
 ### 2. Inisialisasi Database (Supabase)
-Jalankan file [supabase_setup.sql](file:///d:/Coding%20Session/Komar/supabase_setup.sql) di **Supabase Dashboard > SQL Editor** untuk menginisialisasi tabel, RLS Policies, Stored Procedure Atomic (`rpc_redeem_reward_fcfs`, `reset_monthly_reward_quota`, `rpc_issue_disciplinary_action`, `rpc_submit_5s_audit`, `rpc_distribute_ppe`), dan seed data awal.
+Jalankan file [supabase_setup.sql](file:///d:/Coding%20Session/Komar/supabase_setup.sql) di **Supabase Dashboard > SQL Editor** untuk menginisialisasi tabel, RLS Policies, Stored Procedure Atomic (`rpc_redeem_reward_fcfs`, `reset_monthly_reward_quota`, `rpc_issue_disciplinary_action`, `rpc_submit_5s_audit`, `rpc_distribute_ppe`), dan seed data awal.  
+Panduan lengkap langkah demi langkah dari awal dapat dilihat pada dokumen: [SUPABASE_SETUP_GUIDE.md](file:///d:/Coding%20Session/Komar/SUPABASE_SETUP_GUIDE.md).
 
 ### 3. Perintah Pengembangan & Build Lokal
 ```bash

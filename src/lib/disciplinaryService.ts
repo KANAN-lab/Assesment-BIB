@@ -107,25 +107,36 @@ export class DisciplinaryService {
   public static issueSanction(
     params: Omit<DisciplinaryActionEntity, 'id' | 'documentRefNumber' | 'issuedAt' | 'isRetrainingCompleted' | 'status'> & {
       status?: SanctionStatus;
+      idempotencyKey?: string;
     }
   ): DisciplinaryActionEntity {
     const items = this.load();
-    const count = items.length + 1;
     const prefix = params.violationLevel === 'coaching_verbal' ? 'CONS' : 'SP';
     const docRef = SystemConfigService.generateDocumentNumber('disciplinary', { code: prefix });
+
+    // Guard: cegah duplikat di localStorage jika idempotencyKey sudah ada
+    if (params.idempotencyKey) {
+      const existing = items.find((a) => (a as any).idempotencyKey === params.idempotencyKey);
+      if (existing) {
+        console.info('[DisciplinaryService] Duplikat sanksi diabaikan (idempotencyKey sudah ada):', params.idempotencyKey);
+        return existing;
+      }
+    }
 
     // Calculate expiry date using domain engine
     const expiryDate = DisciplinaryMatrixEngine.calculateExpiryDate(params.violationLevel);
 
+    const { idempotencyKey: _k, ...restParams } = params;
     const newAction: DisciplinaryActionEntity = {
-      ...params,
+      ...restParams,
       id: `disc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       documentRefNumber: docRef,
       issuedAt: new Date().toISOString(),
       expiryDate,
       isRetrainingCompleted: false,
       status: params.mandatoryRetrainingSopId ? 'in_retraining' : (params.status || 'active'),
-    };
+      ...(params.idempotencyKey ? { idempotencyKey: params.idempotencyKey } : {}),
+    } as DisciplinaryActionEntity & { idempotencyKey?: string };
 
     items.unshift(newAction);
     this.save(items);
@@ -141,6 +152,7 @@ export class DisciplinaryService {
 
     return newAction;
   }
+
 
   public static completeRetraining(actionId: string, resolutionNotes?: string): boolean {
     const items = this.load();

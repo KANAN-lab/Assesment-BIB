@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useIdempotentSubmit } from '../hooks/useIdempotentSubmit';
 import {
   AlertTriangle,
   MapPin,
@@ -52,7 +53,11 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState<IncidentReport['severity']>('low');
   const [occurredAt, setOccurredAt] = useState(new Date().toISOString().slice(0, 16));
-  const [loading, setLoading] = useState(false);
+  const { submit: idempSubmit, isSubmitting: loading, idempotencyError, clearIdempotencyError, currentKey: _idemp } = useIdempotentSubmit({
+    workerId,
+    formType: 'incident',
+    getPayload: () => ({ incidentType, location, description, severity }),
+  });
   const [uploadStep, setUploadStep] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
@@ -119,10 +124,14 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
       setError('Lokasi dan deskripsi wajib diisi.');
       return;
     }
-    setLoading(true);
+    clearIdempotencyError();
     setError(null);
 
-    try {
+    await idempSubmit(async () => {
+      // Ambil key yang sudah di-generate oleh hook
+      const { IdempotencyEngine } = await import('../domain/IdempotencyEngine');
+      const idemp = IdempotencyEngine.generateKey(workerId, 'incident', { incidentType, location, description, severity });
+
       let photoUrlData: string | undefined = undefined;
 
       // 1. Programmatic Automatic Upload directly to Google Drive Server with User-Bound Subfolder
@@ -170,7 +179,7 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
         gdriveFolderId: GDRIVE_TARGET_FOLDER_ID,
         originalSizeKb,
         compressedSizeKb,
-      });
+      }, idemp);
 
       // Kirim Notifikasi ke Supervisor & Worker via OOP NotificationEngine
       NotificationEngine.addNotification({
@@ -191,12 +200,12 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
 
       setDone(true);
       setTimeout(() => onSuccess(report), 2500);
-    } catch (err: any) {
+    }).catch((err: any) => {
       setError(err.message || 'Gagal mengirim laporan insiden.');
-    } finally {
-      setLoading(false);
       setUploadStep('');
-    }
+    }).finally(() => {
+      setUploadStep('');
+    });
   };
 
   React.useEffect(() => {
@@ -272,6 +281,12 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
               
               {/* LEFT COLUMN: Incident Metadata (6 cols) */}
               <div className="lg:col-span-6 space-y-4">
+                {idempotencyError && (
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-amber-300 text-xs flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+                    <span>{idempotencyError}</span>
+                  </div>
+                )}
                 {error && (
                   <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-2">
                     <AlertTriangle className="w-4 h-4 shrink-0 text-rose-400" />

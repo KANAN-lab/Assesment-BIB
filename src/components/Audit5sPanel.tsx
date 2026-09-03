@@ -41,6 +41,7 @@ import {
   ZONE_TYPE_META,
   RATING_META,
 } from '../lib/audit5sService';
+import { IdempotencyEngine } from '../domain/IdempotencyEngine';
 
 interface Audit5sPanelProps {
   workers: WorkerProfile[];
@@ -169,16 +170,35 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
       }
     }
 
-    Audit5sService.submitAuditRecord({
-      zoneId: selectedZoneId,
-      auditorName: auditorName || 'Pengawas 5R',
-      auditDate,
-      scores,
-      findingsDescription: findingsDescription || undefined,
-      correctiveAction: correctiveAction || undefined,
-      beforePhotoUrl: finalBeforeUrl,
-      afterPhotoUrl: finalAfterUrl,
-    });
+    // Generate idempotency key dari konten audit (zona + tanggal + nama auditor + scores)
+    const idemp = IdempotencyEngine.generateKey(
+      auditorName || 'auditor',
+      'audit5s',
+      { selectedZoneId, auditDate, scores, auditorName }
+    );
+    const guard = IdempotencyEngine.guard(idemp);
+    if (!guard.allowed) {
+      alert(guard.reason || 'Data audit ini sudah dikirim. Harap tunggu sebelum mengirim ulang.');
+      return;
+    }
+
+    try {
+      Audit5sService.submitAuditRecord({
+        zoneId: selectedZoneId,
+        auditorName: auditorName || 'Pengawas 5R',
+        auditDate,
+        scores,
+        findingsDescription: findingsDescription || undefined,
+        correctiveAction: correctiveAction || undefined,
+        beforePhotoUrl: finalBeforeUrl,
+        afterPhotoUrl: finalAfterUrl,
+        idempotencyKey: idemp,
+      });
+      IdempotencyEngine.release(idemp, true);
+    } catch (err) {
+      IdempotencyEngine.release(idemp, false);
+      throw err;
+    }
 
     // Reset Form
     setSelectedZoneId('');

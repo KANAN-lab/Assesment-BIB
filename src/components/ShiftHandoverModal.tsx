@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useIdempotentSubmit } from '../hooks/useIdempotentSubmit';
 import { X, Save, AlertTriangle, User, Loader2, Package, SearchCheck, CheckSquare, Settings2, Trash2, ShieldAlert, Sparkles, HelpCircle } from 'lucide-react';
 import { HandoverManager } from '../lib/handoverService';
 import { ShiftType, ConditionStatus, HandoverCategory, HandoverInput } from '../types/handover';
@@ -19,7 +20,11 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId }: ShiftHa
   const [nextSupervisorId, setNextSupervisorId] = useState<string>('');
   
   const [workers, setWorkers] = useState<WorkerProfile[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { submit: idempSubmit, isSubmitting: loading, idempotencyError, clearIdempotencyError } = useIdempotentSubmit({
+    workerId: currentWorkerId,
+    formType: 'handover',
+    getPayload: () => ({ shiftType, handoverCategory, conditionStatus, notes: notes.trim(), nextSupervisorId: nextSupervisorId || null }),
+  });
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -50,10 +55,19 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId }: ShiftHa
       return;
     }
 
-    setLoading(true);
+    clearIdempotencyError();
     setError(null);
     
-    try {
+    await idempSubmit(async () => {
+      const { IdempotencyEngine } = await import('../domain/IdempotencyEngine');
+      const idemp = IdempotencyEngine.generateKey(currentWorkerId, 'handover', {
+        shiftType,
+        handoverCategory,
+        conditionStatus,
+        notes: notes.trim(),
+        nextSupervisorId: nextSupervisorId || null,
+      });
+
       const input: HandoverInput = {
         shiftType,
         handoverCategory,
@@ -62,13 +76,11 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId }: ShiftHa
         nextSupervisorId: nextSupervisorId || null
       };
 
-      await HandoverManager.submitHandover(currentWorkerId, input);
+      await HandoverManager.submitHandover(currentWorkerId, input, idemp);
       onClose();
-    } catch (err: any) {
+    }).catch((err: any) => {
       setError(err.message || 'Gagal mengirim handover.');
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   return (
@@ -95,6 +107,12 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId }: ShiftHa
 
         {/* Content */}
         <div className="p-4 overflow-y-auto">
+          {idempotencyError && (
+            <div className="mb-4 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-300 text-xs flex items-center gap-2">
+              <AlertTriangle className="w-4 h-4 shrink-0 text-amber-400" />
+              <span>{idempotencyError}</span>
+            </div>
+          )}
           {error && (
             <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs">
               {error}
