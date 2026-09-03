@@ -70,20 +70,20 @@ export interface QuizQuestion {
   correctAnswerIndex: number;
   explanation: string;
   pointsReward: number;
-  category: 'Safety & APD' | 'SOP Logistics' | 'Defensive Driving';
+  category: string;
 }
 
 export interface RewardItem {
   id: string;
   title: string;
-  category: 'E-Wallet' | 'Pulsa & Data' | 'Safety Gear' | 'Voucher & Perk';
+  category: string;
   pointsRequired: number;
   iconName: string;
   description: string;
   availableStock: number;
   monthlyStockLimit?: number;
   badgeTag?: string;
-  minTier?: TierType;
+  minTier?: TierType | string;
   maxClaimsPerMonth?: number;
 }
 

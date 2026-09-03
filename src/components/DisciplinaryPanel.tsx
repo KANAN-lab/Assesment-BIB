@@ -735,7 +735,7 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
           <div className="card p-5 bg-zinc-900/60 border-zinc-800 space-y-2">
             <h3 className="text-sm font-black text-white flex items-center gap-2">
               <RotateCcw className="w-4 h-4 text-rose-400" />
-              Panduan Matriks Eskalasi Disiplin & Sanksi K3 PT DAM Indonesia
+              Panduan Matriks Eskalasi Disiplin & Sanksi K3 PT. DAYA ANUGRAH MULYA
             </h3>
             <p className="text-xs text-zinc-400">
               Sistem penegakan disiplin bertingkat berlandaskan prinsip pembinaan korektif, perbaikan kompetensi melalui retraining SOP, dan penyesuaian bobot poin penilaian BIB.

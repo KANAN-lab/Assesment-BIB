@@ -1,11 +1,4 @@
-export type PpeCategory =
-  | 'head_protection'
-  | 'foot_protection'
-  | 'body_protection'
-  | 'hand_protection'
-  | 'eye_face_protection'
-  | 'fall_protection'
-  | 'respiratory';
+export type PpeCategory = string;
 
 export type PpeItemCondition = 'new' | 'good' | 'fair' | 'damaged';
 

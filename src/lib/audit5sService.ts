@@ -148,7 +148,7 @@ export class Audit5sService {
 
     const records = this.getAllRecords();
     const count = records.length + 1;
-    const auditRefNumber = `5S/DAM/${new Date().getFullYear()}/${String(count).padStart(3, '0')}`;
+    const auditRefNumber = SystemConfigService.generateDocumentNumber('audit_5s', { code: zone.division });
 
     // Average of 5 pillars computed via OOP Domain Engine
     const totalScore = Audit5sEngine.calculateCompositeScore(params.scores);
@@ -234,7 +234,7 @@ export class Audit5sService {
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
-    doc.text('PT DAM INDONESIA — AUDIT STANDAR 5R / 5S WILAYAH GUDANG', 14, 11);
+    doc.text('PT. DAYA ANUGRAH MULYA — AUDIT STANDAR 5R / 5S WILAYAH GUDANG', 14, 11);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
@@ -310,7 +310,7 @@ export class Audit5sService {
     doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      'Dokumen Resmi Audit 5R PT DAM Indonesia — Gappy Assessment Platform | Halaman 1 dari 1',
+      'Dokumen Resmi Audit 5R PT. DAYA ANUGRAH MULYA — Gappy Assessment Platform | Halaman 1 dari 1',
       pageWidth / 2,
       doc.internal.pageSize.getHeight() - 6,
       { align: 'center' }
@@ -363,7 +363,7 @@ export class Audit5sService {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `Rekap_Audit_5R_Wilayah_Gudang_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `Rekap_Audit_5R_PT_DAYA_ANUGRAH_MULYA_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

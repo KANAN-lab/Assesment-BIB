@@ -95,9 +95,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             <div className="hidden sm:block">
               <div className="flex items-center gap-2">
                 <span className="font-black text-base text-white tracking-tight">Gappy Assessment</span>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${(activeMode as any).badgeBg}`}>
-                  {(activeMode as any).shortLabel || activeMode.label.split(' ')[0]}
-                </span>
                 <NetworkStatusBadge />
               </div>
             </div>

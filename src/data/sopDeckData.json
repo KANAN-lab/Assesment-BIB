@@ -15,7 +15,7 @@
     "deadlineDays": 7,
     "version": "v2.0",
     "isActive": true,
-    "author": "Tim HSE PT DAM Indonesia",
+    "author": "Tim HSE PT. DAYA ANUGRAH MULYA",
     "createdAt": "2026-08-01T08:00:00Z",
     "updatedAt": "2026-08-25T10:00:00Z",
     "slides": [
@@ -179,7 +179,7 @@
     "deadlineDays": 14,
     "version": "v1.2",
     "isActive": true,
-    "author": "Tim Warehouse Operations PT DAM",
+    "author": "Tim Warehouse Operations PT. DAYA ANUGRAH MULYA",
     "createdAt": "2026-08-05T08:00:00Z",
     "updatedAt": "2026-08-26T11:00:00Z",
     "slides": [
@@ -330,7 +330,7 @@
     "deadlineDays": 7,
     "version": "v2.1",
     "isActive": true,
-    "author": "Tim Tanggap Darurat HSE PT DAM",
+    "author": "Tim Tanggap Darurat HSE PT. DAYA ANUGRAH MULYA",
     "createdAt": "2026-08-10T08:00:00Z",
     "updatedAt": "2026-08-28T09:00:00Z",
     "slides": [
@@ -452,7 +452,7 @@
           {
             "stepNumber": 2,
             "title": "Kumpul di Titik Kumpul (Assembly Point)",
-            "description": "Menuju Titik Kumpul Halaman Parkir Utama PT DAM Indonesia. Lakukan roll-call kehadiran tim dengan Supervisor.",
+            "description": "Menuju Titik Kumpul Halaman Parkir Utama PT. DAYA ANUGRAH MULYA. Lakukan roll-call kehadiran tim dengan Supervisor.",
             "iconName": "Users",
             "keyHighlight": "Tetap di Titik Kumpul hingga instruksi aman"
           }
@@ -498,7 +498,7 @@
     "deadlineDays": 14,
     "version": "v1.1",
     "isActive": true,
-    "author": "Divisi Timbangan & Inbound PT DAM",
+    "author": "Divisi Timbangan & Inbound PT. DAYA ANUGRAH MULYA",
     "createdAt": "2026-08-15T08:00:00Z",
     "updatedAt": "2026-08-29T10:00:00Z",
     "slides": [
@@ -601,7 +601,7 @@
     "deadlineDays": 30,
     "version": "v1.0",
     "isActive": true,
-    "author": "Tim K3 & Continuous Improvement PT DAM",
+    "author": "Tim K3 & Continuous Improvement PT. DAYA ANUGRAH MULYA",
     "createdAt": "2026-08-20T08:00:00Z",
     "updatedAt": "2026-08-30T10:00:00Z",
     "slides": [
@@ -704,7 +704,7 @@
     "deadlineDays": 14,
     "version": "v1.0",
     "isActive": true,
-    "author": "Divisi Outbound & Transport PT DAM",
+    "author": "Divisi Outbound & Transport PT. DAYA ANUGRAH MULYA",
     "createdAt": "2026-08-22T08:00:00Z",
     "updatedAt": "2026-08-30T10:00:00Z",
     "slides": [

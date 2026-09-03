@@ -15,12 +15,18 @@ import {
   Clock,
   Save,
   Search,
-  BookOpen
+  BookOpen,
+  FileText,
+  Tag,
+  Plus,
+  X,
+  HardHat
 } from 'lucide-react';
 import {
   SystemConfigService,
   SystemConfig,
   FREQUENCY_OPTIONS,
+  DocumentType,
 } from '../domain/SystemConfigService';
 
 interface SystemConfigPanelProps {
@@ -30,6 +36,12 @@ interface SystemConfigPanelProps {
 export const SystemConfigPanel: React.FC<SystemConfigPanelProps> = ({ onToast }) => {
   const [config, setConfig] = useState<SystemConfig>(() => SystemConfigService.getConfig());
   const [savedSuccess, setSavedSuccess] = useState(false);
+
+  // Local Category Inputs
+  const [newRewardCat, setNewRewardCat] = useState('');
+  const [newQuizCat, setNewQuizCat] = useState('');
+  const [newPpeCatIcon, setNewPpeCatIcon] = useState('🛡️');
+  const [newPpeCatLabel, setNewPpeCatLabel] = useState('');
 
   useEffect(() => {
     const handleUpdate = (e: any) => {
@@ -44,6 +56,59 @@ export const SystemConfigPanel: React.FC<SystemConfigPanelProps> = ({ onToast })
       ...prev,
       [field]: value,
     }));
+  };
+
+  const handleAddRewardCategory = () => {
+    const trimmed = newRewardCat.trim();
+    if (!trimmed) return;
+    if (config.rewardCategories.includes(trimmed)) {
+      if (onToast) onToast('Kategori reward tersebut sudah ada.');
+      return;
+    }
+    const updated = [...config.rewardCategories, trimmed];
+    handleChange('rewardCategories', updated);
+    setNewRewardCat('');
+  };
+
+  const handleRemoveRewardCategory = (cat: string) => {
+    const updated = config.rewardCategories.filter((c) => c !== cat);
+    handleChange('rewardCategories', updated);
+  };
+
+  const handleAddQuizCategory = () => {
+    const trimmed = newQuizCat.trim();
+    if (!trimmed) return;
+    if (config.quizCategories.includes(trimmed)) {
+      if (onToast) onToast('Kategori bank soal tersebut sudah ada.');
+      return;
+    }
+    const updated = [...config.quizCategories, trimmed];
+    handleChange('quizCategories', updated);
+    setNewQuizCat('');
+  };
+
+  const handleRemoveQuizCategory = (cat: string) => {
+    const updated = config.quizCategories.filter((c) => c !== cat);
+    handleChange('quizCategories', updated);
+  };
+
+  const handleAddPpeCategory = () => {
+    const trimmed = newPpeCatLabel.trim();
+    if (!trimmed) return;
+    const catId = trimmed.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    if (config.ppeCategories.some((c) => c.id === catId)) {
+      if (onToast) onToast('Kategori APD tersebut sudah ada.');
+      return;
+    }
+    const newCat = { id: catId, label: trimmed, icon: newPpeCatIcon || '🛡️' };
+    const updated = [...config.ppeCategories, newCat];
+    handleChange('ppeCategories', updated);
+    setNewPpeCatLabel('');
+  };
+
+  const handleRemovePpeCategory = (id: string) => {
+    const updated = config.ppeCategories.filter((c) => c.id !== id);
+    handleChange('ppeCategories', updated);
   };
 
   const handleSave = (e: React.FormEvent) => {
@@ -242,6 +307,20 @@ export const SystemConfigPanel: React.FC<SystemConfigPanelProps> = ({ onToast })
                   min="0"
                   value={config.nearMissRewardPoints}
                   onChange={(e) => handleChange('nearMissRewardPoints', Number(e.target.value))}
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-amber-400 focus:outline-none focus:border-amber-500"
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 font-mono font-bold">PTS</span>
+              </div>
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-[11px] text-zinc-400 mb-1">Resolusi Temuan Gemba Safety Patrol (PIC)</label>
+              <div className="relative">
+                <input
+                  type="number"
+                  min="0"
+                  value={config.safetyPatrolResolvedPoints}
+                  onChange={(e) => handleChange('safetyPatrolResolvedPoints', Number(e.target.value))}
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-mono font-bold text-amber-400 focus:outline-none focus:border-amber-500"
                 />
                 <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-zinc-500 font-mono font-bold">PTS</span>
@@ -493,6 +572,329 @@ export const SystemConfigPanel: React.FC<SystemConfigPanelProps> = ({ onToast })
                 <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[9px] text-zinc-500 font-mono">PTS</span>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── 9. FORMAT PENOMORAN DOKUMEN RESMI (CONFIGURABLE DOCUMENT NUMBERING) ─── */}
+      <div className="bg-zinc-900/60 p-4 rounded-2xl border border-indigo-500/30 space-y-4">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-3">
+          <div className="flex items-center gap-2">
+            <FileText className="w-4 h-4 text-indigo-400" />
+            <h4 className="text-xs font-bold text-white">
+              9. Format Penomoran Dokumen Resmi (Masking & Template)
+            </h4>
+          </div>
+          <span className="text-[10px] font-mono text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 px-2 py-0.5 rounded">
+            Teraplikasi di Form Cetak, BAP, SP & PDF
+          </span>
+        </div>
+
+        <div className="p-3 bg-zinc-950/80 rounded-xl border border-zinc-800 text-[11px] text-zinc-400 space-y-1">
+          <div className="font-bold text-zinc-300 flex items-center gap-1.5">
+            <span>ℹ️ Token variabel dinamis yang didukung:</span>
+          </div>
+          <div className="flex flex-wrap gap-2 pt-1 font-mono text-[10px]">
+            <span className="bg-zinc-800 text-indigo-300 px-2 py-0.5 rounded">{'{YEAR}'} = 2026</span>
+            <span className="bg-zinc-800 text-indigo-300 px-2 py-0.5 rounded">{'{MONTH}'} = 09</span>
+            <span className="bg-zinc-800 text-indigo-300 px-2 py-0.5 rounded">{'{DAY}'} = 03</span>
+            <span className="bg-zinc-800 text-indigo-300 px-2 py-0.5 rounded">{'{RANDOM}'} = 4-digit acak</span>
+            <span className="bg-zinc-800 text-indigo-300 px-2 py-0.5 rounded">{'{ID}'} = 6-karakter ID</span>
+            <span className="bg-zinc-800 text-indigo-300 px-2 py-0.5 rounded">{'{CODE}'} = Kode Modul/Divisi</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {/* 1. Matriks Kompetensi */}
+          <div className="space-y-1">
+            <label className="block text-[11px] font-bold text-zinc-300">
+              Evaluasi Kinerja & Matriks Kompetensi
+            </label>
+            <input
+              type="text"
+              value={config.docNumberTemplateCompetencyMatrix}
+              onChange={(e) => handleChange('docNumberTemplateCompetencyMatrix', e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+            />
+            <div className="text-[10px] text-zinc-500">
+              Pratinjau: <span className="font-mono text-indigo-300">{SystemConfigService.generateDocumentNumber('competency_matrix')}</span>
+            </div>
+          </div>
+
+          {/* 2. Insiden & BAP K3 */}
+          <div className="space-y-1">
+            <label className="block text-[11px] font-bold text-zinc-300">
+              Laporan Insiden K3 & Berita Acara (BAP)
+            </label>
+            <input
+              type="text"
+              value={config.docNumberTemplateK3Incident}
+              onChange={(e) => handleChange('docNumberTemplateK3Incident', e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+            />
+            <div className="text-[10px] text-zinc-500">
+              Pratinjau: <span className="font-mono text-amber-300">{SystemConfigService.generateDocumentNumber('k3_incident')}</span>
+            </div>
+          </div>
+
+          {/* 3. Lisensi SIO MHE */}
+          <div className="space-y-1">
+            <label className="block text-[11px] font-bold text-zinc-300">
+              Audit Kepatuhan Lisensi SIO Alat Berat (MHE)
+            </label>
+            <input
+              type="text"
+              value={config.docNumberTemplateMheSio}
+              onChange={(e) => handleChange('docNumberTemplateMheSio', e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+            />
+            <div className="text-[10px] text-zinc-500">
+              Pratinjau: <span className="font-mono text-cyan-300">{SystemConfigService.generateDocumentNumber('mhe_sio')}</span>
+            </div>
+          </div>
+
+          {/* 4. Inventaris & APD */}
+          <div className="space-y-1">
+            <label className="block text-[11px] font-bold text-zinc-300">
+              Inventaris & Siklus Hidup APD
+            </label>
+            <input
+              type="text"
+              value={config.docNumberTemplatePpeInventory}
+              onChange={(e) => handleChange('docNumberTemplatePpeInventory', e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+            />
+            <div className="text-[10px] text-zinc-500">
+              Pratinjau: <span className="font-mono text-emerald-300">{SystemConfigService.generateDocumentNumber('ppe_inventory')}</span>
+            </div>
+          </div>
+
+          {/* 5. Anggaran & Reward */}
+          <div className="space-y-1">
+            <label className="block text-[11px] font-bold text-zinc-300">
+              Laporan Anggaran & Penukaran Reward
+            </label>
+            <input
+              type="text"
+              value={config.docNumberTemplateRewardBudget}
+              onChange={(e) => handleChange('docNumberTemplateRewardBudget', e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+            />
+            <div className="text-[10px] text-zinc-500">
+              Pratinjau: <span className="font-mono text-purple-300">{SystemConfigService.generateDocumentNumber('reward_budget')}</span>
+            </div>
+          </div>
+
+          {/* 6. Berita Acara Audit 5R */}
+          <div className="space-y-1">
+            <label className="block text-[11px] font-bold text-zinc-300">
+              Berita Acara & Sertifikasi Audit 5R
+            </label>
+            <input
+              type="text"
+              value={config.docNumberTemplateAudit5s}
+              onChange={(e) => handleChange('docNumberTemplateAudit5s', e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+            />
+            <div className="text-[10px] text-zinc-500">
+              Pratinjau: <span className="font-mono text-teal-300">{SystemConfigService.generateDocumentNumber('audit_5s')}</span>
+            </div>
+          </div>
+
+          {/* 7. Surat Peringatan K3 */}
+          <div className="space-y-1">
+            <label className="block text-[11px] font-bold text-zinc-300">
+              Surat Peringatan & Konseling K3 (SP)
+            </label>
+            <input
+              type="text"
+              value={config.docNumberTemplateDisciplinary}
+              onChange={(e) => handleChange('docNumberTemplateDisciplinary', e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+            />
+            <div className="text-[10px] text-zinc-500">
+              Pratinjau: <span className="font-mono text-rose-300">{SystemConfigService.generateDocumentNumber('disciplinary')}</span>
+            </div>
+          </div>
+
+          {/* 8. Gemba Walk & Safety Patrol */}
+          <div className="space-y-1">
+            <label className="block text-[11px] font-bold text-zinc-300">
+              BAP Temuan Gemba Walk & Safety Patrol
+            </label>
+            <input
+              type="text"
+              value={config.docNumberTemplateSafetyPatrol}
+              onChange={(e) => handleChange('docNumberTemplateSafetyPatrol', e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+            />
+            <div className="text-[10px] text-zinc-500">
+              Pratinjau: <span className="font-mono text-slate-300">{SystemConfigService.generateDocumentNumber('safety_patrol')}</span>
+            </div>
+          </div>
+
+          {/* 9. Standar Operasional Prosedur (SOP) */}
+          <div className="space-y-1 md:col-span-2">
+            <label className="block text-[11px] font-bold text-zinc-300">
+              Dokumen SOP Resmi & Cheatsheet Lapangan
+            </label>
+            <input
+              type="text"
+              value={config.docNumberTemplateSop}
+              onChange={(e) => handleChange('docNumberTemplateSop', e.target.value)}
+              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs font-mono text-white focus:outline-none focus:border-indigo-500"
+            />
+            <div className="text-[10px] text-zinc-500">
+              Pratinjau: <span className="font-mono text-violet-300">{SystemConfigService.generateDocumentNumber('sop', { code: 'MHE-01' })}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ─── 10. PENGELOLAAN KATEGORI MASTER DINAMIS (REWARD, BANK SOAL, APD) ─── */}
+      <div className="bg-zinc-900/60 p-4 rounded-2xl border border-emerald-500/30 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-zinc-800 pb-3">
+          <div className="flex items-center gap-2">
+            <Tag className="w-4 h-4 text-emerald-400" />
+            <h4 className="text-xs font-bold text-white">
+              10. Master Kategori Dinamis (Reward, Bank Soal & APD)
+            </h4>
+          </div>
+          <span className="text-[10px] font-mono text-emerald-300 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded">
+            Dapat Ditambah & Dikelola Penuh oleh Administrator
+          </span>
+        </div>
+
+        {/* 10.1 Kategori Reward */}
+        <div className="space-y-2">
+          <label className="block text-xs font-bold text-zinc-300">
+            Kategori Item Reward & Hadiah Penukaran Poin ({config.rewardCategories.length})
+          </label>
+          <div className="flex flex-wrap gap-2 p-3 bg-zinc-950 rounded-xl border border-zinc-800 min-h-[48px] items-center">
+            {config.rewardCategories.map((cat) => (
+              <span
+                key={cat}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-purple-500/10 text-purple-300 border border-purple-500/30"
+              >
+                <span>{cat}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveRewardCategory(cat)}
+                  className="hover:text-rose-400 text-zinc-500 transition"
+                  title={`Hapus kategori ${cat}`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newRewardCat}
+              onChange={(e) => setNewRewardCat(e.target.value)}
+              placeholder="Ketik kategori reward baru..."
+              className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500"
+            />
+            <button
+              type="button"
+              onClick={handleAddRewardCategory}
+              className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs rounded-xl transition flex items-center gap-1 shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Tambah Kategori</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 10.2 Kategori Bank Soal Quiz */}
+        <div className="space-y-2">
+          <label className="block text-xs font-bold text-zinc-300">
+            Kategori Bank Soal Kuis Operasional ({config.quizCategories.length})
+          </label>
+          <div className="flex flex-wrap gap-2 p-3 bg-zinc-950 rounded-xl border border-zinc-800 min-h-[48px] items-center">
+            {config.quizCategories.map((cat) => (
+              <span
+                key={cat}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-indigo-500/10 text-indigo-300 border border-indigo-500/30"
+              >
+                <span>{cat}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemoveQuizCategory(cat)}
+                  className="hover:text-rose-400 text-zinc-500 transition"
+                  title={`Hapus kategori ${cat}`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newQuizCat}
+              onChange={(e) => setNewQuizCat(e.target.value)}
+              placeholder="Ketik kategori bank soal baru..."
+              className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
+            />
+            <button
+              type="button"
+              onClick={handleAddQuizCategory}
+              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition flex items-center gap-1 shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Tambah Kategori</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 10.3 Kategori APD & Safety Gear */}
+        <div className="space-y-2">
+          <label className="block text-xs font-bold text-zinc-300">
+            Kategori Inventaris Alat Pelindung Diri (APD) ({config.ppeCategories.length})
+          </label>
+          <div className="flex flex-wrap gap-2 p-3 bg-zinc-950 rounded-xl border border-zinc-800 min-h-[48px] items-center">
+            {config.ppeCategories.map((cat) => (
+              <span
+                key={cat.id}
+                className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-amber-500/10 text-amber-300 border border-amber-500/30"
+              >
+                <span>{cat.icon} {cat.label}</span>
+                <button
+                  type="button"
+                  onClick={() => handleRemovePpeCategory(cat.id)}
+                  className="hover:text-rose-400 text-zinc-500 transition"
+                  title={`Hapus kategori ${cat.label}`}
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              </span>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newPpeCatIcon}
+              onChange={(e) => setNewPpeCatIcon(e.target.value)}
+              placeholder="Icon"
+              className="w-14 bg-zinc-950 border border-zinc-800 rounded-xl px-2 py-1.5 text-center text-xs text-white focus:outline-none"
+            />
+            <input
+              type="text"
+              value={newPpeCatLabel}
+              onChange={(e) => setNewPpeCatLabel(e.target.value)}
+              placeholder="Ketik nama kategori APD baru..."
+              className="flex-1 bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-amber-500"
+            />
+            <button
+              type="button"
+              onClick={handleAddPpeCategory}
+              className="px-3.5 py-1.5 bg-amber-500 hover:bg-amber-400 text-black font-bold text-xs rounded-xl transition flex items-center gap-1 shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Tambah Kategori APD</span>
+            </button>
           </div>
         </div>
       </div>

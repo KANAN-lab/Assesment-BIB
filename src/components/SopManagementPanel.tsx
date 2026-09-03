@@ -552,7 +552,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
         id: `sop-${formCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`,
         code: formCode.trim().toUpperCase(),
         title: formTitle.trim(),
-        description: formDesc.trim() || 'Standar operasional prosedur resmi PT DAM Indonesia.',
+        description: formDesc.trim() || 'Standar operasional prosedur resmi PT. DAYA ANUGRAH MULYA.',
         category: formCategory,
         difficulty: formDifficulty,
         presentation_format: formFormat,
@@ -637,7 +637,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `Katalog_SOP_Logistik_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `Katalog_SOP_PT_DAYA_ANUGRAH_MULYA_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

@@ -24,6 +24,7 @@ import { ExecutivePDFReportGenerator, ReportSigningConfig } from '../lib/pdfRepo
 import { LicenseService } from '../lib/licenseService';
 import { PpeService } from '../lib/ppeService';
 import { RoleEntity } from '../domain/RoleEntity';
+import { SystemConfigService } from '../domain/SystemConfigService';
 
 interface ExecutiveReportPanelProps {
   workers: WorkerProfile[];
@@ -113,10 +114,14 @@ export const ExecutiveReportPanel: React.FC<ExecutiveReportPanelProps> = ({
   const [supervisorName, setSupervisorName] = useState(currentUserName || 'Supervisor Logistik & K3');
   const [supervisorTitle, setSupervisorTitle] = useState('Supervisor Operasional & HSE');
   const [managerName, setManagerName] = useState('Head of Operations & HSE Manager');
-  const [managerTitle, setManagerTitle] = useState('PT DAM Indonesia Management');
-  const [documentNumber, setDocumentNumber] = useState(
-    `DAM/EXEC-REP/${new Date().getFullYear()}/${Math.floor(1000 + Math.random() * 9000)}`
+  const [managerTitle, setManagerTitle] = useState('PT. DAYA ANUGRAH MULYA Management');
+  const [documentNumber, setDocumentNumber] = useState(() =>
+    SystemConfigService.generateDocumentNumber('competency_matrix')
   );
+
+  React.useEffect(() => {
+    setDocumentNumber(SystemConfigService.generateDocumentNumber(selectedReportType));
+  }, [selectedReportType]);
 
   // Live Domain Data
   const licenses = useMemo(() => LicenseService.getAllLicenses(), []);
@@ -374,7 +379,17 @@ export const ExecutiveReportPanel: React.FC<ExecutiveReportPanelProps> = ({
 
             {/* Nomor Dokumen */}
             <div>
-              <label className="block text-xs font-bold text-zinc-300 mb-1">Nomor Registrasi Dokumen (SK)</label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-zinc-300">Nomor Registrasi Dokumen (SK)</label>
+                <button
+                  type="button"
+                  onClick={() => setDocumentNumber(SystemConfigService.generateDocumentNumber(selectedReportType))}
+                  className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold underline transition"
+                  title="Generate nomor baru sesuai template Administrator"
+                >
+                  Generate Ulang
+                </button>
+              </div>
               <input
                 type="text"
                 value={documentNumber}
@@ -427,7 +442,7 @@ export const ExecutiveReportPanel: React.FC<ExecutiveReportPanelProps> = ({
               {/* Header Box */}
               <div className="border-b border-zinc-800 pb-3 flex items-start justify-between">
                 <div>
-                  <div className="text-[10px] font-bold text-indigo-400 tracking-wider">PT DAM INDONESIA</div>
+                  <div className="text-[10px] font-bold text-indigo-400 tracking-wider">PT. DAYA ANUGRAH MULYA</div>
                   <h3 className="text-sm font-black text-white mt-0.5">{selectedMeta.title}</h3>
                   <p className="text-[11px] text-zinc-400 mt-0.5">
                     No: <span className="font-mono text-zinc-300">{documentNumber}</span> | Periode:{' '}

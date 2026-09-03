@@ -1,6 +1,6 @@
 import type { RewardItem, TierType } from '../types/assessment';
 
-export const TIER_LEVEL_MAP: Record<TierType, number> = {
+export const TIER_LEVEL_MAP: Record<string, number> = {
   'Novice Operational': 1,
   'Pro Specialist': 2,
   'Elite Logistician': 3,
@@ -10,14 +10,14 @@ export const TIER_LEVEL_MAP: Record<TierType, number> = {
 export class RewardEntity implements RewardItem {
   public id: string;
   public title: string;
-  public category: 'E-Wallet' | 'Pulsa & Data' | 'Safety Gear' | 'Voucher & Perk';
+  public category: string;
   public pointsRequired: number;
   public iconName: string;
   public description: string;
   public availableStock: number;
   public monthlyStockLimit: number;
   public badgeTag?: string;
-  public minTier?: TierType;
+  public minTier?: string;
   public maxClaimsPerMonth?: number;
 
   constructor(item: RewardItem) {
@@ -120,7 +120,7 @@ export class RewardEntity implements RewardItem {
   /**
    * Cek apakah user memiliki poin yang cukup, tier mencukupi, dan stok tersedia untuk penukaran
    */
-  public canBeRedeemedBy(userPoints: number, userTier?: TierType): boolean {
+  public canBeRedeemedBy(userPoints: number, userTier?: string): boolean {
     const pointsOk = userPoints >= this.pointsRequired;
     const stockOk = this.availableStock > 0;
     const tierOk = this.isTierEligible(userTier);
@@ -130,7 +130,7 @@ export class RewardEntity implements RewardItem {
   /**
    * Cek apakah tier pekerja memenuhi syarat minimum tier item
    */
-  public isTierEligible(userTier?: TierType): boolean {
+  public isTierEligible(userTier?: string): boolean {
     if (!this.minTier || this.minTier === 'Novice Operational') return true;
     if (!userTier) return false;
     const userLevel = TIER_LEVEL_MAP[userTier] || 1;
@@ -154,9 +154,8 @@ export class RewardEntity implements RewardItem {
     if (data.availableStock === undefined || data.availableStock === null || isNaN(Number(data.availableStock)) || Number(data.availableStock) < 0) {
       return 'Stok item tidak boleh negatif.';
     }
-    const validCategories = ['E-Wallet', 'Pulsa & Data', 'Safety Gear', 'Voucher & Perk'];
-    if (data.category && !validCategories.includes(data.category)) {
-      return 'Kategori reward tidak valid.';
+    if (!data.category || !data.category.trim()) {
+      return 'Kategori reward wajib dipilih / diisi.';
     }
     if (data.maxClaimsPerMonth !== undefined && Number(data.maxClaimsPerMonth) < 1) {
       return 'Batas klaim per bulan minimal 1.';

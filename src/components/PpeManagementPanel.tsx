@@ -35,6 +35,7 @@ import {
 } from '../types/ppe';
 import { PpeService } from '../lib/ppeService';
 import { WorkerProfile } from '../types/assessment';
+import { SystemConfigService } from '../domain/SystemConfigService';
 
 interface PpeManagementPanelProps {
   workers: WorkerProfile[];
@@ -97,6 +98,33 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
   const [distNotes, setDistNotes] = useState('');
 
   // Master Item Form
+  const [configuredPpeCategories, setConfiguredPpeCategories] = useState(() =>
+    SystemConfigService.getConfig().ppeCategories
+  );
+  const [isAddingPpeCategory, setIsAddingPpeCategory] = useState(false);
+  const [newPpeCatLabel, setNewPpeCatLabel] = useState('');
+  const [newPpeCatIcon, setNewPpeCatIcon] = useState('🛡️');
+
+  const categoryMap = useMemo(() => {
+    const map: Record<string, { label: string; icon: string }> = { ...CATEGORY_LABELS };
+    configuredPpeCategories.forEach((c) => {
+      map[c.id] = { label: c.label, icon: c.icon };
+    });
+    return map;
+  }, [configuredPpeCategories]);
+
+  const handleAddNewPpeCategory = () => {
+    const trimmed = newPpeCatLabel.trim();
+    if (!trimmed) return;
+    const catId = trimmed.toLowerCase().replace(/[^a-z0-9]/g, '_');
+    const newCat = { id: catId, label: trimmed, icon: newPpeCatIcon || '🛡️' };
+    const updated = SystemConfigService.addPpeCategory(newCat);
+    setConfiguredPpeCategories(updated);
+    setMasterCategory(catId);
+    setNewPpeCatLabel('');
+    setIsAddingPpeCategory(false);
+  };
+
   const [masterName, setMasterName] = useState('');
   const [masterCategory, setMasterCategory] = useState<PpeCategory | ''>('');
   const [masterBrand, setMasterBrand] = useState('');
@@ -127,8 +155,15 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
     PpeService.checkAndDispatchPpeAlerts();
 
     const handleUpdate = () => loadData();
+    const handleConfigUpdate = (e: any) => {
+      if (e.detail?.ppeCategories) setConfiguredPpeCategories(e.detail.ppeCategories);
+    };
     window.addEventListener('gappy_ppe_updated', handleUpdate);
-    return () => window.removeEventListener('gappy_ppe_updated', handleUpdate);
+    window.addEventListener('gappy_config_updated', handleConfigUpdate);
+    return () => {
+      window.removeEventListener('gappy_ppe_updated', handleUpdate);
+      window.removeEventListener('gappy_config_updated', handleConfigUpdate);
+    };
   }, []);
 
   // Stats
@@ -536,7 +571,7 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
           className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-semibold"
         >
           <option value="all">Semua Kategori APD</option>
-          {Object.entries(CATEGORY_LABELS).map(([key, item]) => (
+          {Object.entries(categoryMap).map(([key, item]) => (
             <option key={key} value={key}>
               {item.icon} {item.label}
             </option>
@@ -1078,24 +1113,60 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-zinc-300 mb-1">Kategori APD *</label>
-                <select
-                  value={masterCategory}
-                  onChange={(e) => setMasterCategory(e.target.value as PpeCategory)}
-                  className={`w-full bg-zinc-950 border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-500 font-semibold ${
-                    !masterCategory ? 'text-zinc-500 border-zinc-800' : 'text-white border-amber-500/50'
-                  }`}
-                  required
-                >
-                  <option value="" disabled>
-                    -- Pilih Kategori APD --
-                  </option>
-                  {Object.entries(CATEGORY_LABELS).map(([key, item]) => (
-                    <option key={key} value={key} className="text-white bg-zinc-900">
-                      {item.icon} {item.label}
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-zinc-300">Kategori APD *</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingPpeCategory(!isAddingPpeCategory)}
+                    className="text-[10px] text-amber-400 hover:text-amber-300 font-bold underline"
+                  >
+                    {isAddingPpeCategory ? 'Tutup' : '+ Kategori Baru'}
+                  </button>
+                </div>
+
+                {isAddingPpeCategory ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={newPpeCatIcon}
+                      onChange={(e) => setNewPpeCatIcon(e.target.value)}
+                      placeholder="Icon"
+                      className="w-12 bg-zinc-950 border border-amber-500 rounded-xl px-2 py-2 text-center text-xs text-white focus:outline-none"
+                    />
+                    <input
+                      type="text"
+                      value={newPpeCatLabel}
+                      onChange={(e) => setNewPpeCatLabel(e.target.value)}
+                      placeholder="Nama kategori APD baru..."
+                      className="flex-1 bg-zinc-950 border border-amber-500 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddNewPpeCategory}
+                      className="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-black rounded-xl text-xs font-bold shrink-0"
+                    >
+                      Simpan
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    value={masterCategory}
+                    onChange={(e) => setMasterCategory(e.target.value as PpeCategory)}
+                    className={`w-full bg-zinc-950 border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-500 font-semibold ${
+                      !masterCategory ? 'text-zinc-500 border-zinc-800' : 'text-white border-amber-500/50'
+                    }`}
+                    required
+                  >
+                    <option value="" disabled>
+                      -- Pilih Kategori APD --
                     </option>
-                  ))}
-                </select>
+                    {Object.entries(categoryMap).map(([key, item]) => (
+                      <option key={key} value={key} className="text-white bg-zinc-900">
+                        {item.icon} {item.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-3">

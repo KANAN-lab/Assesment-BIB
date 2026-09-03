@@ -112,7 +112,7 @@ export class DisciplinaryService {
     const items = this.load();
     const count = items.length + 1;
     const prefix = params.violationLevel === 'coaching_verbal' ? 'CONS' : 'SP';
-    const docRef = `${prefix}/DAM-K3/${new Date().getFullYear()}/${String(count).padStart(3, '0')}`;
+    const docRef = SystemConfigService.generateDocumentNumber('disciplinary', { code: prefix });
 
     // Calculate expiry date using domain engine
     const expiryDate = DisciplinaryMatrixEngine.calculateExpiryDate(params.violationLevel);
@@ -209,7 +209,7 @@ export class DisciplinaryService {
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
-    doc.text('PT DAM INDONESIA — DIVISI K3 & KESELAMATAN KERJA', 14, 11);
+    doc.text('PT. DAYA ANUGRAH MULYA — DIVISI K3 & KESELAMATAN KERJA', 14, 11);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
@@ -274,7 +274,7 @@ export class DisciplinaryService {
     doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      'Dokumen Resmi Disiplin K3 PT DAM Indonesia — Gappy Assessment System | Halaman 1 dari 1',
+      'Dokumen Resmi Disiplin K3 PT. DAYA ANUGRAH MULYA — Gappy Assessment System | Halaman 1 dari 1',
       pageWidth / 2,
       doc.internal.pageSize.getHeight() - 6,
       { align: 'center' }
@@ -331,7 +331,7 @@ export class DisciplinaryService {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `Rekap_Sanksi_Konseling_K3_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `Rekap_Sanksi_Konseling_K3_PT_DAYA_ANUGRAH_MULYA_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

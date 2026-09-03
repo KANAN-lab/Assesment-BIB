@@ -1,6 +1,6 @@
 # Task Tracker — BIB Logistics Assessment Platform
 
-> Last updated: 2026-08-27
+> Last updated: 2026-09-03
 > Status legend: `[ ]` Todo · `[/]` In Progress · `[x]` Done · `[!]` Blocked
 
 ---
@@ -283,7 +283,7 @@
   - Modal konfirmasi penugasan ke seluruh personel divisi terdampak dengan batas waktu penyelesaian 7 hari.
   - Pengiriman notifikasi penugasan kepatuhan prioritas tinggi via `NotificationEngine` dan pencatatan audit trail ke `activity_log`.
 - [x] **📄 Ekspor Berita Acara Insiden K3 Resmi / Formulir BAP PDF (`src/lib/pdfReportService.ts`)**:
-  - Implementasi method resmi `ExecutivePDFReportGenerator.exportOfficialBapIncidentPDF` format standar BAP kecelakaan kerja PT DAM Indonesia.
+  - Implementasi method resmi `ExecutivePDFReportGenerator.exportOfficialBapIncidentPDF` format standar BAP kecelakaan kerja PT. DAYA ANUGRAH MULYA.
   - Struktur dokumen A4 komprehensif: Kop HSE resmi, nomor registrasi BAP unik, Bagian I (Identitas Pelapor & Rincian Insiden), Bagian II (Kronologi & Analisis 5-Why Root Cause), Bagian III (Matriks CAPA, PIC & Due Date), serta Bagian IV (Lembar Tanda Tangan 3 Pihak: Pelapor, Saksi Lapangan, dan Supervisor HSE).
   - Terhubung langsung ke tombol *"Cetak BAP Resmi K3 (PDF)"* di `src/components/SupervisorIncidentValidationModal.tsx`.
 - [x] **🔄 Protokol Mutasi Role dengan Isolasi Nilai Audit Clean Slate (`src/domain/RoleMutationManager.ts` & `src/components/AdminConsole.tsx`)**:
@@ -347,6 +347,84 @@
   - Enkapsulasi matriks eskalasi progresif sanksi K3 (Pembinaan Lisan $\to$ SP1 $\to$ SP2 $\to$ SP3 $\to$ Skorsing) berdasarkan riwayat aktif 6 bulan.
 - [x] **🧹 `Audit5sEngine` (`src/domain/Audit5sEngine.ts`)**:
   - Enkapsulasi perhitungan skor 5 pilar (Ringkas, Rapi, Resik, Rawat, Rajin) dan penentuan predikat mutu Gold/Silver/Bronze.
+
+---
+
+## Phase 25: Standardisasi Nama Perusahaan Resmi — PT. DAYA ANUGRAH MULYA
+
+- [x] **Audit & Refactor Form & Panel UI**:
+  - [x] `src/components/ExecutiveReportPanel.tsx`: Update default header nama perusahaan, badge kop, dan label manajemen menjadi `PT. DAYA ANUGRAH MULYA`.
+  - [x] `src/components/WorkerDigitalIdModal.tsx`: Update kartu tanda pengenal digital ID card & footer lisensi SIO menjadi `PT. DAYA ANUGRAH MULYA`.
+  - [x] `src/components/DisciplinaryPanel.tsx`: Update kop panduan matriks sanksi & eskalasi K3 menjadi `PT. DAYA ANUGRAH MULYA`.
+  - [x] `src/components/SopManagementPanel.tsx`: Update deskripsi placeholder SOP default menjadi `PT. DAYA ANUGRAH MULYA`.
+- [x] **Standardisasi Engine Dokumen PDF & Berita Acara**:
+  - [x] `src/lib/pdfReportService.ts`: Standardisasi seluruh header kop surat, watermark, judul resmi, dan catatan kaki PDF eksekutif (BIB Matrix, K3 Insiden, BAP Kecelakaan Kerja, Lisensi SIO, APD, Reward) ke `PT. DAYA ANUGRAH MULYA`.
+  - [x] `src/lib/audit5sService.ts`: Update kop dokumen dan footer berita acara audit 5R wilayah gudang.
+  - [x] `src/lib/disciplinaryService.ts`: Update kop surat resmi dan footer Surat Peringatan (SP) disiplin K3.
+- [x] **Data Seed & Spesifikasi Dokumen Proyek**:
+  - [x] `src/data/sopDeckData.json`: Update author SOP (`Tim HSE PT. DAYA ANUGRAH MULYA`) dan deskripsi titik kumpul evakuasi.
+  - [x] `PRD.md`, `README.md`, `SOP_MODULE_SPEC.md`: Standardisasi nama badan usaha resmi di seluruh dokumentasi proyek.
+
+---
+
+## Phase 26: Drawer Status Antrean Offline (IndexedDB / LocalStorage Sync Visualizer)
+
+- [x] **Data Layer & Types (`src/types/offlineQueue.ts`)**:
+  - [x] Definisikan model antrean `OfflineQueueItem`: `id`, `type` (`sop_completion`, `pre_shift_checklist`, `daily_quiz`, `incident_report`, `kudo`), `payload`, `timestamp`, `status` (`pending`, `syncing`, `failed`), `retryCount`, `lastError`.
+  - [x] Interface metrik antrean `QueueSyncSummary`: total tertunda, total gagal, status konektivitas, estimasi ukuran payload.
+- [x] **Offline Queue Manager Engine (`src/lib/offlineQueueManager.ts`)**:
+  - [x] Service terpusat pengelola antrean transaksi offline multi-modul (ekspansi dari `offlineSopService.ts`).
+  - [x] Method `enqueueItem()`, `getPendingItems()`, `retrySingleItem()`, `forceSyncAll()`, `clearFailedItems()`.
+  - [x] Event emitter listener untuk update reaktif ke UI saat item berhasil/gagal sinkronisasi.
+- [x] **UI Component: Offline Queue Drawer (`src/components/OfflineQueueDrawer.tsx`)**:
+  - [x] Slide-over drawer interaktif menampilkan list item transaksi yang tertahan saat bekerja di blind spot gudang.
+  - [x] Badging status per item, detail payload ringkas, waktu antre, dan tombol aksi "Sinkronkan Sekarang" (Force Sync) manual.
+  - [x] Tombol batch action: "Sync Semua", "Hapus Antrean Kedaluwarsa", dan indikator latensi koneksi.
+- [x] **Integrasi Antarmuka (`src/components/NetworkStatusBadge.tsx` & `src/components/Navbar.tsx`)**:
+  - [x] Jadikan pill `NetworkStatusBadge` di Navbar dapat diklik untuk membuka `OfflineQueueDrawer`.
+  - [x] Notifikasi pulse indicator bila terdapat antrean offline yang tertahan >10 menit.
+
+---
+
+## Phase 27: Refaktorisasi Monolith AdminConsole.tsx (Domain-Driven Modular Sub-Panels)
+
+- [x] **Dekomposisi Sub-Panel Tab SDM & Akses Pekerja**:
+  - [x] Ekstrak manajemen staf operasional, filter divisi/role, dan import TSV massal ke `src/components/admin/AdminStaffPanel.tsx`.
+  - [x] Ekstrak antrean verifikasi permohonan akses supervisor ke `src/components/admin/AdminSupervisorApprovalPanel.tsx`.
+  - [x] Ekstrak protokol pemindahan divisi & role pekerja (Clean Slate Reset) terintegrasi di `src/components/admin/AdminStaffPanel.tsx`.
+- [x] **Dekomposisi Sub-Panel Tab Master Setup Data**:
+  - [x] Ekstrak CRUD master divisi dan master role operasional ke `src/components/admin/AdminMasterDataPanel.tsx`.
+  - [x] Ekstrak konfigurasi matriks kompetensi 54-item dan binding MaxScore ke `src/components/admin/AdminCompetencyMatrixPanel.tsx`.
+- [x] **Dekomposisi Sub-Panel Tab Performa & Reward**:
+  - [x] Ekstrak CRUD katalog reward, quick restock, dan modal voucher ke `src/components/admin/AdminRewardCatalogPanel.tsx`.
+  - [x] Ekstrak audit log riwayat penukaran staf FCFS terintegrasi di `src/components/admin/AdminRewardCatalogPanel.tsx`.
+- [x] **Dekomposisi Modul Ekstra**:
+  - [x] Ekstrak modul laporan insiden, formulir CAPA, dan lightbox foto HD ke `src/components/admin/AdminIncidentPanel.tsx`.
+  - [x] Ekstrak modul pengumuman tim dan kontrol banner ke `src/components/admin/AdminAnnouncementPanel.tsx`.
+  - [x] Ekstrak sensor Gappy AI, monitoring cache, dan konfigurasi API key ke `src/components/admin/AdminAiQuizPanel.tsx`.
+- [x] **Container Koordinator Ramping (`src/components/AdminConsole.tsx`)**:
+  - [x] Reduksi drastis ukuran file `AdminConsole.tsx` dari 149 KB (3.073 baris) menjadi 387 baris arsitektur bersih koordinator.
+  - [x] Dynamic code-splitting & lazy-loading per sub-panel tab via `React.lazy` dengan skeleton fallbacks yang terisolasi.
+
+---
+
+## Phase 28: Supervisor Gemba Walk & Quick Safety Patrol Suite
+
+- [x] **Data Layer & Schema Database**:
+  - [x] Tabel `safety_patrol_logs` di `supabase_setup.sql` (`id`, `supervisor_id`, `patrol_date`, `zone_id`, `finding_type` [Unsafe Act / Unsafe Condition / Good Practice], `severity` [Low / Medium / High / Critical], `description`, `photo_url`, `assigned_pic_id`, `status` [Open / In Progress / Resolved], `due_date`, `resolution_notes`, `resolved_at`).
+  - [x] Model TypeScript `src/types/safetyPatrol.ts` dan status state machine.
+- [x] **Domain Service (`src/domain/SafetyPatrolService.ts`)**:
+  - [x] Service pencatatan inspeksi keliling cepat lapangan (Gemba Walk 5-menit).
+  - [x] Integrasi offline fallback `localStorage` dan antrean sinkronisasi `OfflineQueueManager`.
+  - [x] Auto-assignment PIC zona dan alokasi poin integritas (+25 PTS) bagi penyelesaian temuan sebelum batas waktu (Due Date).
+- [x] **UI Component: Rapid Gemba Patrol Modal (`src/components/SafetyPatrolModal.tsx`)**:
+  - [x] Formulir inspeksi lapangan ramah sentuhan (Quick Hazard Form): pilih zona gudang, jepret/unggah foto, tag jenis bahaya, dan tentukan PIC tindak lanjut.
+- [x] **UI Component: Safety Patrol Kanban Board (`src/components/SafetyPatrolKanban.tsx`)**:
+  - [x] Papan visual 3-kolom status temuan patroli (Open $\leftrightarrow$ Tindak Lanjut $\leftrightarrow$ Selesai).
+  - [x] Filter cepat berdasarkan tingkat keparahan, zona gudang, dan filter temuan kritis mendekati batas waktu (<24 jam).
+- [x] **Integrasi Supervisor Console & Generator Laporan**:
+  - [x] Integrasi tab baru *"Safety Patrol (Gemba)"* di `src/components/SupervisorConsole.tsx`.
+  - [x] Generator ekspor rekap temuan patroli K3 ke format PDF Berita Acara Temuan Lapangan resmi PT. DAYA ANUGRAH MULYA.
 
 
 

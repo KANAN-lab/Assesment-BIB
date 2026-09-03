@@ -182,7 +182,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             className="w-12 h-12 mx-auto mb-2.5 rounded-xl object-contain bg-zinc-950 border border-zinc-800 p-1"
           />
           <h2 className="text-xl font-black text-white tracking-tight">Gappy Assessment</h2>
-          <p className="text-xs text-zinc-400 mt-1">Enterprise Operational & K3 Logistics Intelligence Platform</p>
+          <p className="text-xs text-zinc-400 mt-1">Platform K3 & Penilaian Kinerja — PT. DAYA ANUGRAH MULYA</p>
         </div>
 
         {/* Notifications */}
@@ -524,9 +524,18 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 </button>
               </form>
             )}
-
           </div>
         )}
+
+        {/* Official Brand Footer */}
+        <div className="mt-5 pt-3 border-t border-zinc-800/80 text-center relative z-10">
+          <div className="text-[10px] text-zinc-500 font-bold tracking-wider uppercase">
+            PT. DAYA ANUGRAH MULYA
+          </div>
+          <div className="text-[9px] text-zinc-600 mt-0.5">
+            Logistics & Supply Chain Operations Center
+          </div>
+        </div>
 
       </div>
     </div>

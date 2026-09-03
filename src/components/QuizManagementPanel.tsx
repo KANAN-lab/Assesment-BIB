@@ -8,8 +8,7 @@ import {
   updateQuizQuestion,
   deleteQuizQuestion,
 } from '../lib/supabaseService';
-
-const CATEGORIES = ['Safety & APD', 'SOP Logistics', 'Defensive Driving'] as const;
+import { SystemConfigService } from '../domain/SystemConfigService';
 
 interface QuizFormData {
   question: string;
@@ -17,16 +16,16 @@ interface QuizFormData {
   correctAnswerIndex: number;
   explanation: string;
   pointsReward: number;
-  category: QuizQuestion['category'];
+  category: string;
 }
 
-const emptyForm = (): QuizFormData => ({
+const emptyForm = (defaultCategory = 'Safety & APD'): QuizFormData => ({
   question: '',
   options: ['', '', '', ''],
   correctAnswerIndex: 0,
   explanation: '',
   pointsReward: 50,
-  category: 'Safety & APD',
+  category: defaultCategory,
 });
 
 export const QuizManagementPanel: React.FC = () => {
@@ -36,10 +35,38 @@ export const QuizManagementPanel: React.FC = () => {
   const [toast, setToast] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<QuizFormData>(emptyForm());
+  const [quizCategories, setQuizCategories] = useState<string[]>(() =>
+    SystemConfigService.getConfig().quizCategories
+  );
+  const [form, setForm] = useState<QuizFormData>(() =>
+    emptyForm(SystemConfigService.getConfig().quizCategories[0] || 'Safety & APD')
+  );
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterCat, setFilterCat] = useState<string>('all');
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+  const [newCategoryInput, setNewCategoryInput] = useState('');
+
+  useEffect(() => {
+    const handleConfigUpdate = (e: any) => {
+      if (e.detail?.quizCategories) {
+        setQuizCategories(e.detail.quizCategories);
+      }
+    };
+    window.addEventListener('gappy_config_updated', handleConfigUpdate);
+    return () => window.removeEventListener('gappy_config_updated', handleConfigUpdate);
+  }, []);
+
+  const handleAddNewCategory = () => {
+    const trimmed = newCategoryInput.trim();
+    if (!trimmed) return;
+    const updated = SystemConfigService.addQuizCategory(trimmed);
+    setQuizCategories(updated);
+    setForm(f => ({ ...f, category: trimmed }));
+    setNewCategoryInput('');
+    setIsAddingCategory(false);
+    showToast(`Kategori quiz "${trimmed}" berhasil ditambahkan!`);
+  };
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -152,10 +179,10 @@ export const QuizManagementPanel: React.FC = () => {
           <select
             value={filterCat}
             onChange={e => setFilterCat(e.target.value)}
-            className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+            className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-semibold"
           >
             <option value="all">Semua Kategori</option>
-            {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            {quizCategories.map(c => <option key={c} value={c}>{c}</option>)}
           </select>
           <button
             onClick={handleOpenCreate}
@@ -255,14 +282,43 @@ export const QuizManagementPanel: React.FC = () => {
             </div>
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
               <div>
-                <label className="text-[11px] text-zinc-400 font-bold mb-1 block">Kategori *</label>
-                <select
-                  value={form.category}
-                  onChange={e => setForm(f => ({ ...f, category: e.target.value as QuizQuestion['category'] }))}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                >
-                  {CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                </select>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] text-zinc-400 font-bold block">Kategori *</label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingCategory(!isAddingCategory)}
+                    className="text-[10px] text-emerald-400 hover:text-emerald-300 font-bold underline"
+                  >
+                    {isAddingCategory ? 'Tutup' : '+ Kategori Baru'}
+                  </button>
+                </div>
+
+                {isAddingCategory ? (
+                  <div className="flex items-center gap-1.5">
+                    <input
+                      type="text"
+                      value={newCategoryInput}
+                      onChange={e => setNewCategoryInput(e.target.value)}
+                      placeholder="Nama kategori bank soal baru..."
+                      className="w-full bg-zinc-950 border border-emerald-500 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleAddNewCategory}
+                      className="px-3 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shrink-0"
+                    >
+                      Simpan
+                    </button>
+                  </div>
+                ) : (
+                  <select
+                    value={form.category}
+                    onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  >
+                    {quizCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                  </select>
+                )}
               </div>
               <div>
                 <label className="text-[11px] text-zinc-400 font-bold mb-1 block">Pertanyaan *</label>

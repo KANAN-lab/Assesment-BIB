@@ -29,6 +29,7 @@ const PpeManagementPanel = React.lazy(() => import('./PpeManagementPanel').then(
 const ExecutiveReportPanel = React.lazy(() => import('./ExecutiveReportPanel').then(m => ({ default: m.ExecutiveReportPanel })));
 const DisciplinaryPanel = React.lazy(() => import('./DisciplinaryPanel').then(m => ({ default: m.DisciplinaryPanel })));
 const Audit5sPanel = React.lazy(() => import('./Audit5sPanel').then(m => ({ default: m.Audit5sPanel })));
+const SafetyPatrolKanban = React.lazy(() => import('./SafetyPatrolKanban').then(m => ({ default: m.SafetyPatrolKanban })));
 
 import { KaizenService } from '../lib/kaizenService';
 import { SystemConfigService } from '../domain/SystemConfigService';
@@ -54,7 +55,14 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
     return workers.filter((w) => RoleEntity.isOperationalWorker(w.role) && w.division.toUpperCase() !== 'SYSTEM');
   }, [workers]);
 
-  const [activeTab, setActiveTab] = useState<'team' | 'incidents' | 'kaizen' | 'licenses' | 'ppe' | 'disciplinary' | 'audit-5s' | 'reports' | 'audit-history'>('team');
+  const [activeTab, setActiveTab] = useState<'team' | 'incidents' | 'gemba' | 'kaizen' | 'licenses' | 'ppe' | 'disciplinary' | 'audit-5s' | 'reports' | 'audit-history'>('team');
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3000);
+  };
+
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>(operationalWorkers[0]?.id || '');
   const [search, setSearch] = useState('');
   const [isGapModalOpen, setIsGapModalOpen] = useState(false);
@@ -237,7 +245,7 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
     return 'text-rose-400';
   };
 
-  type SupervisorTabKey = 'team' | 'incidents' | 'kaizen' | 'licenses' | 'ppe' | 'disciplinary' | 'audit-5s' | 'reports' | 'audit-history';
+  type SupervisorTabKey = 'team' | 'incidents' | 'gemba' | 'kaizen' | 'licenses' | 'ppe' | 'disciplinary' | 'audit-5s' | 'reports' | 'audit-history';
 
   interface SupervisorTabItem {
     key: SupervisorTabKey;
@@ -272,6 +280,12 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
           badge: openIncidentsCount,
           alert: openIncidentsCount > 0,
         },
+        {
+          key: 'gemba',
+          label: 'Safety Patrol (Gemba)',
+          sublabel: 'Inspeksi Cepat K3 Gudang',
+          icon: ShieldAlert,
+        },
         { key: 'disciplinary', label: 'Konseling & Sanksi K3', sublabel: 'SP & Mandatory Retraining', icon: ShieldAlert },
         { key: 'ppe', label: 'Inventaris & APD', sublabel: 'Distribusi & Tiket Rusak', icon: HardHat },
       ],
@@ -296,6 +310,14 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
 
   return (
     <div className="space-y-5 animate-fade-in">
+
+      {/* Toast Notification */}
+      {toastMsg && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-emerald-950/90 border border-emerald-500/40 text-emerald-200 text-xs px-4 py-2.5 rounded-xl shadow-xl flex items-center gap-2 animate-fade-in">
+          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+          <span>{toastMsg}</span>
+        </div>
+      )}
 
       {/* ─── EXECUTIVE SUPERVISOR NAVIGATION HEADER ─── */}
       <div className="card p-5 space-y-4 bg-zinc-950 border-emerald-500/20 shadow-xl">
@@ -456,6 +478,18 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
                 .catch(() => {})
                 .finally(() => setIncidentsLoading(false));
             }}
+          />
+        </React.Suspense>
+      )}
+
+      {/* ─ SAFETY PATROL (GEMBA WALK) TAB ─ */}
+      {activeTab === 'gemba' && (
+        <React.Suspense fallback={<SkeletonLoader />}>
+          <SafetyPatrolKanban
+            workers={operationalWorkers}
+            currentSupervisorName="Supervisor Logistik"
+            currentSupervisorId={currentSupervisorId}
+            showToast={showToast}
           />
         </React.Suspense>
       )}

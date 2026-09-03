@@ -1,4 +1,5 @@
 import { SopModule } from '../types/sop';
+import { SystemConfigService } from '../domain/SystemConfigService';
 
 export const SopPdfExporter = {
   /**
@@ -17,9 +18,9 @@ export const SopPdfExporter = {
     const pageWidth = doc.internal.pageSize.getWidth();
     const pageHeight = doc.internal.pageSize.getHeight();
     const margin = 14;
-    let currentY = margin;
+    let currentY = 0;
 
-    // ─── 1. HEADER DOKUMEN RESMI ───
+    // ─── 1. HEADER KORPORAT ───
     doc.setFillColor(15, 23, 42); // slate-900
     doc.rect(0, 0, pageWidth, 28, 'F');
 
@@ -30,13 +31,14 @@ export const SopPdfExporter = {
     // Title text
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(14);
-    doc.text('PT BIB LOGISTIK WAREHOUSE — STANDAR OPERASIONAL PROSEDUR', margin, 12);
+    doc.setFontSize(13);
+    doc.text('PT. DAYA ANUGRAH MULYA — STANDAR OPERASIONAL PROSEDUR', margin, 12);
 
+    const docNumber = SystemConfigService.generateDocumentNumber('sop', { code: module.code });
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setTextColor(203, 213, 225);
-    doc.text(`LEMBAR POSTER RESMI & CHEATSHEET LAPANGAN • VERSI ${module.version || 'v1.0'}`, margin, 18);
+    doc.text(`LEMBAR POSTER RESMI • NO. DOKUMEN: ${docNumber} • VERSI ${module.version || 'v1.0'}`, margin, 18);
     doc.text(`Dicetak: ${new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })}`, pageWidth - margin - 40, 18);
 
     currentY = 36;
@@ -223,7 +225,7 @@ export const SopPdfExporter = {
     doc.setFontSize(7);
     doc.setTextColor(71, 85, 105);
     doc.text('1. Wajib APD lengkap sebelum masuk area kerja  |  2. Kecepatan MHE maks 10 km/h  |  3. Laporkan insiden/near-miss ke Supervisor segera.', margin + 3, footerY + 4);
-    doc.text('Lembar Dokumen Sah PT BIB Logistik Warehouse • Dilarang menggandakan tanpa otorisasi HSE/Ops', margin + 3, footerY + 8);
+    doc.text('Lembar Dokumen Sah PT. DAYA ANUGRAH MULYA • Dilarang menggandakan tanpa otorisasi HSE/Ops', margin + 3, footerY + 8);
 
     // Save File
     doc.save(`POSTER_SOP_${module.code.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`);

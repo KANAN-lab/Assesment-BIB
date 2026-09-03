@@ -1,9 +1,27 @@
 /**
  * SystemConfigService
  * Manages system-wide administrative settings: Audit Frequency Cooldown Policy,
- * Dynamic Points Rewards across all modules, Penalties, and Platform Controls.
- * NO HARDCODED POINTS — All points are fully configurable in Admin Console.
+ * Dynamic Points Rewards across all modules, Penalties, Document Numbering Templates,
+ * Dynamic Master Categories (Reward, Quiz, APD), and Platform Controls.
+ * NO HARDCODED POINTS OR NUMBERING — All configurations are fully maintained in Admin Console.
  */
+
+export type DocumentType =
+  | 'competency_matrix'
+  | 'k3_incident'
+  | 'mhe_sio'
+  | 'ppe_inventory'
+  | 'reward_budget'
+  | 'audit_5s'
+  | 'disciplinary'
+  | 'safety_patrol'
+  | 'sop';
+
+export interface PpeCategoryConfig {
+  id: string;
+  label: string;
+  icon: string;
+}
 
 export interface SystemConfig {
   // 1. Audit Cooldown Policy
@@ -19,6 +37,7 @@ export interface SystemConfig {
   // 3. Pelaporan Insiden & K3
   incidentValidRewardPoints: number;     // e.g. 50 PTS
   nearMissRewardPoints: number;          // e.g. 75 PTS
+  safetyPatrolResolvedPoints: number;    // e.g. 25 PTS (Penyelesaian Temuan Safety Patrol Gemba Walk)
 
   // 4. Inovasi Kaizen
   kaizenSubmissionPoints: number;        // e.g. 50 PTS
@@ -44,6 +63,23 @@ export interface SystemConfig {
   warningLetter2PenaltyPoints: number;   // e.g. 250 PTS
   warningLetter3PenaltyPoints: number;   // e.g. 500 PTS
   suspensionPenaltyPoints: number;       // e.g. 1000 PTS
+
+  // 9. Format Penomoran Dokumen Resmi (Document Numbering Masks)
+  docNumberTemplateCompetencyMatrix: string; // e.g. "DAM/HRD-MAT/{YEAR}/{RANDOM}"
+  docNumberTemplateK3Incident: string;       // e.g. "BAP-K3/DAM/{YEAR}/{ID}"
+  docNumberTemplateMheSio: string;           // e.g. "DAM/MHE-SIO/{YEAR}/{RANDOM}"
+  docNumberTemplatePpeInventory: string;     // e.g. "DAM/APD-INV/{YEAR}/{RANDOM}"
+  docNumberTemplateRewardBudget: string;     // e.g. "DAM/REW-AUD/{YEAR}/{RANDOM}"
+  docNumberTemplateAudit5s: string;          // e.g. "DAM/5R-AUD/{YEAR}/{RANDOM}"
+  docNumberTemplateDisciplinary: string;     // e.g. "DAM/HSE-SP/{YEAR}/{RANDOM}"
+  docNumberTemplateSafetyPatrol: string;     // e.g. "DAM/K3-PATROL/{YEAR}/{RANDOM}"
+  docNumberTemplateSop: string;              // e.g. "SOP-DAM/{CODE}/{YEAR}"
+
+  // 10. Kategori & Master Dinamis
+  rewardCategories: string[];
+  quizCategories: string[];
+  ppeCategories: PpeCategoryConfig[];
+  masterTiers: string[];
 }
 
 export const FREQUENCY_OPTIONS = [
@@ -54,7 +90,7 @@ export const FREQUENCY_OPTIONS = [
 ];
 
 export class SystemConfigService {
-  private static STORAGE_KEY = 'gappy_system_config_v2';
+  private static STORAGE_KEY = 'gappy_system_config_v3';
 
   public static getConfig(): SystemConfig {
     try {
@@ -93,6 +129,118 @@ export class SystemConfigService {
 
     return updated;
   }
+
+  /**
+   * Generator No. Dokumen Dinamis Berdasarkan Template Admin
+   * Mendukung token: {YEAR}, {MONTH}, {DAY}, {RANDOM}, {ID}, {CODE}, {DIV}
+   */
+  public static generateDocumentNumber(
+    type: DocumentType,
+    context?: { id?: string; code?: string; division?: string }
+  ): string {
+    const config = this.getConfig();
+    const now = new Date();
+    const year = now.getFullYear().toString();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const random = Math.floor(1000 + Math.random() * 9000).toString();
+    const id = context?.id ? context.id.slice(-6).toUpperCase() : random;
+    const code = context?.code ? context.code.toUpperCase() : 'GEN';
+    const div = context?.division ? context.division.toUpperCase() : 'ALL';
+
+    let template = '';
+    switch (type) {
+      case 'competency_matrix':
+        template = config.docNumberTemplateCompetencyMatrix;
+        break;
+      case 'k3_incident':
+        template = config.docNumberTemplateK3Incident;
+        break;
+      case 'mhe_sio':
+        template = config.docNumberTemplateMheSio;
+        break;
+      case 'ppe_inventory':
+        template = config.docNumberTemplatePpeInventory;
+        break;
+      case 'reward_budget':
+        template = config.docNumberTemplateRewardBudget;
+        break;
+      case 'audit_5s':
+        template = config.docNumberTemplateAudit5s;
+        break;
+      case 'disciplinary':
+        template = config.docNumberTemplateDisciplinary;
+        break;
+      case 'safety_patrol':
+        template = config.docNumberTemplateSafetyPatrol;
+        break;
+      case 'sop':
+        template = config.docNumberTemplateSop;
+        break;
+      default:
+        template = 'DAM/DOC/{YEAR}/{RANDOM}';
+    }
+
+    return template
+      .replace(/{YEAR}/g, year)
+      .replace(/{MONTH}/g, month)
+      .replace(/{DAY}/g, day)
+      .replace(/{RANDOM}/g, random)
+      .replace(/{ID}/g, id)
+      .replace(/{CODE}/g, code)
+      .replace(/{DIV}/g, div);
+  }
+
+  // ─── Dynamic Categories Helpers ──────────────────────────────
+
+  public static addRewardCategory(name: string): string[] {
+    const config = this.getConfig();
+    const trimmed = name.trim();
+    if (!trimmed || config.rewardCategories.includes(trimmed)) return config.rewardCategories;
+    const updated = [...config.rewardCategories, trimmed];
+    this.updateConfig({ rewardCategories: updated });
+    return updated;
+  }
+
+  public static deleteRewardCategory(name: string): string[] {
+    const config = this.getConfig();
+    const updated = config.rewardCategories.filter((c) => c !== name);
+    this.updateConfig({ rewardCategories: updated });
+    return updated;
+  }
+
+  public static addQuizCategory(name: string): string[] {
+    const config = this.getConfig();
+    const trimmed = name.trim();
+    if (!trimmed || config.quizCategories.includes(trimmed)) return config.quizCategories;
+    const updated = [...config.quizCategories, trimmed];
+    this.updateConfig({ quizCategories: updated });
+    return updated;
+  }
+
+  public static deleteQuizCategory(name: string): string[] {
+    const config = this.getConfig();
+    const updated = config.quizCategories.filter((c) => c !== name);
+    this.updateConfig({ quizCategories: updated });
+    return updated;
+  }
+
+  public static addPpeCategory(category: PpeCategoryConfig): PpeCategoryConfig[] {
+    const config = this.getConfig();
+    if (config.ppeCategories.some((c) => c.id === category.id)) return config.ppeCategories;
+    const updated = [...config.ppeCategories, category];
+    this.updateConfig({ ppeCategories: updated });
+    return updated;
+  }
+
+  public static deletePpeCategory(id: string): PpeCategoryConfig[] {
+    const config = this.getConfig();
+    const updated = config.ppeCategories.filter((c) => c.id !== id);
+    this.updateConfig({ ppeCategories: updated });
+    return updated;
+  }
+
+  // ─── Remote Synchronization ──────────────────────────────────
 
   public static async fetchRemoteConfig(): Promise<SystemConfig> {
     try {
@@ -157,6 +305,7 @@ export class SystemConfigService {
       // 3. Insiden & K3
       incidentValidRewardPoints: 50,
       nearMissRewardPoints: 75,
+      safetyPatrolResolvedPoints: 25,
 
       // 4. Kaizen
       kaizenSubmissionPoints: 50,
@@ -182,6 +331,52 @@ export class SystemConfigService {
       warningLetter2PenaltyPoints: 250,
       warningLetter3PenaltyPoints: 500,
       suspensionPenaltyPoints: 1000,
+
+      // 9. Document Numbering Templates (PT. DAYA ANUGRAH MULYA)
+      docNumberTemplateCompetencyMatrix: 'DAM/HRD-MAT/{YEAR}/{RANDOM}',
+      docNumberTemplateK3Incident: 'BAP-K3/DAM/{YEAR}/{ID}',
+      docNumberTemplateMheSio: 'DAM/MHE-SIO/{YEAR}/{RANDOM}',
+      docNumberTemplatePpeInventory: 'DAM/APD-INV/{YEAR}/{RANDOM}',
+      docNumberTemplateRewardBudget: 'DAM/REW-AUD/{YEAR}/{RANDOM}',
+      docNumberTemplateAudit5s: 'DAM/5R-AUD/{YEAR}/{RANDOM}',
+      docNumberTemplateDisciplinary: 'DAM/HSE-SP/{YEAR}/{RANDOM}',
+      docNumberTemplateSafetyPatrol: 'DAM/K3-PATROL/{YEAR}/{RANDOM}',
+      docNumberTemplateSop: 'SOP-DAM/{CODE}/{YEAR}',
+
+      // 10. Dynamic Categories & Master
+      rewardCategories: [
+        'E-Wallet',
+        'Pulsa & Data',
+        'Safety Gear',
+        'Voucher & Perk',
+        'Merchandise K3',
+        'Peralatan Kerja',
+      ],
+      quizCategories: [
+        'Safety & APD',
+        'SOP Logistics',
+        'Defensive Driving',
+        'Handling B3 & Chemical',
+        '5R & Housekeeping',
+        'Emergency & Fire Safety',
+      ],
+      ppeCategories: [
+        { id: 'head_protection', label: 'Pelindung Kepala (Helmet)', icon: '⛑️' },
+        { id: 'foot_protection', label: 'Pelindung Kaki (Safety Shoes)', icon: '🥾' },
+        { id: 'body_protection', label: 'Pelindung Tubuh (Rompi/Wearpack)', icon: '🦺' },
+        { id: 'hand_protection', label: 'Pelindung Tangan (Gloves)', icon: '🧤' },
+        { id: 'eye_face_protection', label: 'Pelindung Mata & Wajah (Goggles/Shield)', icon: '🥽' },
+        { id: 'fall_protection', label: 'Alat Pencegah Jatuh (Harness)', icon: '🪢' },
+        { id: 'respiratory', label: 'Pelindung Pernapasan (Respirator)', icon: '😷' },
+        { id: 'hearing_protection', label: 'Pelindung Telinga (Earplug/Earmuff)', icon: '🎧' },
+        { id: 'cold_storage_protection', label: 'Perlindungan Suhu Dingin (Thermal Jacket)', icon: '🧥' },
+      ],
+      masterTiers: [
+        'Novice Operational',
+        'Pro Specialist',
+        'Elite Logistician',
+        'Legendary Champion',
+      ],
     };
   }
 }

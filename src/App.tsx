@@ -31,6 +31,7 @@ const AcknowledgeHandoverModal = React.lazy(() => import('./components/Acknowled
 const KaizenSubmissionModal = React.lazy(() => import('./components/KaizenSubmissionModal').then(m => ({ default: m.KaizenSubmissionModal })));
 const WorkerHistoryCenterModal = React.lazy(() => import('./components/WorkerHistoryCenterModal').then(m => ({ default: m.WorkerHistoryCenterModal })));
 const WorkerDigitalIdModal = React.lazy(() => import('./components/WorkerDigitalIdModal').then(m => ({ default: m.WorkerDigitalIdModal })));
+const OfflineQueueDrawer = React.lazy(() => import('./components/OfflineQueueDrawer').then(m => ({ default: m.OfflineQueueDrawer })));
 import { ShiftHandoverEntity } from './types/handover';
 import { HandoverManager } from './lib/handoverService';
 
@@ -1242,6 +1243,8 @@ export const App: React.FC = () => {
             worker={currentWorker}
           />
         )}
+
+        <OfflineQueueDrawer />
       </React.Suspense>
 
     </div>

@@ -170,11 +170,11 @@ export const WorkerDigitalIdModal: React.FC<WorkerDigitalIdModalProps> = ({
               <div className="flex items-center gap-2">
                 <img
                   src="https://raw.githubusercontent.com/KANAN-lab/WFG-DAM/refs/heads/main/DAM%20LOGO.ico"
-                  alt="PT DAM Logo"
+                  alt="Logo PT. DAYA ANUGRAH MULYA"
                   className="w-7 h-7 object-contain rounded p-0.5 bg-zinc-900 border border-zinc-800"
                 />
                 <div>
-                  <div className="text-[11px] font-black tracking-wider text-white">PT DAM INDONESIA</div>
+                  <div className="text-[11px] font-black tracking-wider text-white">PT. DAYA ANUGRAH MULYA</div>
                   <div className="text-[8px] font-mono text-zinc-400 tracking-widest uppercase">DIVISI LOGISTIK & SUPPLY CHAIN</div>
                 </div>
               </div>
@@ -307,7 +307,7 @@ export const WorkerDigitalIdModal: React.FC<WorkerDigitalIdModalProps> = ({
 
             {/* Card Footer Warning */}
             <div className="text-[8px] text-zinc-500 text-center leading-tight pt-1">
-              Kartu ini merupakan dokumen digital resmi PT DAM Indonesia. Tunjukkan QR code kepada Supervisor saat inspeksi harian.
+              Kartu ini merupakan dokumen digital resmi PT. DAYA ANUGRAH MULYA. Tunjukkan QR code kepada Supervisor saat inspeksi harian.
             </div>
           </div>
         </div>

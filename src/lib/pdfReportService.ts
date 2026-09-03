@@ -1,6 +1,6 @@
 /**
  * OOP Report Service: ExecutivePDFReportGenerator
- * Generates executive-grade, audit-compliant PDF and CSV reports for PT DAM Indonesia logistics assessment.
+ * Generates executive-grade, audit-compliant PDF and CSV reports for PT. DAYA ANUGRAH MULYA logistics assessment.
  */
 
 import jsPDF from 'jspdf';
@@ -11,6 +11,7 @@ import { PpeItemEntity, PpeDistributionEntity, PpeDamageReportEntity } from '../
 import { RoleEntity } from '../domain/RoleEntity';
 import { LicenseService } from './licenseService';
 import { PpeService } from './ppeService';
+import { SystemConfigService } from '../domain/SystemConfigService';
 
 export interface ReportSigningConfig {
   reportTitle?: string;
@@ -34,7 +35,7 @@ export class ExecutivePDFReportGenerator {
   ): void {
     const supervisorName = config.supervisorName || 'Supervisor Logistik';
     const managerName = config.managerName || 'Head of Operations';
-    const docNumber = config.documentNumber || `DAM/HRD-MAT/${new Date().getFullYear()}/${Date.now().toString().slice(-4)}`;
+    const docNumber = config.documentNumber || SystemConfigService.generateDocumentNumber('competency_matrix');
     const periodLabel = config.periodLabel || 'Tahun Berjalan 2026';
     const divFilter = config.divisionFilter || 'Semua Divisi';
 
@@ -60,7 +61,7 @@ export class ExecutivePDFReportGenerator {
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
-    doc.text('PT DAM INDONESIA — GAPPY ASSESSMENT PLATFORM', 14, 11);
+    doc.text('PT. DAYA ANUGRAH MULYA — GAPPY ASSESSMENT PLATFORM', 14, 11);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
@@ -163,7 +164,7 @@ export class ExecutivePDFReportGenerator {
   ): void {
     const supervisorName = config.supervisorName || 'Supervisor HSE & K3';
     const managerName = config.managerName || 'Plant Safety Manager';
-    const docNumber = config.documentNumber || `DAM/HSE-REP/${new Date().getFullYear()}/${Date.now().toString().slice(-4)}`;
+    const docNumber = config.documentNumber || SystemConfigService.generateDocumentNumber('k3_incident');
     const periodLabel = config.periodLabel || 'Tahun Berjalan 2026';
 
     const doc = new jsPDF('p', 'mm', 'a4');
@@ -176,7 +177,7 @@ export class ExecutivePDFReportGenerator {
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
-    doc.text('PT DAM INDONESIA — DIVISI K3 & KESELAMATAN KERJA (HSE)', 14, 11);
+    doc.text('PT. DAYA ANUGRAH MULYA — DIVISI K3 & KESELAMATAN KERJA (HSE)', 14, 11);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
@@ -244,7 +245,7 @@ export class ExecutivePDFReportGenerator {
   ): void {
     const supervisorName = config.supervisorName || 'Supervisor Operasional MHE';
     const managerName = config.managerName || 'Head of Engineering & K3';
-    const docNumber = config.documentNumber || `DAM/MHE-SIO/${new Date().getFullYear()}/${Date.now().toString().slice(-4)}`;
+    const docNumber = config.documentNumber || SystemConfigService.generateDocumentNumber('mhe_sio');
 
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -256,7 +257,7 @@ export class ExecutivePDFReportGenerator {
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
-    doc.text('PT DAM INDONESIA — AUDIT KEPATUHAN LISENSI ALAT BERAT (MHE)', 14, 11);
+    doc.text('PT. DAYA ANUGRAH MULYA — AUDIT KEPATUHAN LISENSI ALAT BERAT (MHE)', 14, 11);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
@@ -326,7 +327,7 @@ export class ExecutivePDFReportGenerator {
   ): void {
     const supervisorName = config.supervisorName || 'Supervisor K3 / Safety Officer';
     const managerName = config.managerName || 'Logistics Operations Manager';
-    const docNumber = config.documentNumber || `DAM/PPE-REP/${new Date().getFullYear()}/${Date.now().toString().slice(-4)}`;
+    const docNumber = config.documentNumber || SystemConfigService.generateDocumentNumber('ppe_inventory');
 
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -338,7 +339,7 @@ export class ExecutivePDFReportGenerator {
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
-    doc.text('PT DAM INDONESIA — AUDIT INVENTARIS & SIKLUS HIDUP APD', 14, 11);
+    doc.text('PT. DAYA ANUGRAH MULYA — AUDIT INVENTARIS & SIKLUS HIDUP APD', 14, 11);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
@@ -406,7 +407,7 @@ export class ExecutivePDFReportGenerator {
   ): void {
     const supervisorName = config.supervisorName || 'HRD & Compensation Specialist';
     const managerName = config.managerName || 'Finance & Plant Director';
-    const docNumber = config.documentNumber || `DAM/REW-BUD/${new Date().getFullYear()}/${Date.now().toString().slice(-4)}`;
+    const docNumber = config.documentNumber || SystemConfigService.generateDocumentNumber('reward_budget');
 
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -418,7 +419,7 @@ export class ExecutivePDFReportGenerator {
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(13);
-    doc.text('PT DAM INDONESIA — LAPORAN ANGGARAN & PENUKARAN REWARD', 14, 11);
+    doc.text('PT. DAYA ANUGRAH MULYA — LAPORAN ANGGARAN & PENUKARAN REWARD', 14, 11);
 
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8.5);
@@ -511,7 +512,7 @@ export class ExecutivePDFReportGenerator {
     doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      `Dokumen Resmi Internal PT DAM Indonesia — Gappy Assessment Platform v3.3.0 | Halaman 1 dari 1`,
+      `Dokumen Resmi Internal PT. DAYA ANUGRAH MULYA — Gappy Assessment Platform v3.3.0 | Halaman 1 dari 1`,
       pageWidth / 2,
       doc.internal.pageSize.getHeight() - 6,
       { align: 'center' }
@@ -536,7 +537,7 @@ export class ExecutivePDFReportGenerator {
 
   /**
    * Formulir Resmi Berita Acara Pemeriksaan (BAP) Kecelakaan Kerja & Insiden K3
-   * Standar Corporate PT DAM Indonesia (PRD §11.3 Fitur D)
+   * Standar Corporate PT. DAYA ANUGRAH MULYA (PRD §11.3 Fitur D)
    */
   public static exportOfficialBapIncidentPDF(
     incident: IncidentReport,
@@ -545,7 +546,7 @@ export class ExecutivePDFReportGenerator {
   ): void {
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
-    const docNumber = config.documentNumber || `BAP-K3/DAM/${new Date().getFullYear()}/${incident.id.slice(0, 8).toUpperCase()}`;
+    const docNumber = config.documentNumber || SystemConfigService.generateDocumentNumber('k3_incident', { id: incident.id });
     const supervisorName = config.supervisorName || 'Supervisor Operasional & HSE';
     const managerName = config.managerName || 'Plant Operations & HSE Head';
     const reporterName = reporterWorker?.name || incident.workerName || incident.workerId;
@@ -560,7 +561,7 @@ export class ExecutivePDFReportGenerator {
     doc.setTextColor(255, 255, 255);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(12.5);
-    doc.text('PT DAM INDONESIA — DEPARTEMEN HEALTH, SAFETY & ENVIRONMENT (HSE)', 14, 11);
+    doc.text('PT. DAYA ANUGRAH MULYA — DEPARTEMEN HEALTH, SAFETY & ENVIRONMENT (HSE)', 14, 11);
 
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9.5);
@@ -700,7 +701,7 @@ export class ExecutivePDFReportGenerator {
     doc.setFontSize(7);
     doc.setTextColor(148, 163, 184);
     doc.text(
-      `Dokumen Resmi Berita Acara K3 PT DAM Indonesia — Terverifikasi Digital Melalui Sistem Gappy Assessment | Halaman 1 dari 1`,
+      `Dokumen Resmi Berita Acara K3 PT. DAYA ANUGRAH MULYA — Terverifikasi Digital Melalui Sistem Gappy Assessment | Halaman 1 dari 1`,
       pageWidth / 2,
       doc.internal.pageSize.getHeight() - 6,
       { align: 'center' }

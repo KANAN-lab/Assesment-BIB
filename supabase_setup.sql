@@ -79,6 +79,8 @@ CREATE TABLE IF NOT EXISTS reward_catalog (
 
 ALTER TABLE reward_catalog ADD COLUMN IF NOT EXISTS min_tier TEXT DEFAULT 'Novice Operational';
 ALTER TABLE reward_catalog ADD COLUMN IF NOT EXISTS max_claims_per_month INTEGER DEFAULT 1;
+ALTER TABLE reward_catalog DROP CONSTRAINT IF EXISTS reward_catalog_category_check;
+ALTER TABLE reward_catalog DROP CONSTRAINT IF EXISTS reward_catalog_min_tier_check;
 
 -- Table: redemption_history
 CREATE TABLE IF NOT EXISTS redemption_history (
@@ -1792,6 +1794,37 @@ ALTER TABLE app_notifications ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all access to app_notifications" ON app_notifications;
 CREATE POLICY "Allow all access to app_notifications" ON app_notifications FOR ALL USING (true) WITH CHECK (true);
 
+-- ─── 30. Safety Patrol Logs (Supervisor Gemba Walk & K3 Patrol) ───────────
+CREATE TABLE IF NOT EXISTS safety_patrol_logs (
+  id                TEXT PRIMARY KEY,
+  supervisor_id     TEXT NOT NULL,
+  supervisor_name   TEXT NOT NULL DEFAULT 'Supervisor Logistik',
+  patrol_date       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  zone_id           TEXT NOT NULL,
+  zone_name         TEXT NOT NULL DEFAULT '',
+  finding_type      TEXT NOT NULL CHECK (finding_type IN ('Unsafe Act', 'Unsafe Condition', 'Good Practice')),
+  severity          TEXT NOT NULL CHECK (severity IN ('Low', 'Medium', 'High', 'Critical')),
+  description       TEXT NOT NULL,
+  photo_url         TEXT,
+  assigned_pic_id   TEXT REFERENCES workers(id) ON DELETE SET NULL,
+  assigned_pic_name TEXT,
+  status            TEXT NOT NULL DEFAULT 'Open' CHECK (status IN ('Open', 'In Progress', 'Resolved')),
+  due_date          DATE,
+  resolution_notes  TEXT,
+  resolved_at       TIMESTAMPTZ,
+  points_awarded    BOOLEAN NOT NULL DEFAULT false,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_safety_patrol_status ON safety_patrol_logs(status, severity);
+CREATE INDEX IF NOT EXISTS idx_safety_patrol_date ON safety_patrol_logs(patrol_date DESC);
+CREATE INDEX IF NOT EXISTS idx_safety_patrol_zone ON safety_patrol_logs(zone_id);
+
+ALTER TABLE safety_patrol_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all access to safety_patrol_logs" ON safety_patrol_logs;
+CREATE POLICY "Allow all access to safety_patrol_logs" ON safety_patrol_logs FOR ALL USING (true) WITH CHECK (true);
+
 -- ─── 29. Schema & Table Privileges for PostgREST Roles ─────────
 -- Required by Supabase PostgREST so anon and authenticated can access public tables
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
@@ -1802,5 +1835,6 @@ GRANT ALL ON ALL ROUTINES IN SCHEMA public TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO anon, authenticated, service_role;
+
 
 

@@ -1817,7 +1817,7 @@ export function exportWorkersCSV(workers: WorkerProfile[]): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `worker_data_${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `Data_Pekerja_PT_DAYA_ANUGRAH_MULYA_${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(link);
   link.click();
   URL.revokeObjectURL(url);
@@ -2068,7 +2068,7 @@ export function exportIncidentsCSV(incidents: IncidentReport[]): void {
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');
   link.href = url;
-  link.download = `incident_report_${new Date().toISOString().slice(0, 10)}.csv`;
+  link.download = `Laporan_Insiden_K3_PT_DAYA_ANUGRAH_MULYA_${new Date().toISOString().slice(0, 10)}.csv`;
   document.body.appendChild(link);
   link.click();
   URL.revokeObjectURL(url);

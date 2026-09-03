@@ -87,13 +87,13 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
 
   // Form states for Add/Edit
   const [formTitle, setFormTitle] = useState('');
-  const [formCategory, setFormCategory] = useState<RewardItem['category']>('E-Wallet');
+  const [formCategory, setFormCategory] = useState<string>('E-Wallet');
   const [formPointsRequired, setFormPointsRequired] = useState<number>(500);
   const [formIconName, setFormIconName] = useState<string>('Wallet');
   const [formDescription, setFormDescription] = useState('');
   const [formAvailableStock, setFormAvailableStock] = useState<number>(20);
   const [formMonthlyLimit, setFormMonthlyLimit] = useState<number>(25);
-  const [formMinTier, setFormMinTier] = useState<TierType>('Novice Operational');
+  const [formMinTier, setFormMinTier] = useState<string>('Novice Operational');
   const [formMaxClaims, setFormMaxClaims] = useState<number>(1);
   const [formBadgeTag, setFormBadgeTag] = useState('');
   const [restockAmount, setRestockAmount] = useState<number>(10);
@@ -758,7 +758,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
               </div>
               <div>
                 <h3 className="font-bold text-white text-sm">Hall of Fame & Feed Penukaran Poin</h3>
-                <p className="text-xs text-zinc-400">Apresiasi Real-time Penukaran Reward Insan Operasional BIB Logistics</p>
+                <p className="text-xs text-zinc-400">Apresiasi Real-time Penukaran Reward Insan Operasional PT. DAYA ANUGRAH MULYA</p>
               </div>
             </div>
           </div>

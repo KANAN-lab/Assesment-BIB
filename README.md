@@ -1,4 +1,4 @@
-# Gappy Assessment — Platform Logistik & K3 Enterprise (PT DAM Indonesia)
+# Gappy Assessment — Platform Logistik & K3 Enterprise (PT. DAYA ANUGRAH MULYA)
 
 > **Platform Penilaian Kinerja Berimbang, K3, dan Gamifikasi Operasional Logistik Terintegrasi**  
 > *Versi 4.0 — Enterprise Edition dengan Categorized Executive Navigation, Dynamic System Point Governance, Audit 5R Gudang, Pelacak SIO & APD, Pembinaan SP K3, & Atomic Chunk Splitting (Low Latency)*
@@ -29,7 +29,7 @@
 - **🧹 Audit Standar 5R / 5S Wilayah Gudang**: Penilaian berkala kelayakan wilayah kerja gudang (Ringkas, Rapi, Resik, Rawat, Rajin), unggah foto bukti audit, serta pemberian reward poin otomatis untuk PIC zona.
 - **📜 Pembinaan, Sanksi & SP K3**: Penerbitan Surat Peringatan (Coaching Verbal, SP 1/2/3, Skorsing), pemotongan poin pelanggaran, integrasi *retraining SOP wajib*, dan cetak PDF resmi.
 - **🚨 Kanban Lifecycle Insiden & Form CAPA**: Penanganan insiden K3 (Root Cause 5-Why, Action Plan, PIC, Target Selesai, & Penutupan Kasus).
-- **📄 Executive PDF Report Generator**: Cetak Berita Acara Insiden K3 resmi dan Rekapitulasi Laporan Insiden Massal dalam format PDF corporate PT DAM Indonesia.
+- **📄 Executive PDF Report Generator**: Cetak Berita Acara Insiden K3 resmi dan Rekapitulasi Laporan Insiden Massal dalam format PDF corporate PT. DAYA ANUGRAH MULYA.
 
 ### ⚙️ Administrator Console (System Administrator)
 - **🎯 Dynamic System Point Governance**: Konfigurasi seluruh parameter poin reward & penalti di seluruh modul tanpa *hardcode*, tersinkronisasi otomatis ke cloud Supabase.
@@ -117,4 +117,4 @@ npm run preview
 
 ---
 
-© 2026 Gappy Assessment Platform — PT DAM Indonesia. All Rights Reserved.
+© 2026 Gappy Assessment Platform — PT. DAYA ANUGRAH MULYA. All Rights Reserved.

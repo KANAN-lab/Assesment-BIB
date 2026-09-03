@@ -9,7 +9,7 @@
 | **Status** | Approved / Active Specification |
 | **Author** | Antigravity AI & Engineering Team |
 | **Target User** | Staff Logistik (Kurir, Driver, Worker Gudang, Supervisor/Pengawas, Ops Manager, System Administrator) |
-| **Company** | PT DAM Indonesia |
+| **Company** | PT. DAYA ANUGRAH MULYA |
 | **Primary Goal** | Penilaian kinerja berimbang (BIB & Competency Matrix), **Pustaka SOP Micro-Deck & K3 Academy Interaktif (WMS Simulator, Hazard Hunt, Document Reader)**, **Multi-Slide Deck Builder & Timeline Storyboard**, **Offline-First SOP & Background Sync Engine**, **Ekspor Poster A4 SOP PDF**, **Quick QR Badge Scanner SIO MHE**, **Idempotency Locking Poin**, laporan insiden K3 + GDrive, kompresi foto HD, dan navigasi eksekutif multi-level. |
 
 ---
@@ -444,7 +444,7 @@ CREATE TABLE IF NOT EXISTS redemption_history (
 
 ### 10.1 Multi-Format Executive Report Exporter (PDF & Excel/TSV)
 - **Visual PDF Report Generator**: Menghasilkan Laporan Audit Kinerja & Matriks Kompetensi Pekerja yang siap dicetak untuk Manajemen Ops/HSE:
-  - Header Resmi Perusahaan (PT DAM Indonesia).
+  - Header Resmi Perusahaan (PT. DAYA ANUGRAH MULYA).
   - Ringkasan Metrik Tim Operasional (Skor Rata-Rata, Safety Streak, Rasio Evaluasi).
   - Tabel Audit Pekerja Lengkap (NIK, Nama, Role, Divisi, Skor Behavior/Integrity/Benchmark, Skor Total BIB, Status Kepatuhan).
   - Kolom Tanda Tangan Verifikasi Supervisor & Manager Ops.
@@ -469,7 +469,7 @@ CREATE TABLE IF NOT EXISTS redemption_history (
 ## 11. Modul Pengembangan Masa Depan & Protokol Mutasi (v3.4.0 Roadmap)
 
 > [!IMPORTANT]
-> Seluruh modul di bawah ini dirancang sebagai peta jalan pengembangan tingkat lanjut (*Future Enterprise Enhancements*) untuk mendukung dinamika mutasi staf operasional dan ekspansi infrastruktur logistik PT DAM Indonesia.
+> Seluruh modul di bawah ini dirancang sebagai peta jalan pengembangan tingkat lanjut (*Future Enterprise Enhancements*) untuk mendukung dinamika mutasi staf operasional dan ekspansi infrastruktur logistik PT. DAYA ANUGRAH MULYA.
 
 ### 11.1 Protokol Pemindahan Role Pekerja (Proper Role Transfer Protocol)
 - **Isolasi Nilai Audit Role Lama (Archived Audit Snapshot)**:
@@ -543,7 +543,7 @@ Paket optimasi menyeluruh untuk menjamin kecepatan, ketahanan di area blind spot
 - Hasil evaluasi disimpan di antrean `bib_offline_sop_sync_queue` dan otomatis dikirimkan ke database saat perangkat kembali online (*Event Listener `online`*).
 
 ### 13.3 Generator Export SOP One-Pager / Poster A4 PDF (`SopPdfExporter`)
-- Tombol **"A4 PDF"** di setiap kartu modul SOP menghasilkan poster resmi siap cetak (Kop Dokumen PT BIB, Ringkasan Langkah Kerja, Matriks DOs & DON'Ts, serta Golden Rules K3).
+- Tombol **"A4 PDF"** di setiap kartu modul SOP menghasilkan poster resmi siap cetak (Kop Dokumen PT. DAYA ANUGRAH MULYA, Ringkasan Langkah Kerja, Matriks DOs & DON'Ts, serta Golden Rules K3).
 
 ### 13.4 Quick QR Badge Scanner untuk SIO MHE & Inspeksi Lapangan (`QrBadgeScannerModal`)
 - Modal pemindai kamera QR code ID Card pekerja (dengan fallback pencarian cepat NIP).

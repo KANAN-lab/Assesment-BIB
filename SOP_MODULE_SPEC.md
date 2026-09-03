@@ -1,9 +1,9 @@
 # Spesifikasi Lengkap: Interactive SOP Micro-Deck & Learning Academy
-## Employee Logistics Assessment Platform — PT DAM Indonesia
+## Employee Logistics Assessment Platform — PT. DAYA ANUGRAH MULYA
 **Dokumen Versi**: 2.0.0 (Enterprise Micro-Learning, Multi-Format Interactive Deck, Voice-Over, Compliance Heatmap & Gappy AI Assistant)  
 **Status**: Approved Master Specification  
 **Author**: Antigravity AI & Engineering Team  
-**Perusahaan**: PT DAM Indonesia  
+**Perusahaan**: PT. DAYA ANUGRAH MULYA  
 
 ---
 
@@ -13,7 +13,7 @@ Modul **Interactive SOP Micro-Deck** dirancang untuk mendisrupsi metode pelatiha
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                    EKOSISTEM SOP MICRO-DECK PT DAM INDONESIA                │
+│              EKOSISTEM SOP MICRO-DECK PT. DAYA ANUGRAH MULYA                │
 ├───────────────────────────────┬───────────────────────────────┬─────────────┤
 │      1. LEARNING VIEWER       │       2. GAMIFIKASI BIB       │   3. CMS    │
 │  - 9 Tipe Format Slide        │  - +50 PTS Reward per Modul   │ - Visual    │
