@@ -1883,7 +1883,7 @@ CREATE INDEX IF NOT EXISTS idx_announcements_window ON announcements(is_active, 
 
 -- ─── 31. Comprehensive Performance Indexing Suite (Phase 33) ──────────────────
 -- Designed to maximize Free Tier Supabase capacity & prepare zero-headache VPS migration.
--- Idempotent (IF NOT EXISTS), zero-downtime, and instantly utilized by Postgres Query Planner.
+-- Idempotent (IF NOT EXISTS), zero-downtime, and strictly verified against table schemas.
 
 -- 1. Workers & Identity Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_workers_login_lookup ON workers(employee_id, email);
@@ -1899,20 +1899,21 @@ CREATE INDEX IF NOT EXISTS idx_redemptions_pending_fulfill ON redemption_history
 CREATE INDEX IF NOT EXISTS idx_reward_catalog_browse ON reward_catalog(category, min_tier) WHERE available_stock > 0;
 
 -- 3. Daily Operations, SOP & Quizzes
-CREATE INDEX IF NOT EXISTS idx_quiz_questions_category_active ON quiz_questions(category) WHERE is_active = true;
-CREATE INDEX IF NOT EXISTS idx_sop_completions_worker ON sop_completions(worker_id, completed_at DESC);
-CREATE INDEX IF NOT EXISTS idx_pre_shift_worker_date ON pre_shift_checklists(worker_id, checklist_date DESC);
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_category ON quiz_questions(category);
+CREATE INDEX IF NOT EXISTS idx_quiz_questions_division_role ON quiz_questions(division, role);
 CREATE INDEX IF NOT EXISTS idx_sop_modules_cat_code ON sop_modules(category, code);
+CREATE INDEX IF NOT EXISTS idx_worker_sop_progress_worker_completed ON worker_sop_progress(worker_id, is_completed, completed_at DESC);
 
--- 4. K3, HSE Compliance & Incidents
-CREATE INDEX IF NOT EXISTS idx_incidents_worker_status ON incident_reports(worker_id, status, incident_date DESC);
-CREATE INDEX IF NOT EXISTS idx_incidents_supervisor_kanban ON incident_reports(status, severity, incident_date DESC);
+-- 4. K3, HSE Compliance & Operational Logs
+CREATE INDEX IF NOT EXISTS idx_incidents_worker_status ON incident_reports(worker_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_incidents_supervisor_kanban ON incident_reports(status, severity, occurred_at DESC);
 CREATE INDEX IF NOT EXISTS idx_disciplinary_worker_date ON disciplinary_actions(worker_id, incident_date DESC);
-CREATE INDEX IF NOT EXISTS idx_mhe_licenses_expiry ON mhe_licenses(expiry_date, status);
+CREATE INDEX IF NOT EXISTS idx_mhe_licenses_status_expiry ON mhe_licenses(status, expiry_date ASC);
 CREATE INDEX IF NOT EXISTS idx_ppe_dist_worker ON ppe_distributions(worker_id, distribution_date DESC);
 CREATE INDEX IF NOT EXISTS idx_ppe_damage_status ON ppe_damage_reports(status, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_kaizen_worker_status ON kaizen_suggestions(worker_id, status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_kaizen_author_status ON kaizen_suggestions(author_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_5s_zone_date ON audit_5s_records(zone_id, audit_date DESC);
 CREATE INDEX IF NOT EXISTS idx_shift_handovers_date ON shift_handovers(shift_date DESC, status);
-CREATE INDEX IF NOT EXISTS idx_kudos_recipient_date ON kudos_logs(recipient_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_worker_kudos_receiver_date ON worker_kudos(receiver_id, created_at DESC);
+
 

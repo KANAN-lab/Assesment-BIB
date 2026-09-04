@@ -575,13 +575,12 @@
     - `idx_redemptions_worker_history` `(worker_id, created_at DESC)` — riwayat voucher pekerja.
     - `idx_redemptions_pending_fulfill` `(status, created_at DESC)` — filter voucher belum diserahkan admin.
     - `idx_reward_catalog_browse` `(category, min_tier) WHERE available_stock > 0` — filtering marketplace reward.
-  - [x] **Tabel Operasional & Kuis (`quiz_questions`, `sop_completions`, `pre_shift_checklists`, `sop_modules`)**:
-    - `idx_quiz_questions_category_active` `(category) WHERE is_active = true` — query bank soal kuis.
-    - `idx_sop_completions_worker` `(worker_id, completed_at DESC)` — validasi penyelesaian modul SOP.
-    - `idx_pre_shift_worker_date` `(worker_id, checklist_date DESC)` — validasi absensi shift.
+  - [x] **Tabel Operasional & Kuis (`quiz_questions`, `worker_sop_progress`, `sop_modules`)**:
+    - `idx_quiz_questions_category` `(category)` & `idx_quiz_questions_division_role` `(division, role)` — query bank soal kuis harian.
     - `idx_sop_modules_cat_code` `(category, code)` — penataan katalog SOP.
-  - [x] **Tabel HSE & K3 (`incident_reports`, `disciplinary_actions`, `mhe_licenses`, `ppe_distributions`, `safety_patrol_logs`, `audit_5s_records`)**:
-    - Indeks filtering status, severity, dan tanggal pada insiden, sanksi, lisensi operator MHE, APD, dan audit 5S.
+    - `idx_worker_sop_progress_worker_completed` `(worker_id, is_completed, completed_at DESC)` — pelacakan progres SOP micro-deck.
+  - [x] **Tabel HSE & K3 (`incident_reports`, `disciplinary_actions`, `mhe_licenses`, `ppe_distributions`, `kaizen_suggestions`, `audit_5s_records`, `shift_handovers`, `worker_kudos`)**:
+    - Indeks filtering status, severity, dan tanggal pada insiden (`occurred_at`/`created_at`), sanksi, lisensi operator MHE, APD, kaizen (`author_id`), audit 5S, serah terima shift, dan apresiasi kudo (`receiver_id`).
 - [x] **3. Panduan Eksekusi & Zero-Headache VPS Migration**:
   - [x] Penataan format SQL siap pakai di Supabase SQL Editor.
   - [x] Penyiapan kompatibilitas 1:1 jika migrasi ke self-hosted Supabase Docker di VPS.
