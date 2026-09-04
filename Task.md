@@ -758,3 +758,27 @@
   - [x] Type check `npx tsc --noEmit` lulus 0 error.
   - [x] Production build `npm run build` sukses (3440 modules, 22.00s).
 
+---
+
+## Phase 41: Self-Service MHE SIO License Upload Modal & Digital ID Compliance Fix
+
+- [x] **1. Root Cause Analysis - SIO Tampil Palsu "VALID" pada User Tanpa SIO (`WorkerDigitalIdModal.tsx`)**:
+  - [x] Deteksi kondisi ternary cacat `{license?.status === 'expired' ? EXPIRED : VALID}` yang otomatis melabeli `VALID` (hijau) kepada seluruh pekerja yang `license`-nya masih `undefined` (belum pernah upload SIO).
+  - [x] Hardcode fallback teks `SIO Operasional Terdaftar` pada role MHE padahal lisensi belum terdaftar di database.
+- [x] **2. Perbaikan Logika Status Lisensi Digital ID (`src/components/WorkerDigitalIdModal.tsx`)**:
+  - [x] Jika belum memiliki lisensi (`!license`), role operator MHE kini secara akurat diberi label merah `TIDAK VALID` / `Belum Memiliki SIO Terdaftar`.
+  - [x] Sinkronisasi reaktif via CustomEvent `gappy_licenses_updated` agar tampilan status langsung ter-update begitu lisensi didaftarkan tanpa reload browser.
+- [x] **3. Modal Unggah SIO Mandiri Pekerja (`src/components/WorkerSioUploadModal.tsx`)**:
+  - [x] Komponen khusus pekerja untuk mengunggah foto kartu SIO atau dokumen PDF mandiri langsung dari perangkat/HP.
+  - [x] Terintegrasi penuh dengan `SioAiService.extractSioFromImage` (ekstraksi AI Vision cepat 1.5–3s + live scanning animation).
+  - [x] Otomatis mengaitkan data dengan identitas pekerja yang login (`workerId`, `workerName`, `employeeId`, `division`).
+  - [x] Otomatis mencairkan reward poin pendaftaran SIO (+100 PTS) ke profil pekerja via `LicenseService.addLicense` & RPC `increment_worker_points`.
+  - [x] Sinkronisasi instan ke Supabase `mhe_licenses` dan penyimpanan berkas bukti ke Google Drive.
+- [x] **4. Tombol Pintasan Cepat di Dashboard & Modal Kartu ID (`App.tsx` & `WorkerDigitalIdModal.tsx`)**:
+  - [x] Menambahkan tombol call-to-action `Unggah SIO Mandiri (AI Scan) +100 PTS` di dalam kartu digital ID.
+  - [x] Menambahkan tombol shortcut `Unggah SIO (+100 PTS)` di beranda worker tepat di samping tombol `Kartu ID & SIO Digital` bagi operator MHE yang belum memiliki SIO.
+- [x] **5. Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` lulus 0 error.
+  - [x] Production build `npm run build` sukses (3440 modules, 27.44s).
+
+

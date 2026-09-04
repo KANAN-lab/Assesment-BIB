@@ -31,9 +31,12 @@ const AcknowledgeHandoverModal = React.lazy(() => import('./components/Acknowled
 const KaizenSubmissionModal = React.lazy(() => import('./components/KaizenSubmissionModal').then(m => ({ default: m.KaizenSubmissionModal })));
 const WorkerHistoryCenterModal = React.lazy(() => import('./components/WorkerHistoryCenterModal').then(m => ({ default: m.WorkerHistoryCenterModal })));
 const WorkerDigitalIdModal = React.lazy(() => import('./components/WorkerDigitalIdModal').then(m => ({ default: m.WorkerDigitalIdModal })));
+const WorkerSioUploadModal = React.lazy(() => import('./components/WorkerSioUploadModal').then(m => ({ default: m.WorkerSioUploadModal })));
 const OfflineQueueDrawer = React.lazy(() => import('./components/OfflineQueueDrawer').then(m => ({ default: m.OfflineQueueDrawer })));
 import { ShiftHandoverEntity } from './types/handover';
 import { HandoverManager } from './lib/handoverService';
+import { LicenseService } from './lib/licenseService';
+import { MheLicenseEntity } from './types/license';
 
 
 import {
@@ -79,7 +82,7 @@ import { RoleEntity } from './domain/RoleEntity';
 import { WorkerEntity } from './domain/WorkerEntity';
 import { SystemConfigService } from './domain/SystemConfigService';
 
-import { Zap, ShieldCheck, Flame, Coins, Trophy, CheckCircle2, AlertCircle, Loader2, Camera, ShieldAlert, BookOpen, Award, Sparkles, Lightbulb, History, QrCode } from 'lucide-react';
+import { Zap, ShieldCheck, Flame, Coins, Trophy, CheckCircle2, AlertCircle, Loader2, Camera, ShieldAlert, BookOpen, Award, Sparkles, Lightbulb, History, QrCode, Truck } from 'lucide-react';
 
 export const App: React.FC = () => {
   const [activeView, setActiveView] = useState<'worker' | 'supervisor' | 'admin'>('worker');
@@ -106,6 +109,30 @@ export const App: React.FC = () => {
   const [showKaizenModal, setShowKaizenModal] = useState(false);
   const [showHistoryCenterModal, setShowHistoryCenterModal] = useState(false);
   const [showDigitalIdModal, setShowDigitalIdModal] = useState(false);
+  const [showWorkerSioModal, setShowWorkerSioModal] = useState(false);
+  const [workerLicense, setWorkerLicense] = useState<MheLicenseEntity | undefined>(() =>
+    currentWorker ? (LicenseService.getLicenseByWorkerId(currentWorker.id) || LicenseService.getLicenseByWorkerId(currentWorker.employeeId)) : undefined
+  );
+
+  useEffect(() => {
+    const updateLic = () => {
+      if (currentWorker) {
+        setWorkerLicense(LicenseService.getLicenseByWorkerId(currentWorker.id) || LicenseService.getLicenseByWorkerId(currentWorker.employeeId));
+      }
+    };
+    updateLic();
+    window.addEventListener('gappy_licenses_updated', updateLic);
+    return () => {
+      window.removeEventListener('gappy_licenses_updated', updateLic);
+    };
+  }, [currentWorker]);
+
+  const isMheOperator = useMemo(() => {
+    if (!currentWorker?.role) return false;
+    const r = currentWorker.role.toLowerCase();
+    return r.includes('forklift') || r.includes('reach truck') || r.includes('timbangan') || r.includes('mhe');
+  }, [currentWorker?.role]);
+
   const [unacknowledgedHandovers, setUnacknowledgedHandovers] = useState<ShiftHandoverEntity[]>([]);
   const lastActiveRef = useRef<number>(Date.now());
 
@@ -869,7 +896,7 @@ export const App: React.FC = () => {
                       <span className="font-sans">Divisi: <strong className="text-zinc-300 font-semibold">{currentWorker.division}</strong></span>
                     </div>
 
-                    <div className="mt-1.5 flex items-center gap-2">
+                    <div className="mt-1.5 flex items-center gap-2 flex-wrap">
                       <button
                         type="button"
                         onClick={() => setShowDigitalIdModal(true)}
@@ -879,6 +906,19 @@ export const App: React.FC = () => {
                         <QrCode className="w-3.5 h-3.5 text-cyan-400" />
                         <span>Kartu ID & SIO Digital</span>
                       </button>
+
+                      {/* Shortcut Unggah SIO Mandiri jika Operator MHE belum memiliki SIO atau Expired */}
+                      {isMheOperator && (!workerLicense || workerLicense.status === 'expired' || workerLicense.status === 'expiring_soon') && (
+                        <button
+                          type="button"
+                          onClick={() => setShowWorkerSioModal(true)}
+                          className="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 rounded-lg text-[10px] font-bold text-amber-300 flex items-center gap-1.5 transition shadow-sm animate-pulse hover:scale-[1.02] active:scale-[0.98]"
+                          title="Unggah Lisensi SIO Mandiri via AI Scan & raih reward +100 PTS"
+                        >
+                          <Truck className="w-3.5 h-3.5 text-amber-400" />
+                          <span>{workerLicense ? 'Perbarui SIO' : 'Unggah SIO (+100 PTS)'}</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1284,6 +1324,20 @@ export const App: React.FC = () => {
             isOpen={showDigitalIdModal}
             onClose={() => setShowDigitalIdModal(false)}
             worker={currentWorker}
+          />
+        )}
+
+        {showWorkerSioModal && currentWorker && (
+          <WorkerSioUploadModal
+            isOpen={showWorkerSioModal}
+            onClose={() => setShowWorkerSioModal(false)}
+            worker={currentWorker}
+            onSuccess={(newLic) => {
+              setWorkerLicense(newLic);
+              if (currentWorker) {
+                loadDataForWorker(currentWorker.id);
+              }
+            }}
           />
         )}
 

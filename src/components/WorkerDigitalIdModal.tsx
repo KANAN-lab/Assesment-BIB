@@ -14,12 +14,15 @@ import {
   HardHat,
   Calendar,
   Building2,
-  Share2
+  Share2,
+  UploadCloud,
+  ExternalLink
 } from 'lucide-react';
 import { WorkerProfile } from '../types/assessment';
 import { WorkerAvatar } from './WorkerAvatar';
 import { LicenseService } from '../lib/licenseService';
 import { MheLicenseEntity } from '../types/license';
+import { WorkerSioUploadModal } from './WorkerSioUploadModal';
 
 interface WorkerDigitalIdModalProps {
   isOpen: boolean;
@@ -33,6 +36,25 @@ export const WorkerDigitalIdModal: React.FC<WorkerDigitalIdModalProps> = ({
   worker,
 }) => {
   const cardRef = useRef<HTMLDivElement>(null);
+  const [isUploadSioOpen, setIsUploadSioOpen] = React.useState(false);
+
+  // State lisensi reaktif
+  const [license, setLicense] = React.useState<MheLicenseEntity | undefined>(() =>
+    LicenseService.getLicenseByWorkerId(worker.id) || LicenseService.getLicenseByWorkerId(worker.employeeId)
+  );
+
+  // Re-sync lisensi saat modal dibuka atau ada event pembaruan
+  useEffect(() => {
+    const updateLic = () => {
+      setLicense(LicenseService.getLicenseByWorkerId(worker.id) || LicenseService.getLicenseByWorkerId(worker.employeeId));
+    };
+    updateLic();
+
+    window.addEventListener('gappy_licenses_updated', updateLic);
+    return () => {
+      window.removeEventListener('gappy_licenses_updated', updateLic);
+    };
+  }, [worker, isOpen]);
 
   // Lock scroll
   useEffect(() => {
@@ -45,11 +67,6 @@ export const WorkerDigitalIdModal: React.FC<WorkerDigitalIdModalProps> = ({
       document.body.style.overflow = 'unset';
     };
   }, [isOpen]);
-
-  // Query SIO License status for this worker
-  const license: MheLicenseEntity | undefined = useMemo(() => {
-    return LicenseService.getLicenseByWorkerId(worker.id) || LicenseService.getLicenseByWorkerId(worker.employeeId);
-  }, [worker]);
 
   const isMheRole = useMemo(() => {
     const r = worker.role.toLowerCase();
@@ -239,30 +256,58 @@ export const WorkerDigitalIdModal: React.FC<WorkerDigitalIdModalProps> = ({
             {/* K3 Compliance & SIO License Badges */}
             <div className="space-y-2 text-xs">
               {/* SIO License Status */}
-              <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-between">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Truck className="w-4 h-4 text-amber-400 shrink-0" />
-                  <div className="min-w-0">
-                    <div className="text-[9px] text-zinc-500 font-bold uppercase">Lisensi Kemenaker SIO MHE</div>
-                    <div className="text-[11px] font-bold text-white truncate">
-                      {license ? (
-                        <span>{license.licenseType} ({license.licenseNumber})</span>
-                      ) : isMheRole ? (
-                        <span className="text-amber-400">SIO Operasional Terdaftar</span>
-                      ) : (
-                        <span className="text-zinc-400">Bukan Operator MHE</span>
-                      )}
+              <div className="p-2.5 rounded-xl bg-zinc-900 border border-zinc-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Truck className="w-4 h-4 text-amber-400 shrink-0" />
+                    <div className="min-w-0">
+                      <div className="text-[9px] text-zinc-500 font-bold uppercase">Lisensi Kemenaker SIO MHE</div>
+                      <div className="text-[11px] font-bold text-white truncate">
+                        {license ? (
+                          <span>{license.licenseType} ({license.licenseNumber})</span>
+                        ) : isMheRole ? (
+                          <span className="text-rose-400">Belum Memiliki SIO Terdaftar</span>
+                        ) : (
+                          <span className="text-zinc-400">Bukan Operator MHE</span>
+                        )}
+                      </div>
                     </div>
                   </div>
+                  {license ? (
+                    license.status === 'expired' ? (
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30 shrink-0">
+                        EXPIRED
+                      </span>
+                    ) : license.status === 'expiring_soon' ? (
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30 shrink-0">
+                        HABIS &le;30H
+                      </span>
+                    ) : (
+                      <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
+                        VALID
+                      </span>
+                    )
+                  ) : isMheRole ? (
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30 shrink-0">
+                      TIDAK VALID
+                    </span>
+                  ) : (
+                    <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700 shrink-0">
+                      N/A
+                    </span>
+                  )}
                 </div>
-                {license?.status === 'expired' ? (
-                  <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/30 shrink-0">
-                    EXPIRED
-                  </span>
-                ) : (
-                  <span className="text-[9px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 shrink-0">
-                    VALID
-                  </span>
+
+                {/* Tombol Unggah SIO Mandiri jika Operator MHE belum memiliki SIO atau Expired */}
+                {isMheRole && (!license || license.status === 'expired' || license.status === 'expiring_soon') && (
+                  <button
+                    type="button"
+                    onClick={() => setIsUploadSioOpen(true)}
+                    className="w-full py-1.5 px-3 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-bold text-[11px] flex items-center justify-center gap-1.5 transition shadow-sm"
+                  >
+                    <UploadCloud className="w-3.5 h-3.5 text-indigo-400" />
+                    <span>{license ? 'Perbarui Berkas SIO (AI Scan)' : 'Unggah SIO Mandiri (AI Scan) +100 PTS'}</span>
+                  </button>
                 )}
               </div>
 
@@ -337,6 +382,14 @@ export const WorkerDigitalIdModal: React.FC<WorkerDigitalIdModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Modal Unggah SIO Mandiri */}
+      <WorkerSioUploadModal
+        isOpen={isUploadSioOpen}
+        onClose={() => setIsUploadSioOpen(false)}
+        worker={worker}
+        onSuccess={(newLic) => setLicense(newLic)}
+      />
     </div>,
     document.body
   );

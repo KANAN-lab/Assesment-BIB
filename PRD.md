@@ -728,3 +728,19 @@ Modul pembelajaran interaktif multi-format (*Gamified Micro-Learning*) untuk mem
 - **Penyimpanan Terpusat & Caching Cepat**:
   - Disimpan ke database Supabase tabel `system_settings` (`key: 'gemini_candidate_models'`).
   - Dilengkapi cache lokal berkecepatan 0ms (`localStorage: 'komar_gemini_candidate_models'`) dengan sinkronisasi event real-time `gappy_gemini_models_updated`.
+
+---
+
+## 30. Self-Service MHE SIO License Upload & Realtime Digital ID Compliance
+
+- **Eliminasi Kesalahan Label Validitas SIO**:
+  - Memperbaiki bug logika pada `WorkerDigitalIdModal.tsx` yang sebelumnya memberi label `VALID` secara palsu kepada setiap pekerja yang belum memiliki data SIO terdaftar.
+  - Operator alat berat (Forklift, Reach Truck, MHE) yang belum memiliki lisensi kini secara akurat berstatus `TIDAK VALID` / `Belum Memiliki SIO Terdaftar`.
+- **Portal Unggah SIO Mandiri Pekerja (`WorkerSioUploadModal.tsx`)**:
+  - Operator dapat mengunggah foto kartu SIO atau dokumen PDF mandiri langsung dari smartphone / browser mereka.
+  - Ekstraksi otomatis instan (1.5–3 detik) menggunakan Gappy Vision AI dengan preview dokumen dan validasi formulir terstruktur.
+  - Insentif reward instan: Pendaftaran SIO mandiri secara otomatis mencairkan reward +100 PTS ke akun pekerja via Supabase RPC `increment_worker_points`.
+- **Integrasi Pintasan Aksi di Beranda & Kartu ID**:
+  - Tombol aksi cepat `Unggah SIO Mandiri (AI Scan) +100 PTS` langsung tersedia di dalam Kartu ID Digital dan di samping NIP beranda pekerja.
+  - Begitu SIO tersimpan, Kartu ID & SIO Digital otomatis ter-refresh menjadi `VALID` secara realtime tanpa reload halaman via event `gappy_licenses_updated`.
+
