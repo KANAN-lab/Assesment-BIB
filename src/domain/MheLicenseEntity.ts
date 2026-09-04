@@ -51,23 +51,30 @@ export class MheLicenseEntity {
    * Evaluates validity & remaining days from an expiry date string.
    */
   public static calculateStatusAndDays(expiryDateStr: string): { status: LicenseStatus; daysRemaining: number } {
+    if (!expiryDateStr || typeof expiryDateStr !== 'string') {
+      return { status: 'expired', daysRemaining: 0 };
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const expiry = new Date(expiryDateStr);
+    if (isNaN(expiry.getTime())) {
+      return { status: 'expired', daysRemaining: 0 };
+    }
     expiry.setHours(0, 0, 0, 0);
 
     const diffTime = expiry.getTime() - today.getTime();
     const daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
     let status: LicenseStatus = 'active';
-    if (daysRemaining < 0) {
+    if (isNaN(daysRemaining) || daysRemaining < 0) {
       status = 'expired';
     } else if (daysRemaining <= 30) {
       status = 'expiring_soon';
     }
 
-    return { status, daysRemaining };
+    return { status, daysRemaining: isNaN(daysRemaining) ? 0 : daysRemaining };
   }
 
   public isExpired(): boolean {

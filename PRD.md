@@ -578,9 +578,15 @@ Modul pembelajaran interaktif multi-format (*Gamified Micro-Learning*) untuk mem
   - Tombol manual *Sinkron Cloud* pada header panel.
 - **Ultra-Fast AI Vision SIO OCR (`SioAiService.ts`)**:
   - Kompresi gambar client-side otomatis via `browser-image-compression` ke maks 1400px (~350 KB, hemat bandwidth 95%).
-  - Eliminasi model fiktif, mengarah langsung ke model multimodal aktif: `gemini-2.5-flash`, `gemini-2.0-flash`, `gemini-1.5-flash`.
+  - Dukungan dokumen **Multi-format Gambar (JPEG/PNG/WebP) & Dokumen PDF Resmi Kemnaker RI**.
+  - Parser normalisasi tanggal ISO multiformat (`normalizeToIsoDate`) menangani variasi teks tanggal Indonesia menjadi ISO `YYYY-MM-DD`.
   - Mode output JSON terstruktur bawaan model (`responseMimeType: 'application/json'`).
   - Waktu ekstraksi terpangkas drastis dari **15–25 detik menjadi ~1.5–3 detik**.
+- **Peningkatan Kepatuhan & Audit Fisik (`MheLicensePanel.tsx`)**:
+  - Validasi kronologi tanggal terbit vs kedaluwarsa untuk integritas data sertifikasi.
+  - Akses langsung berkas bukti dokumen SIO via tombol `ExternalLink` di tabel lisensi.
+  - Safeguard anti-NaN pada kalkulasi sisa hari dan status kedaluwarsa.
+  - Banner panduan pencocokan akun pekerja manual saat nama di SIO tidak cocok 100% otomatis dengan database.
 
 ---
 

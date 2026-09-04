@@ -32,13 +32,75 @@ export class SioAiService {
       const reader = new FileReader();
       reader.onload = () => {
         const result = reader.result as string;
-        // Strip data:image/...;base64, prefix
+        // Strip data:image/...;base64, or data:application/pdf;base64, prefix
         const base64 = result.split(',')[1];
-        resolve({ base64, mimeType: file.type || 'image/jpeg' });
+        let mimeType = file.type;
+        if (!mimeType) {
+          const fileName = (file as File).name?.toLowerCase() || '';
+          mimeType = fileName.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg';
+        }
+        resolve({ base64, mimeType });
       };
       reader.onerror = (err) => reject(err);
       reader.readAsDataURL(file);
     });
+  }
+
+  /**
+   * Normalize various date formats (DD/MM/YYYY, DD-MM-YYYY, DD Month YYYY) into ISO YYYY-MM-DD
+   */
+  public static normalizeToIsoDate(rawDateStr?: string): string {
+    if (!rawDateStr || typeof rawDateStr !== 'string') return '';
+    const cleanStr = rawDateStr.trim();
+
+    // If already YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(cleanStr)) {
+      return cleanStr;
+    }
+
+    // Format DD/MM/YYYY or DD-MM-YYYY
+    const ddmmyyyyMatch = cleanStr.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (ddmmyyyyMatch) {
+      const day = ddmmyyyyMatch[1].padStart(2, '0');
+      const month = ddmmyyyyMatch[2].padStart(2, '0');
+      const year = ddmmyyyyMatch[3];
+      return `${year}-${month}-${day}`;
+    }
+
+    // Format DD Month YYYY (e.g. "12 Juni 2024" or "12 June 2024")
+    const monthMap: Record<string, string> = {
+      jan: '01', januari: '01', january: '01',
+      feb: '02', februari: '02', february: '02', pebruari: '02',
+      mar: '03', maret: '03', march: '03',
+      apr: '04', april: '04',
+      mei: '05', may: '05',
+      jun: '06', juni: '06', june: '06',
+      jul: '07', juli: '07', july: '07',
+      agu: '08', ags: '08', agustus: '08', august: '08',
+      sep: '09', september: '09',
+      okt: '10', oct: '10', oktober: '10', october: '10',
+      nop: '11', nov: '11', november: '11',
+      des: '12', dec: '12', desember: '12', december: '12',
+    };
+
+    const textDateMatch = cleanStr.match(/(\d{1,2})\s+([a-zA-Z]+)\s+(\d{4})/);
+    if (textDateMatch) {
+      const day = textDateMatch[1].padStart(2, '0');
+      const monthWord = textDateMatch[2].toLowerCase();
+      const year = textDateMatch[3];
+      const monthNum = monthMap[monthWord] || monthMap[monthWord.substring(0, 3)];
+      if (monthNum) {
+        return `${year}-${monthNum}-${day}`;
+      }
+    }
+
+    // Fallback: standard Date parse
+    const parsedDate = new Date(cleanStr);
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate.toISOString().split('T')[0];
+    }
+
+    return '';
   }
 
   /**
@@ -112,7 +174,7 @@ export class SioAiService {
       }
     }
 
-    onProgress?.('Menganalisis dokumen dengan Gemini AI Vision...');
+    onProgress?.('Menganalisis dokumen dengan Gappy Vision...');
     const { base64, mimeType } = await this.fileToBase64(processedFile);
     const genAI = new GoogleGenerativeAI(apiKey.trim());
 
@@ -258,8 +320,8 @@ Format Output JSON WAJIB (tanpa markdown tambahan):
       workerName: (parsed.workerName || '').toUpperCase().trim(),
       licenseNumber: (parsed.licenseNumber || '').toUpperCase().trim(),
       licenseType: matchedType,
-      issuedDate: parsed.issuedDate || new Date().toISOString().split('T')[0],
-      expiryDate: parsed.expiryDate || '',
+      issuedDate: this.normalizeToIsoDate(parsed.issuedDate) || new Date().toISOString().split('T')[0],
+      expiryDate: this.normalizeToIsoDate(parsed.expiryDate) || '',
       issuingAuthority: parsed.issuingAuthority || 'Kementerian Ketenagakerjaan RI',
       birthPlaceDate: parsed.birthPlaceDate,
       bloodType: parsed.bloodType,

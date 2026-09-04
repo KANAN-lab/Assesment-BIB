@@ -735,3 +735,26 @@
 - [x] **6. Verifikasi & Pengujian**:
   - [x] Type check `npx tsc --noEmit` lulus 0 error.
   - [x] Production build `npm run build` sukses (3440 modules, 17.09s).
+
+---
+
+## Phase 40: MHE License & AI Vision Hardening, Multi-format PDF Support, and Expiry Safeguards
+
+- [x] **1. Safeguard Validasi Tanggal & Eliminasi NaN (`MheLicenseEntity.ts` & `licenseService.ts`)**:
+  - [x] Menambahkan guard clause validasi tanggal pada `MheLicenseEntity.calculateStatusAndDays` agar string tanggal kosong/rusak tidak menghasilkan `NaN` dan keliru dilabeli `active`.
+  - [x] Standarisasi ekspor CSV agar kolom sisa hari selalu bersih (fallback `0` jika data lampau/rusak).
+- [x] **2. Normalisasi Format Tanggal ISO AI Vision (`sioAiService.ts`)**:
+  - [x] Implementasi helper `normalizeToIsoDate` yang mengubah format tanggal Indonesia (misal `12/06/2024`, `12-06-2024`, `12 Juni 2024`) menjadi ISO `YYYY-MM-DD` yang valid untuk HTML5 date input dan PostgreSQL `DATE`.
+- [x] **3. Dukungan Format PDF Dokumen SIO (`sioAiService.ts` & `MheLicensePanel.tsx`)**:
+  - [x] Membuka input file agar menerima `accept="image/*,application/pdf"`.
+  - [x] Menyediakan visual card preview untuk dokumen PDF (ikon PDF + nama file) tanpa merender tag `img` rusak.
+  - [x] Preservasi ekstensi file asli (`.pdf`, `.png`, `.jpg`) saat upload ke Google Drive.
+- [x] **4. Validasi Kronologi Tanggal & Integrasi UI (`MheLicensePanel.tsx`)**:
+  - [x] Menambahkan validasi: tanggal kedaluwarsa tidak boleh lebih lampau daripada tanggal diterbitkan.
+  - [x] Melengkapi pilihan filter tabel lisensi agar mencakup `Petugas P3K (First Aid)` dan `Auditor SMK3 / 5S`.
+  - [x] Menambahkan tombol aksi `Lihat Berkas SIO` (`ExternalLink`) di tabel untuk akses cepat dokumen fisik/PDF.
+  - [x] Menampilkan petunjuk cerdas saat nama operator di SIO terdeteksi AI tetapi belum otomatis match dengan akun pekerja di database.
+- [x] **5. Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` lulus 0 error.
+  - [x] Production build `npm run build` sukses (3440 modules, 22.00s).
+

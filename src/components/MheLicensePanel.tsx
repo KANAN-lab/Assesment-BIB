@@ -27,7 +27,8 @@ import {
   Loader2,
   ScanLine,
   UserCheck,
-  Info
+  Info,
+  FileText
 } from 'lucide-react';
 import { MheLicenseEntity, LicenseType, LicenseStatus } from '../types/license';
 import { LicenseService } from '../lib/licenseService';
@@ -285,15 +286,21 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
       return;
     }
 
+    if (new Date(formIssuedDate) > new Date(formExpiryDate)) {
+      SwalService.warning('Tanggal Tidak Valid', 'Tanggal kedaluwarsa tidak boleh lebih lampau daripada tanggal diterbitkan.');
+      return;
+    }
+
     let gdriveDocumentUrl = editingLicense?.documentUrl;
     if (uploadedSioFile) {
       try {
         setIsUploadingToDrive(true);
+        const fileExt = uploadedSioFile.name.split('.').pop() || (uploadedSioFile.type === 'application/pdf' ? 'pdf' : 'jpg');
         const uploadRes = await uploadFileToGoogleDrive(uploadedSioFile, {
           workerId: formWorkerId,
           workerName: formWorkerName,
           moduleCategory: 'SIO_MHE',
-          customFilename: `SIO_${formLicenseNumber.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.jpg`,
+          customFilename: `SIO_${formLicenseNumber.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.${fileExt}`,
         });
         if (uploadRes.directUrl || uploadRes.webViewLink) {
           gdriveDocumentUrl = uploadRes.directUrl || uploadRes.webViewLink;
@@ -541,6 +548,8 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
               <option value="SIO Reach Truck (Kelas I)">SIO Reach Truck (Kelas I)</option>
               <option value="SIM B2 Umum (Ekspedisi)">SIM B2 Umum (Ekspedisi)</option>
               <option value="Ahli K3 Umum Kemenaker">Ahli K3 Umum Kemenaker</option>
+              <option value="Petugas P3K (First Aid)">Petugas P3K (First Aid)</option>
+              <option value="Auditor SMK3 / 5S">Auditor SMK3 / 5S</option>
             </select>
             <ChevronDown className="w-3.5 h-3.5 text-zinc-500 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
           </div>
@@ -620,6 +629,17 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
                     {/* Aksi */}
                     <td className="py-3 px-3 text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {l.documentUrl && (
+                          <a
+                            href={l.documentUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1.5 bg-zinc-800 hover:bg-indigo-950/60 text-indigo-400 hover:text-indigo-300 rounded-lg transition"
+                            title="Buka Berkas Bukti SIO Asli (Foto/PDF)"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
                         <button
                           onClick={() => handleOpenEditModal(l)}
                           className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white rounded-lg transition"
@@ -706,7 +726,7 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
                     type="file"
                     ref={fileInputRef}
                     onChange={handleFileUpload}
-                    accept="image/*"
+                    accept="image/*,application/pdf"
                     className="hidden"
                   />
                   <button
@@ -723,7 +743,7 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
                     ) : (
                       <>
                         <UploadCloud className="w-3.5 h-3.5" />
-                        <span>{imagePreview ? 'Ganti Foto SIO' : 'Upload Foto SIO'}</span>
+                        <span>{imagePreview ? 'Ganti Berkas SIO' : 'Upload Foto / PDF SIO'}</span>
                       </>
                     )}
                   </button>
@@ -749,24 +769,31 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
                 </div>
               )}
 
-              {/* Image Preview & Extracted Summary Bar */}
+              {/* Image / PDF Preview & Extracted Summary Bar */}
               {imagePreview && !isAiScanning && (
                 <div className="flex items-center gap-3 p-2.5 rounded-xl bg-zinc-950/80 border border-zinc-800">
-                  <img
-                    src={imagePreview}
-                    alt="SIO Preview"
-                    className="w-16 h-12 object-cover rounded-lg border border-zinc-700 shrink-0"
-                  />
+                  {(uploadedSioFile?.type === 'application/pdf' || uploadedSioFile?.name.toLowerCase().endsWith('.pdf')) ? (
+                    <div className="w-16 h-12 rounded-lg border border-red-500/30 bg-red-950/30 flex flex-col items-center justify-center shrink-0 text-red-400">
+                      <FileText className="w-5 h-5" />
+                      <span className="text-[8px] font-bold mt-0.5">PDF SIO</span>
+                    </div>
+                  ) : (
+                    <img
+                      src={imagePreview}
+                      alt="SIO Preview"
+                      className="w-16 h-12 object-cover rounded-lg border border-zinc-700 shrink-0"
+                    />
+                  )}
                   <div className="flex-1 min-w-0 text-[11px]">
                     <div className="text-zinc-200 font-bold flex items-center gap-1.5">
                       <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                      <span>Hasil Analisis AI Vision:</span>
+                      <span>Hasil Analisis Gappy Vision:</span>
                     </div>
                     <div className="text-zinc-400 text-[10px] truncate mt-0.5">
                       {extractedMeta?.licenseNumber ? (
                         <>No: <span className="text-amber-300 font-mono font-bold">{extractedMeta.licenseNumber}</span> · Exp: {extractedMeta.expiryDate || '-'}</>
                       ) : (
-                        'Foto berhasil dimuat. Field formulir di bawah siap disimpan.'
+                        'Berkas berhasil dimuat. Field formulir di bawah siap disimpan.'
                       )}
                     </div>
                   </div>
@@ -780,6 +807,17 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
             </div>
 
             <form onSubmit={handleSaveLicense} className="space-y-4">
+              {/* Petunjuk Pencocokan jika Worker belum Auto-Matched */}
+              {extractedMeta?.workerName && !extractedMeta?.matchedWorker && (
+                <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-[11px] text-amber-200 flex items-start gap-2">
+                  <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                  <div>
+                    <span className="font-bold text-amber-300">Pencocokan Akun Manual: </span>
+                    Nama pada dokumen SIO adalah <strong className="text-white font-mono">"{extractedMeta.workerName}"</strong>, namun belum cocok otomatis dengan database pekerja. Silakan tentukan akun pekerja yang bersangkutan pada pilihan di bawah.
+                  </div>
+                </div>
+              )}
+
               {/* Pilih Pekerja */}
               <div className="space-y-1">
                 <div className="flex items-center justify-between">

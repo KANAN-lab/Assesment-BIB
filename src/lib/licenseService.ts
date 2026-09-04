@@ -424,8 +424,8 @@ export class LicenseService {
       `"${l.issuingAuthority}"`,
       `"${l.issuedDate}"`,
       `"${l.expiryDate}"`,
-      l.daysRemaining,
-      `"${l.status.toUpperCase()}"`,
+      isNaN(l.daysRemaining) ? 0 : l.daysRemaining,
+      `"${(l.status || 'expired').toUpperCase()}"`,
       `"${l.notes || '-'}"`,
     ]);
 
