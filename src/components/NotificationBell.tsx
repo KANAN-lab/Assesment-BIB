@@ -30,7 +30,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
-  const [filterType, setFilterType] = useState<'all' | 'unread' | 'incident' | 'system'>('all');
+  const [filterType, setFilterType] = useState<'all' | 'unread' | 'license' | 'incident' | 'system'>('all');
   const ref = useRef<HTMLDivElement>(null);
 
   const reloadNotifications = () => {
@@ -76,6 +76,7 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
   const filteredNotifications = useMemo(() => {
     return notifications.filter((n) => {
       if (filterType === 'unread') return !n.isRead;
+      if (filterType === 'license') return n.type === 'license';
       if (filterType === 'incident') return n.type === 'incident';
       if (filterType === 'system') return n.type === 'system';
       return true;
@@ -201,6 +202,16 @@ export const NotificationBell: React.FC<NotificationBellProps> = ({
               }`}
             >
               Belum Dibaca ({unreadCount})
+            </button>
+            <button
+              onClick={() => setFilterType('license')}
+              className={`px-2.5 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap transition ${
+                filterType === 'license'
+                  ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                  : 'text-zinc-500 hover:text-zinc-300'
+              }`}
+            >
+              Lisensi SIO
             </button>
             <button
               onClick={() => setFilterType('incident')}

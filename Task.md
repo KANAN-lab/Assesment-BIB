@@ -800,4 +800,31 @@
   - [x] Type check `npx tsc --noEmit` lulus 0 error.
   - [x] Production build `npm run build` sukses.
 
+---
+
+## Phase 43: Notification Visibility Control & Personal Targeting Isolation
+
+- [x] **1. Root Cause Analysis - Notifikasi SIO Milik Operator Lain Bocor ke Semua Worker (`NotificationEngine.ts`)**:
+  - [x] Menemukan bahwa notifikasi personal (seperti SIO Jujun Junaedi) yang memiliki `recipientRole: 'worker'` dievaluasi `true` untuk seluruh pekerja gudang pada baris pengecekan `if (n.recipientRole === 'worker' || n.recipientId === 'worker') return true;`.
+  - [x] Akibatnya akun operator lain (seperti Agung Bagaskara) menerima dan melihat 4 notifikasi SIO milik rekan operator lainnya di panel lonceng.
+- [x] **2. Perbaikan Isolasi Notifikasi Pribadi (`src/domain/NotificationEngine.ts`)**:
+  - [x] Menghapus kondisi broad-matching: siaran massal ke seluruh operator HANYA diizinkan jika `recipientId === 'worker'` atau `recipientId === 'all'`.
+  - [x] Notifikasi personal (`recipientId` berupa ID spesifik pekerja) HANYA ditampilkan jika `recipientId === userId` atau `recipientId === employeeId`.
+- [x] **3. Sistem Kebijakan Perutean Notifikasi (`NotificationRoutingPolicy`)**:
+  - [x] Mendefinisikan tipe `NotificationCategoryConfig` dan `NotificationRoutingPolicy` dengan 6 kategori master: `license` (Lisensi SIO & MHE), `incident` (Insiden K3), `quiz` (Kuis Safety), `reward` (Reward & Poin), `audit` (Audit 5S & Patrol), `system` (Pengumuman Sistem).
+  - [x] Menambahkan method OOP: `getRoutingPolicy()`, `saveRoutingPolicy()`, `resetRoutingPolicy()`, dan `isNotificationVisibleForRole()`.
+  - [x] Mengaktifkan opsi override master: `adminMonitorAll` (Administrator dapat memantau seluruh log notifikasi lintas role untuk tujuan kepatuhan K3 dan audit).
+- [x] **4. Pusat Kontrol Notifikasi di Administrator Console (`src/components/AdminNotificationPanel.tsx`)**:
+  - [x] Menambahkan Tab Navigasi:
+    - **Tab 1: Siaran & Riwayat Notifikasi** (pengiriman siaran instan + filter pencarian per Kategori dan Role).
+    - **Tab 2: Pengaturan Visibilitas & Routing (Maintenance)** (kontrol master kategori notifikasi yang aktif di sistem dan seleksi role penerima).
+  - [x] Matriks interaktif untuk mengaktifkan/menonaktifkan kategori dan mengatur chip distribusi role (`Operational`, `Supervisor`, `Admin`).
+  - [x] Tombol *"Simpan Pengaturan"* dan *"Reset Standar"* dengan dialog konfirmasi OOP SweetAlert2.
+- [x] **5. Pembaruan Filter Lonceng Notifikasi (`src/components/NotificationBell.tsx`)**:
+  - [x] Menambahkan tab filter `Lisensi SIO` pada popover lonceng notifikasi header pekerja/supervisor.
+- [x] **6. Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` lulus 0 error.
+  - [x] Production build `npm run build` sukses (3441 modules, 19.14s).
+
+
 

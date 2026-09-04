@@ -744,3 +744,26 @@ Modul pembelajaran interaktif multi-format (*Gamified Micro-Learning*) untuk mem
   - Tombol aksi cepat `Unggah SIO Mandiri (AI Scan) +100 PTS` langsung tersedia di dalam Kartu ID Digital dan di samping NIP beranda pekerja.
   - Begitu SIO tersimpan, Kartu ID & SIO Digital otomatis ter-refresh menjadi `VALID` secara realtime tanpa reload halaman via event `gappy_licenses_updated`.
 
+---
+
+## 31. Role-Based Notification Routing Policy & Personal Targeting Isolation
+
+- **Isolasi Privasi & Eliminasi Kebocoran Notifikasi Pribadi**:
+  - Memperbaiki logika perutean penerima pada `NotificationEngine.ts`: Notifikasi personal (seperti pendaftaran lisensi SIO, pencairan reward individual, tiket APD, dan pembinaan sanksi) kini **terisolasi 100% dan hanya tampil pada akun pekerja yang bersangkutan** (`recipientId === worker.id || recipientId === worker.employeeId`).
+  - Menghapus kesalahan penafsiran tag `recipientRole: 'worker'` yang sebelumnya menganggap seluruh notifikasi ber-tag worker sebagai siaran massal ke seluruh operator di gudang.
+- **Pusat Kontrol Visibilitas & Routing Notifikasi Administrator (`AdminNotificationPanel.tsx`)**:
+  - Tab khusus di Administrator Console: **Pengaturan Visibilitas & Routing (Maintenance)**.
+  - **Matriks Konfigurasi 6 Kategori Master**:
+    1. *Lisensi SIO & MHE* (`license`): Pendaftaran mandiri, perpanjangan, dan kedaluwarsa lisensi K3.
+    2. *Insiden K3 & Safety Alert* (`incident`): Laporan bahaya, investigasi kecelakaan, dan tanggap darurat.
+    3. *Kuis K3 & Edukasi SOP* (`quiz`): Checkpoint kuis harian dan modul SOP.
+    4. *Reward Poin & Kudo* (`reward`): Poin kepatuhan, klaim sembako/katalog, dan kiriman kudo.
+    5. *Audit 5R/5S & Safety Patrol* (`audit`): Hasil audit zona 5S dan inspeksi Safety Patrol gemba walk.
+    6. *Pengumuman Sistem & Siaran* (`system`): Siaran manajemen dan pengumuman operasional.
+  - **Hak Akses Audiens Per Kategori**: Administrator dapat memilih secara granular peran mana yang berhak menerima notifikasi per kategori (`Operational Pekerja`, `Supervisor`, `Administrator`) atau menonaktifkannya secara sistem (Switch ON/OFF).
+  - **Mode Pengawasan Administrator (Master Override)**: Toggle `adminMonitorAll` yang memungkinkan Administrator memantau seluruh log notifikasi operasional lintas peran untuk tujuan pemeliharaan dan audit kepatuhan K3.
+  - **Fitur Reset & Simpan Aman**: Dilengkapi dialog konfirmasi OOP SweetAlert2 bertema gelap dan sinkronisasi real-time lintas tab via `BroadcastChannel` dan event `gappy_notification_updated`.
+- **Penyempurnaan Lonceng Notifikasi Header (`NotificationBell.tsx`)**:
+  - Menambahkan tab filter `Lisensi SIO` di popover lonceng notifikasi pekerja dan supervisor untuk pemisahan informasi legalitas yang cepat dan teratur.
+
+

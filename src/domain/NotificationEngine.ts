@@ -1,27 +1,91 @@
 import { supabase } from '../lib/supabaseClient';
 
+export type NotificationType = 'incident' | 'quiz' | 'reward' | 'audit' | 'system' | 'license';
+
 export interface AppNotification {
   id: string;
   recipientId: string; // workerId or 'supervisor' or 'admin' or 'all'
   recipientRole: 'worker' | 'supervisor' | 'admin' | 'all';
   title: string;
   message: string;
-  type: 'incident' | 'quiz' | 'reward' | 'audit' | 'system' | 'license';
+  type: NotificationType;
   isRead: boolean;
   createdAt: string;
   metadata?: Record<string, any>;
 }
 
+export interface NotificationCategoryConfig {
+  type: NotificationType;
+  label: string;
+  description: string;
+  enabled: boolean;
+  visibleToRoles: Array<'worker' | 'supervisor' | 'admin'>;
+}
+
+export interface NotificationRoutingPolicy {
+  categories: NotificationCategoryConfig[];
+  adminMonitorAll: boolean; // Jika true, Admin memonitor seluruh notifikasi lintas role
+}
+
+export const DEFAULT_NOTIFICATION_ROUTING_POLICY: NotificationRoutingPolicy = {
+  adminMonitorAll: true,
+  categories: [
+    {
+      type: 'license',
+      label: 'Lisensi SIO & MHE',
+      description: 'Pendaftaran SIO mandiri, verifikasi perpanjangan, dan peringatan masa berlaku SIO operator.',
+      enabled: true,
+      visibleToRoles: ['worker', 'supervisor', 'admin'],
+    },
+    {
+      type: 'incident',
+      label: 'Insiden K3 & Safety Alert',
+      description: 'Laporan Near-Miss, investigasi kecelakaan kerja, dan alert tanggap darurat keselamatan.',
+      enabled: true,
+      visibleToRoles: ['worker', 'supervisor', 'admin'],
+    },
+    {
+      type: 'quiz',
+      label: 'Kuis K3 & Edukasi SOP',
+      description: 'Pengumuman kuis keselamatan harian, sertifikat micro-learning, dan panduan SOP.',
+      enabled: true,
+      visibleToRoles: ['worker', 'supervisor', 'admin'],
+    },
+    {
+      type: 'reward',
+      label: 'Reward Poin & Kudo',
+      description: 'Pencairan reward poin kepatuhan, klaim voucher sembako/katalog, dan kiriman kudo.',
+      enabled: true,
+      visibleToRoles: ['worker', 'admin'],
+    },
+    {
+      type: 'audit',
+      label: 'Audit 5R/5S & Safety Patrol',
+      description: 'Hasil inspeksi audit 5S wilayah gudang dan temuan patroli pengawas K3 lapangan.',
+      enabled: true,
+      visibleToRoles: ['supervisor', 'admin'],
+    },
+    {
+      type: 'system',
+      label: 'Pengumuman Sistem & Siaran',
+      description: 'Siaran langsung admin, pembaruan operasional logistik, dan info pemeliharaan aplikasi.',
+      enabled: true,
+      visibleToRoles: ['worker', 'supervisor', 'admin'],
+    },
+  ],
+};
+
 /**
  * OOP Notification Engine
  * Handles dispatching, querying, unread counting, broadcast, multi-tab sync,
- * and dual cloud-persistence (Supabase + localStorage fallback) of notifications
+ * role-based category visibility routing, and dual cloud-persistence (Supabase + localStorage fallback)
  * for Workers, Supervisors, and System Administrators.
  */
 export class NotificationEngine {
   private static STORAGE_KEY = 'gappy_app_notifications_v2';
   private static INITIALIZED_KEY = 'gappy_notifications_init_flag_v2';
   private static DELETED_KEY = 'gappy_deleted_notif_ids_v2';
+  private static POLICY_KEY = 'gappy_notification_routing_policy_v1';
 
   // Cross-tab broadcast channel
   private static channel: BroadcastChannel | null = (() => {
@@ -232,7 +296,7 @@ export class NotificationEngine {
     title: string,
     message: string,
     recipientRole: 'all' | 'worker' | 'supervisor' | 'admin' = 'all',
-    type: 'system' | 'incident' | 'quiz' | 'reward' | 'audit' = 'system',
+    type: NotificationType = 'system',
     metadata?: Record<string, any>
   ): AppNotification {
     return this.addNotification({
@@ -246,24 +310,112 @@ export class NotificationEngine {
   }
 
   /**
-   * Get filtered notifications for a specific user or role.
-   * FIX: Operational worker receives both individual notifications AND role-wide broadcasts!
+   * Mengambil kebijakan perutean dan visibilitas notifikasi dari penyimpanan lokal/konfigurasi
+   */
+  public static getRoutingPolicy(): NotificationRoutingPolicy {
+    try {
+      const raw = localStorage.getItem(this.POLICY_KEY);
+      if (!raw) return DEFAULT_NOTIFICATION_ROUTING_POLICY;
+      const parsed = JSON.parse(raw);
+      if (!parsed || !Array.isArray(parsed.categories)) {
+        return DEFAULT_NOTIFICATION_ROUTING_POLICY;
+      }
+      // Merge with default categories in case new types are added
+      const mergedCategories = DEFAULT_NOTIFICATION_ROUTING_POLICY.categories.map((defCat) => {
+        const existing = parsed.categories.find((c: any) => c.type === defCat.type);
+        return existing ? { ...defCat, ...existing } : defCat;
+      });
+
+      return {
+        adminMonitorAll: parsed.adminMonitorAll ?? true,
+        categories: mergedCategories,
+      };
+    } catch {
+      return DEFAULT_NOTIFICATION_ROUTING_POLICY;
+    }
+  }
+
+  /**
+   * Menyimpan kebijakan perutean notifikasi yang dikustomisasi oleh Administrator
+   */
+  public static saveRoutingPolicy(policy: NotificationRoutingPolicy): void {
+    try {
+      localStorage.setItem(this.POLICY_KEY, JSON.stringify(policy));
+      this.notifyUpdate();
+    } catch (err) {
+      console.error('[NotificationEngine] Gagal menyimpan kebijakan notifikasi:', err);
+    }
+  }
+
+  /**
+   * Mengembalikan kebijakan perutean notifikasi ke pengaturan standar
+   */
+  public static resetRoutingPolicy(): NotificationRoutingPolicy {
+    this.saveRoutingPolicy(DEFAULT_NOTIFICATION_ROUTING_POLICY);
+    return DEFAULT_NOTIFICATION_ROUTING_POLICY;
+  }
+
+  /**
+   * Memeriksa apakah sebuah kategori notifikasi diaktifkan dan diizinkan tampil untuk role tertentu
+   */
+  public static isNotificationVisibleForRole(
+    type: NotificationType,
+    role?: string,
+    policy: NotificationRoutingPolicy = this.getRoutingPolicy()
+  ): boolean {
+    const category = policy.categories.find((c) => c.type === type);
+    // Jika tidak terdaftar, izinkan secara default
+    if (!category) return true;
+
+    // Jika kategori dinonaktifkan secara sistem
+    if (!category.enabled) return false;
+
+    // Jika user adalah admin dan adminMonitorAll aktif, selalu izinkan
+    if (role === 'admin' && policy.adminMonitorAll) return true;
+
+    const normalizedRole = role === 'admin' || role === 'supervisor' || role === 'worker' ? role : 'worker';
+    return category.visibleToRoles.includes(normalizedRole);
+  }
+
+  /**
+   * Mengambil daftar notifikasi terisolasi secara akurat untuk user atau peran tertentu.
+   * FIX: 
+   * 1. Notifikasi personal pekerja HANYA tampil jika recipientId cocok dengan ID pekerja (tidak bocor ke pekerja lain).
+   * 2. Siaran massal hanya tampil jika recipientId eksplisit 'worker', 'supervisor', atau 'all'.
+   * 3. Memfilter kategori notifikasi berdasarkan hak akses NotificationRoutingPolicy yang disetel Administrator.
    */
   public static getNotificationsForUser(userId?: string, role?: string, employeeId?: string): AppNotification[] {
     const all = this.getAll();
+    const policy = this.getRoutingPolicy();
+
     return all.filter((n) => {
-      // 1. Notifikasi Publik / Sistem Global
+      // 0. Filter berdasarkan izin kategori dan role
+      if (!this.isNotificationVisibleForRole(n.type, role, policy)) {
+        return false;
+      }
+
+      // 1. Notifikasi Publik / Sistem Global (ditujukan ke 'all')
       if (n.recipientRole === 'all' || n.recipientId === 'all') return true;
 
-      // 2. Jika user adalah System Admin (Admin dapat memonitor seluruh notifikasi)
+      // 2. Jika user adalah System Administrator
       if (role === 'admin') {
-        return true;
+        // Jika adminMonitorAll aktif, admin dapat memantau seluruh log notifikasi
+        if (policy.adminMonitorAll) return true;
+        // Jika tidak, admin hanya melihat notifikasi yang ditujukan ke admin
+        if (n.recipientRole === 'admin' || n.recipientId === 'admin') return true;
+        return false;
       }
 
       // 3. Jika user adalah Pengawas (Supervisor)
       if (role === 'supervisor') {
-        if (n.recipientRole === 'supervisor' || n.recipientId === 'supervisor') return true;
-        if (userId && (n.recipientId === userId || n.recipientId === employeeId)) return true;
+        // Tampilkan broadcast khusus supervisor
+        if (n.recipientId === 'supervisor') return true;
+        if (n.recipientRole === 'supervisor' && (n.recipientId === 'all' || n.recipientId === 'supervisor')) return true;
+
+        // Tampilkan notifikasi personal yang ditujukan khusus ke supervisor ini
+        if (userId && n.recipientId === userId) return true;
+        if (employeeId && n.recipientId === employeeId) return true;
+
         return false;
       }
 
@@ -272,11 +424,12 @@ export class NotificationEngine {
         // Jangan tampilkan notifikasi khusus supervisor atau admin
         if (n.recipientRole === 'supervisor' || n.recipientRole === 'admin') return false;
 
-        // Tampilkan siaran yang ditujukan ke seluruh staf operasional
-        if (n.recipientRole === 'worker' || n.recipientId === 'worker') return true;
+        // Tampilkan broadcast khusus seluruh staf operasional (recipientId === 'worker')
+        if (n.recipientId === 'worker') return true;
 
-        // Tampilkan notifikasi pribadi untuk worker ini (berdasarkan userId atau NIK employeeId)
-        if (userId && (n.recipientId === userId || n.recipientId === employeeId)) return true;
+        // Tampilkan notifikasi personal HANYA jika recipientId cocok dengan userId atau employeeId pekerja ini
+        if (userId && n.recipientId === userId) return true;
+        if (employeeId && n.recipientId === employeeId) return true;
 
         return false;
       }

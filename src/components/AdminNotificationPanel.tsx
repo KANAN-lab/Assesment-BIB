@@ -18,9 +18,25 @@ import {
   Sparkles,
   User,
   Inbox,
-  AlertCircle
+  AlertCircle,
+  Truck,
+  Sliders,
+  Shield,
+  Eye,
+  CheckSquare,
+  Square,
+  RotateCcw,
+  Layers,
+  HelpCircle,
+  Settings2
 } from 'lucide-react';
-import { NotificationEngine, AppNotification } from '../domain/NotificationEngine';
+import {
+  NotificationEngine,
+  AppNotification,
+  NotificationRoutingPolicy,
+  NotificationType,
+  DEFAULT_NOTIFICATION_ROUTING_POLICY
+} from '../domain/NotificationEngine';
 import { SwalService } from '../domain/SwalService';
 import { PaginationControls } from './PaginationControls';
 import { WorkerProfile } from '../types/assessment';
@@ -30,23 +46,32 @@ interface AdminNotificationPanelProps {
 }
 
 export const AdminNotificationPanel: React.FC<AdminNotificationPanelProps> = ({ workers = [] }) => {
+  const [activeTab, setActiveTab] = useState<'broadcast_log' | 'routing_settings'>('broadcast_log');
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [title, setTitle] = useState('');
   const [message, setMessage] = useState('');
   const [recipientRole, setRecipientRole] = useState<'all' | 'worker' | 'supervisor' | 'specific'>('all');
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>('');
-  const [notifType, setNotifType] = useState<'system' | 'incident' | 'quiz' | 'reward' | 'audit'>('system');
+  const [notifType, setNotifType] = useState<NotificationType>('system');
   const [sending, setSending] = useState(false);
   const [sentSuccess, setSentSuccess] = useState(false);
+
+  // Routing & Visibility Policy State
+  const [routingPolicy, setRoutingPolicy] = useState<NotificationRoutingPolicy>(
+    NotificationEngine.getRoutingPolicy()
+  );
+  const [isSavingPolicy, setIsSavingPolicy] = useState(false);
 
   // Search & Filter
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRole, setFilterRole] = useState<string>('all');
+  const [filterCategory, setFilterCategory] = useState<string>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 8;
 
   const reloadData = () => {
     setNotifications(NotificationEngine.getAll());
+    setRoutingPolicy(NotificationEngine.getRoutingPolicy());
   };
 
   useEffect(() => {
@@ -108,6 +133,73 @@ export const AdminNotificationPanel: React.FC<AdminNotificationPanelProps> = ({ 
     }, 3000);
   };
 
+  const handleToggleCategoryEnabled = (type: NotificationType) => {
+    setRoutingPolicy((prev) => ({
+      ...prev,
+      categories: prev.categories.map((c) =>
+        c.type === type ? { ...c, enabled: !c.enabled } : c
+      ),
+    }));
+  };
+
+  const handleToggleRoleVisibility = (
+    type: NotificationType,
+    role: 'worker' | 'supervisor' | 'admin'
+  ) => {
+    setRoutingPolicy((prev) => ({
+      ...prev,
+      categories: prev.categories.map((c) => {
+        if (c.type !== type) return c;
+        const exists = c.visibleToRoles.includes(role);
+        const newRoles = exists
+          ? c.visibleToRoles.filter((r) => r !== role)
+          : [...c.visibleToRoles, role];
+        return { ...c, visibleToRoles: newRoles };
+      }),
+    }));
+  };
+
+  const handleToggleAdminMonitorAll = () => {
+    setRoutingPolicy((prev) => ({
+      ...prev,
+      adminMonitorAll: !prev.adminMonitorAll,
+    }));
+  };
+
+  const handleSavePolicy = async () => {
+    setIsSavingPolicy(true);
+    try {
+      NotificationEngine.saveRoutingPolicy(routingPolicy);
+      await SwalService.success(
+        'Pengaturan Notifikasi Disimpan',
+        'Kebijakan visibilitas kategori dan hak akses peran berhasil diperbarui di seluruh sistem.'
+      );
+      reloadData();
+    } catch (err: any) {
+      SwalService.error('Gagal Menyimpan', err?.message || 'Terjadi kesalahan sistem.');
+    } finally {
+      setIsSavingPolicy(false);
+    }
+  };
+
+  const handleResetPolicy = async () => {
+    const isConfirmed = await SwalService.confirm({
+      title: 'Kembalikan Pengaturan Default?',
+      text: 'Seluruh konfigurasi kategori notifikasi dan aturan visibilitas peran akan dikembalikan ke standar awal sistem.',
+      confirmButtonText: 'Ya, Kembalikan',
+      isDestructive: false,
+    });
+    if (isConfirmed) {
+      const def = NotificationEngine.resetRoutingPolicy();
+      setRoutingPolicy(def);
+      await SwalService.success(
+        'Pengaturan Direset',
+        'Kebijakan visibilitas notifikasi telah dikembalikan ke pengaturan default pabrik.'
+      );
+      reloadData();
+    }
+  };
+
   const handleDelete = (id: string) => {
     NotificationEngine.deleteNotification(id);
     reloadData();
@@ -132,9 +224,10 @@ export const AdminNotificationPanel: React.FC<AdminNotificationPanelProps> = ({ 
         n.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         n.message.toLowerCase().includes(searchQuery.toLowerCase());
       const matchRole = filterRole === 'all' || n.recipientRole === filterRole;
-      return matchSearch && matchRole;
+      const matchCategory = filterCategory === 'all' || n.type === filterCategory;
+      return matchSearch && matchRole && matchCategory;
     });
-  }, [notifications, searchQuery, filterRole]);
+  }, [notifications, searchQuery, filterRole, filterCategory]);
 
   const paginatedNotifications = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
@@ -143,6 +236,8 @@ export const AdminNotificationPanel: React.FC<AdminNotificationPanelProps> = ({ 
 
   const getTypeBadge = (type: string) => {
     switch (type) {
+      case 'license':
+        return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30 flex items-center gap-1"><Truck className="w-3 h-3" /> Lisensi SIO</span>;
       case 'incident':
         return <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-500/15 text-orange-400 border border-orange-500/30 flex items-center gap-1"><ShieldAlert className="w-3 h-3" /> Insiden K3</span>;
       case 'quiz':
@@ -203,262 +298,509 @@ export const AdminNotificationPanel: React.FC<AdminNotificationPanelProps> = ({ 
         </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* ─── FORM KIRIM SIARAN NOTIFIKASI (LEFT: 5 COLS) ─── */}
-        <div className="lg:col-span-5 card p-5 space-y-4">
-          <div className="flex items-center gap-2 pb-3 border-b border-zinc-800">
-            <Send className="w-4 h-4 text-emerald-400" />
-            <h3 className="text-sm font-bold text-white">Kirim Siaran Notifikasi Instan</h3>
-          </div>
+      {/* Navigation Tabs */}
+      <div className="flex items-center gap-2 border-b border-zinc-800 pb-2">
+        <button
+          type="button"
+          onClick={() => setActiveTab('broadcast_log')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+            activeTab === 'broadcast_log'
+              ? 'bg-amber-500 text-black shadow-md'
+              : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'
+          }`}
+        >
+          <Megaphone className="w-4 h-4" />
+          <span>Siaran & Riwayat Notifikasi ({notifications.length})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab('routing_settings')}
+          className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 ${
+            activeTab === 'routing_settings'
+              ? 'bg-amber-500 text-black shadow-md'
+              : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white'
+          }`}
+        >
+          <Sliders className="w-4 h-4" />
+          <span>Pengaturan Visibilitas & Routing (Maintenance)</span>
+        </button>
+      </div>
 
-          <form onSubmit={handleBroadcast} className="space-y-4">
-            {/* Target Recipient */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-zinc-400">Target Audiens Penerima:</label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setRecipientRole('all')}
-                  className={`p-2 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
-                    recipientRole === 'all'
-                      ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
-                      : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>Semua</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRecipientRole('worker')}
-                  className={`p-2 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
-                    recipientRole === 'worker'
-                      ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
-                      : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                  }`}
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  <span>Operational</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRecipientRole('supervisor')}
-                  className={`p-2 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
-                    recipientRole === 'supervisor'
-                      ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300'
-                      : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                  }`}
-                >
-                  <UserCheck className="w-3.5 h-3.5" />
-                  <span>Supervisor</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRecipientRole('specific')}
-                  className={`p-2 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
-                    recipientRole === 'specific'
-                      ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300'
-                      : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
-                  }`}
-                >
-                  <User className="w-3.5 h-3.5" />
-                  <span>Personel Khusus</span>
-                </button>
-              </div>
+      {activeTab === 'broadcast_log' ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* ─── FORM KIRIM SIARAN NOTIFIKASI (LEFT: 5 COLS) ─── */}
+          <div className="lg:col-span-5 card p-5 space-y-4">
+            <div className="flex items-center gap-2 pb-3 border-b border-zinc-800">
+              <Send className="w-4 h-4 text-emerald-400" />
+              <h3 className="text-sm font-bold text-white">Kirim Siaran Notifikasi Instan</h3>
             </div>
 
-            {/* Specific Worker Picker */}
-            {recipientRole === 'specific' && (
-              <div className="space-y-1.5 animate-fade-in bg-zinc-900/60 p-3 rounded-xl border border-zinc-800">
-                <label className="text-xs font-bold text-zinc-300 flex items-center justify-between">
-                  <span>Pilih Pekerja Penerima Khusus *</span>
-                  {selectedWorkerId && <span className="text-[10px] text-emerald-400">Target terpilih</span>}
-                </label>
+            <form onSubmit={handleBroadcast} className="space-y-4">
+              {/* Target Recipient */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-400">Target Audiens Penerima:</label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setRecipientRole('all')}
+                    className={`p-2 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                      recipientRole === 'all'
+                        ? 'bg-amber-500/15 border-amber-500/40 text-amber-300'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>Semua</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRecipientRole('worker')}
+                    className={`p-2 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                      recipientRole === 'worker'
+                        ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    <span>Operational</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRecipientRole('supervisor')}
+                    className={`p-2 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                      recipientRole === 'supervisor'
+                        ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    <UserCheck className="w-3.5 h-3.5" />
+                    <span>Supervisor</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setRecipientRole('specific')}
+                    className={`p-2 rounded-xl border text-xs font-bold transition flex flex-col items-center gap-1 ${
+                      recipientRole === 'specific'
+                        ? 'bg-cyan-500/15 border-cyan-500/40 text-cyan-300'
+                        : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    <User className="w-3.5 h-3.5" />
+                    <span>Personel Khusus</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Specific Worker Picker */}
+              {recipientRole === 'specific' && (
+                <div className="space-y-1.5 animate-fade-in bg-zinc-900/60 p-3 rounded-xl border border-zinc-800">
+                  <label className="text-xs font-bold text-zinc-300 flex items-center justify-between">
+                    <span>Pilih Pekerja Penerima Khusus *</span>
+                    {selectedWorkerId && <span className="text-[10px] text-emerald-400">Target terpilih</span>}
+                  </label>
+                  <select
+                    value={selectedWorkerId}
+                    onChange={(e) => setSelectedWorkerId(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-semibold"
+                    required
+                  >
+                    <option value="" disabled>-- Pilih Pekerja / NIK --</option>
+                    {workers.map((w) => (
+                      <option key={w.id} value={w.id} className="bg-zinc-900 text-white">
+                        {w.name} ({w.employeeId}) — {w.division} / {w.role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Type Selector */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-400">Kategori Pesan:</label>
                 <select
-                  value={selectedWorkerId}
-                  onChange={(e) => setSelectedWorkerId(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-semibold"
+                  value={notifType}
+                  onChange={(e) => setNotifType(e.target.value as any)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-xs text-zinc-200 focus:outline-none focus:border-amber-500 font-medium"
                   required
                 >
-                  <option value="" disabled>-- Pilih Pekerja / NIK --</option>
-                  {workers.map((w) => (
-                    <option key={w.id} value={w.id} className="bg-zinc-900 text-white">
-                      {w.name} ({w.employeeId}) — {w.division} / {w.role}
-                    </option>
-                  ))}
+                  <option value="" disabled>-- Pilih Kategori Notifikasi --</option>
+                  <option value="system">Pengumuman Sistem / Operasional</option>
+                  <option value="license">Lisensi SIO & Alat Berat (MHE)</option>
+                  <option value="incident">Safety Alert / K3 Darurat</option>
+                  <option value="quiz">Kuis K3 / Checkpoint</option>
+                  <option value="reward">Reward & Prestasi</option>
+                  <option value="audit">Audit & Kepatuhan</option>
                 </select>
               </div>
-            )}
 
-            {/* Type Selector */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-zinc-400">Kategori Pesan:</label>
-              <select
-                value={notifType}
-                onChange={(e) => setNotifType(e.target.value as any)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-xs text-zinc-200 focus:outline-none focus:border-amber-500 font-medium"
-                required
-              >
-                <option value="" disabled>-- Pilih Kategori Notifikasi --</option>
-                <option value="system">Pengumuman Sistem / Operasional</option>
-                <option value="incident">Safety Alert / K3 Darurat</option>
-                <option value="quiz">Kuis K3 / Checkpoint</option>
-                <option value="reward">Reward & Prestasi</option>
-                <option value="audit">Audit & Kepatuhan</option>
-              </select>
-            </div>
-
-            {/* Title Input */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-zinc-400">Judul Notifikasi:</label>
-              <input
-                type="text"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                placeholder="Contoh: Pengingat Toolbox Talk Shift 1"
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-500 font-bold"
-                required
-              />
-            </div>
-
-            {/* Message Input */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-zinc-400">Isi Pesan Siaran:</label>
-              <textarea
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                placeholder="Tuliskan instruksi atau pengumuman penting bagi staf..."
-                rows={4}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-500 leading-relaxed"
-                required
-              />
-            </div>
-
-            {/* Submit Button */}
-            <button
-              type="submit"
-              disabled={sending || !title.trim() || !message.trim()}
-              className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-md"
-            >
-              {sending ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : sentSuccess ? (
-                <>
-                  <Check className="w-4 h-4 text-emerald-950" />
-                  <span>Notifikasi Berhasil Disiarkan!</span>
-                </>
-              ) : (
-                <>
-                  <Send className="w-4 h-4" />
-                  <span>Siarkan Notifikasi Sekarang</span>
-                </>
-              )}
-            </button>
-          </form>
-        </div>
-
-        {/* ─── TABEL LOG & RIWAYAT NOTIFIKASI (RIGHT: 7 COLS) ─── */}
-        <div className="lg:col-span-7 card p-5 space-y-4 flex flex-col justify-between">
-          <div className="space-y-3">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-zinc-800">
-              <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                  <Megaphone className="w-4 h-4 text-indigo-400" />
-                  Riwayat & Log Notifikasi ({notifications.length})
-                </h3>
-                <p className="text-[11px] text-zinc-400 mt-0.5">
-                  Daftar seluruh notifikasi aktif yang tersimpan dalam sistem
-                </p>
-              </div>
-
-              {notifications.length > 0 && (
-                <button
-                  onClick={handleClearAll}
-                  className="px-2.5 py-1.5 bg-rose-950/30 hover:bg-rose-900/50 border border-rose-500/30 text-rose-400 rounded-xl text-xs font-bold transition flex items-center gap-1.5 self-start sm:self-auto"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Hapus Semua</span>
-                </button>
-              )}
-            </div>
-
-            {/* Search & Filter Bar */}
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
-              <div className="relative w-full sm:w-60">
-                <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+              {/* Title Input */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-400">Judul Notifikasi:</label>
                 <input
                   type="text"
-                  placeholder="Cari judul/pesan..."
-                  value={searchQuery}
-                  onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Contoh: Pengingat Toolbox Talk Shift 1"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-500 font-bold"
+                  required
                 />
               </div>
 
-              <div className="flex items-center gap-1.5 w-full sm:w-auto">
-                <Filter className="w-3.5 h-3.5 text-zinc-500" />
-                <select
-                  value={filterRole}
-                  onChange={(e) => { setFilterRole(e.target.value); setCurrentPage(1); }}
-                  className="bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 rounded-xl px-2.5 py-1.5 focus:outline-none cursor-pointer"
-                >
-                  <option value="all">Semua Target</option>
-                  <option value="worker">Operational Only</option>
-                  <option value="supervisor">Supervisor Only</option>
-                </select>
+              {/* Message Input */}
+              <div className="space-y-1.5">
+                <label className="text-xs font-bold text-zinc-400">Isi Pesan Siaran:</label>
+                <textarea
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  placeholder="Tuliskan instruksi atau pengumuman penting bagi staf..."
+                  rows={4}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-500 leading-relaxed"
+                  required
+                />
+              </div>
+
+              {/* Submit Button */}
+              <button
+                type="submit"
+                disabled={sending || !title.trim() || !message.trim()}
+                className="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs rounded-xl transition flex items-center justify-center gap-2 disabled:opacity-50 shadow-md"
+              >
+                {sending ? (
+                  <RefreshCw className="w-4 h-4 animate-spin" />
+                ) : sentSuccess ? (
+                  <>
+                    <Check className="w-4 h-4 text-emerald-950" />
+                    <span>Notifikasi Berhasil Disiarkan!</span>
+                  </>
+                ) : (
+                  <>
+                    <Send className="w-4 h-4" />
+                    <span>Siarkan Notifikasi Sekarang</span>
+                  </>
+                )}
+              </button>
+            </form>
+          </div>
+
+          {/* ─── TABEL LOG & RIWAYAT NOTIFIKASI (RIGHT: 7 COLS) ─── */}
+          <div className="lg:col-span-7 card p-5 space-y-4 flex flex-col justify-between">
+            <div className="space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-zinc-800">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Megaphone className="w-4 h-4 text-indigo-400" />
+                    Riwayat & Log Notifikasi ({notifications.length})
+                  </h3>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    Daftar seluruh notifikasi aktif yang tersimpan dalam sistem
+                  </p>
+                </div>
+
+                {notifications.length > 0 && (
+                  <button
+                    onClick={handleClearAll}
+                    className="px-2.5 py-1.5 bg-rose-950/30 hover:bg-rose-900/50 border border-rose-500/30 text-rose-400 rounded-xl text-xs font-bold transition flex items-center gap-1.5 self-start sm:self-auto"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Hapus Semua</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Search & Filter Bar */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-2">
+                <div className="relative w-full sm:w-52">
+                  <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    placeholder="Cari judul/pesan..."
+                    value={searchQuery}
+                    onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                  />
+                </div>
+
+                <div className="flex items-center gap-1.5 w-full sm:w-auto flex-wrap">
+                  <Filter className="w-3.5 h-3.5 text-zinc-500" />
+                  <select
+                    value={filterCategory}
+                    onChange={(e) => { setFilterCategory(e.target.value); setCurrentPage(1); }}
+                    className="bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 rounded-xl px-2.5 py-1.5 focus:outline-none cursor-pointer"
+                  >
+                    <option value="all">Semua Kategori</option>
+                    <option value="license">Lisensi SIO</option>
+                    <option value="incident">Insiden K3</option>
+                    <option value="quiz">Kuis Safety</option>
+                    <option value="reward">Reward & Poin</option>
+                    <option value="audit">Audit 5S</option>
+                    <option value="system">Sistem</option>
+                  </select>
+                  <select
+                    value={filterRole}
+                    onChange={(e) => { setFilterRole(e.target.value); setCurrentPage(1); }}
+                    className="bg-zinc-950 border border-zinc-800 text-xs text-zinc-300 rounded-xl px-2.5 py-1.5 focus:outline-none cursor-pointer"
+                  >
+                    <option value="all">Semua Target</option>
+                    <option value="worker">Operational Only</option>
+                    <option value="supervisor">Supervisor Only</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Notification List */}
+              <div className="space-y-2 max-h-[380px] overflow-y-auto custom-scrollbar">
+                {filteredNotifications.length === 0 ? (
+                  <div className="py-12 text-center text-xs text-zinc-500 space-y-1">
+                    <Bell className="w-6 h-6 text-zinc-700 mx-auto opacity-60" />
+                    <p>Tidak ada data notifikasi yang sesuai filter.</p>
+                  </div>
+                ) : (
+                  paginatedNotifications.map((n) => (
+                    <div
+                      key={n.id}
+                      className="p-3 bg-zinc-900/60 border border-zinc-800/80 rounded-2xl flex items-start justify-between gap-3 hover:border-zinc-700 transition"
+                    >
+                      <div className="space-y-1 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          {getTypeBadge(n.type)}
+                          <span className="text-[10px] text-zinc-500">
+                            Target: {getRecipientLabel(n.recipientRole, n.metadata)}
+                          </span>
+                          <span className="text-[10px] text-zinc-600 font-mono ml-auto">
+                            {new Date(n.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+
+                        <h4 className="font-bold text-xs text-white truncate">{n.title}</h4>
+                        <p className="text-[11px] text-zinc-400 line-clamp-2 leading-relaxed">{n.message}</p>
+                      </div>
+
+                      <button
+                        onClick={() => handleDelete(n.id)}
+                        className="p-1.5 text-zinc-500 hover:text-rose-400 rounded-lg hover:bg-zinc-800 transition shrink-0"
+                        title="Hapus Notifikasi"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
 
-            {/* Notification List */}
-            <div className="space-y-2 max-h-[380px] overflow-y-auto custom-scrollbar">
-              {filteredNotifications.length === 0 ? (
-                <div className="py-12 text-center text-xs text-zinc-500 space-y-1">
-                  <Bell className="w-6 h-6 text-zinc-700 mx-auto opacity-60" />
-                  <p>Tidak ada data notifikasi yang sesuai filter.</p>
-                </div>
-              ) : (
-                paginatedNotifications.map((n) => (
-                  <div
-                    key={n.id}
-                    className="p-3 bg-zinc-900/60 border border-zinc-800/80 rounded-2xl flex items-start justify-between gap-3 hover:border-zinc-700 transition"
-                  >
-                    <div className="space-y-1 min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {getTypeBadge(n.type)}
-                        <span className="text-[10px] text-zinc-500">
-                          Target: {getRecipientLabel(n.recipientRole, n.metadata)}
-                        </span>
-                        <span className="text-[10px] text-zinc-600 font-mono ml-auto">
-                          {new Date(n.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                        </span>
-                      </div>
+            {/* Pagination */}
+            <PaginationControls
+              currentPage={currentPage}
+              totalItems={filteredNotifications.length}
+              pageSize={pageSize}
+              onPageChange={(p) => setCurrentPage(p)}
+            />
+          </div>
+        </div>
+      ) : (
+        /* ─── TAB 2: PENGATURAN VISIBILITAS & ROUTING NOTIFIKASI ─── */
+        <div className="card p-5 sm:p-6 space-y-6">
+          {/* Header Policy */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-zinc-800">
+            <div>
+              <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-amber-400" />
+                <span>Matriks Visibilitas & Hak Akses Notifikasi Lintas Role</span>
+              </h3>
+              <p className="text-xs text-zinc-400 mt-1">
+                Atur kategori notifikasi yang aktif di sistem serta tentukan role mana saja yang berhak menerima informasinya.
+              </p>
+            </div>
 
-                      <h4 className="font-bold text-xs text-white truncate">{n.title}</h4>
-                      <p className="text-[11px] text-zinc-400 line-clamp-2 leading-relaxed">{n.message}</p>
-                    </div>
-
-                    <button
-                      onClick={() => handleDelete(n.id)}
-                      className="p-1.5 text-zinc-500 hover:text-rose-400 rounded-lg hover:bg-zinc-800 transition shrink-0"
-                      title="Hapus Notifikasi"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ))
-              )}
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                type="button"
+                onClick={handleResetPolicy}
+                className="px-3 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 rounded-xl text-xs font-bold border border-zinc-800 transition flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>Reset Standar</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleSavePolicy}
+                disabled={isSavingPolicy}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-lg shadow-emerald-950 disabled:opacity-50"
+              >
+                {isSavingPolicy ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Check className="w-3.5 h-3.5" />
+                )}
+                <span>Simpan Pengaturan</span>
+              </button>
             </div>
           </div>
 
-          {/* Pagination */}
-          <PaginationControls
-            currentPage={currentPage}
-            totalItems={filteredNotifications.length}
-            pageSize={pageSize}
-            onPageChange={(p) => setCurrentPage(p)}
-          />
+          {/* Administrator Monitoring Mode Override */}
+          <div className="p-4 rounded-2xl bg-gradient-to-r from-purple-950/30 via-zinc-900 to-zinc-900 border border-purple-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl bg-purple-500/10 border border-purple-500/30 flex items-center justify-center text-purple-400 shrink-0 mt-0.5">
+                <Shield className="w-4 h-4" />
+              </div>
+              <div>
+                <div className="text-xs font-black text-white flex items-center gap-2">
+                  <span>Administrator Memonitor Seluruh Notifikasi Lintas Role</span>
+                  <span className="text-[9px] font-mono font-bold px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                    Master Visibility
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-400 mt-1 leading-relaxed">
+                  Jika diaktifkan, akun Administrator dapat melihat seluruh log notifikasi operasional dan K3 (termasuk verifikasi SIO dan reward personal) untuk pemantauan kepatuhan tanpa batasan.
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleToggleAdminMonitorAll}
+              className={`px-4 py-2 rounded-xl text-xs font-bold transition shrink-0 flex items-center gap-2 border ${
+                routingPolicy.adminMonitorAll
+                  ? 'bg-purple-600 text-white border-purple-500 shadow-md shadow-purple-950'
+                  : 'bg-zinc-800 text-zinc-400 border-zinc-700 hover:text-white'
+              }`}
+            >
+              <Eye className="w-3.5 h-3.5" />
+              <span>{routingPolicy.adminMonitorAll ? 'Monitor Aktif (Full)' : 'Hanya Notifikasi Admin'}</span>
+            </button>
+          </div>
+
+          {/* Category Configuration Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {routingPolicy.categories.map((cat) => {
+              const getCatIcon = (t: NotificationType) => {
+                switch (t) {
+                  case 'license': return <Truck className="w-4 h-4 text-amber-400" />;
+                  case 'incident': return <ShieldAlert className="w-4 h-4 text-rose-400" />;
+                  case 'quiz': return <Zap className="w-4 h-4 text-emerald-400" />;
+                  case 'reward': return <Award className="w-4 h-4 text-amber-400" />;
+                  case 'audit': return <CheckCircle2 className="w-4 h-4 text-blue-400" />;
+                  default: return <Megaphone className="w-4 h-4 text-indigo-400" />;
+                }
+              };
+
+              return (
+                <div
+                  key={cat.type}
+                  className={`p-4 rounded-2xl border transition space-y-3 ${
+                    cat.enabled
+                      ? 'bg-zinc-900/80 border-zinc-800 hover:border-zinc-700'
+                      : 'bg-zinc-950 border-zinc-900 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-xl bg-zinc-950 border border-zinc-800 flex items-center justify-center shrink-0">
+                        {getCatIcon(cat.type)}
+                      </div>
+                      <div>
+                        <h4 className="text-xs font-black text-white flex items-center gap-2">
+                          <span>{cat.label}</span>
+                          <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-zinc-800 text-zinc-400">
+                            {cat.type}
+                          </span>
+                        </h4>
+                        <span className={`text-[10px] font-bold ${cat.enabled ? 'text-emerald-400' : 'text-zinc-500'}`}>
+                          {cat.enabled ? 'Aktif di Platform' : 'Dinonaktifkan'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Enable / Disable Toggle */}
+                    <button
+                      type="button"
+                      onClick={() => handleToggleCategoryEnabled(cat.type)}
+                      className={`px-2.5 py-1 rounded-lg text-[10px] font-black border transition ${
+                        cat.enabled
+                          ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25'
+                          : 'bg-zinc-800 border-zinc-700 text-zinc-500 hover:text-zinc-300'
+                      }`}
+                    >
+                      {cat.enabled ? 'ON' : 'OFF'}
+                    </button>
+                  </div>
+
+                  <p className="text-[11px] text-zinc-400 leading-relaxed min-h-[32px]">
+                    {cat.description}
+                  </p>
+
+                  {/* Role Visibility Selectors */}
+                  <div className="pt-2 border-t border-zinc-800/80 space-y-1.5">
+                    <div className="text-[10px] font-bold text-zinc-400 flex items-center justify-between">
+                      <span>Dapat Dilihat / Diterima Oleh:</span>
+                      {!cat.enabled && <span className="text-zinc-500 italic">Kategori dinonaktifkan</span>}
+                    </div>
+
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {/* Worker Role */}
+                      <button
+                        type="button"
+                        disabled={!cat.enabled}
+                        onClick={() => handleToggleRoleVisibility(cat.type, 'worker')}
+                        className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition flex items-center gap-1 border disabled:opacity-30 ${
+                          cat.visibleToRoles.includes('worker')
+                            ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-300'
+                            : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300'
+                        }`}
+                      >
+                        {cat.visibleToRoles.includes('worker') ? (
+                          <CheckSquare className="w-3 h-3 text-emerald-400" />
+                        ) : (
+                          <Square className="w-3 h-3 text-zinc-600" />
+                        )}
+                        <span>Operational (Pekerja)</span>
+                      </button>
+
+                      {/* Supervisor Role */}
+                      <button
+                        type="button"
+                        disabled={!cat.enabled}
+                        onClick={() => handleToggleRoleVisibility(cat.type, 'supervisor')}
+                        className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition flex items-center gap-1 border disabled:opacity-30 ${
+                          cat.visibleToRoles.includes('supervisor')
+                            ? 'bg-indigo-500/15 border-indigo-500/40 text-indigo-300'
+                            : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300'
+                        }`}
+                      >
+                        {cat.visibleToRoles.includes('supervisor') ? (
+                          <CheckSquare className="w-3 h-3 text-indigo-400" />
+                        ) : (
+                          <Square className="w-3 h-3 text-zinc-600" />
+                        )}
+                        <span>Pengawas (SPV)</span>
+                      </button>
+
+                      {/* Admin Role */}
+                      <button
+                        type="button"
+                        disabled={!cat.enabled}
+                        onClick={() => handleToggleRoleVisibility(cat.type, 'admin')}
+                        className={`px-2.5 py-1 rounded-xl text-[10px] font-bold transition flex items-center gap-1 border disabled:opacity-30 ${
+                          cat.visibleToRoles.includes('admin')
+                            ? 'bg-purple-500/15 border-purple-500/40 text-purple-300'
+                            : 'bg-zinc-950 border-zinc-800 text-zinc-500 hover:text-zinc-300'
+                        }`}
+                      >
+                        {cat.visibleToRoles.includes('admin') ? (
+                          <CheckSquare className="w-3 h-3 text-purple-400" />
+                        ) : (
+                          <Square className="w-3 h-3 text-zinc-600" />
+                        )}
+                        <span>Administrator</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 };
