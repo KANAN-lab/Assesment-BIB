@@ -31,6 +31,7 @@ export class SwalService {
       color: '#f4f4f5',      // zinc-100
       backdrop: 'rgba(0, 0, 0, 0.75)',
       customClass: {
+        container: '!z-[1000000]',
         popup: 'border border-zinc-800 rounded-2xl shadow-2xl p-6',
         title: 'text-base font-black text-white tracking-tight',
         htmlContainer: 'text-xs text-zinc-300 leading-relaxed font-sans',

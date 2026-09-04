@@ -781,4 +781,23 @@
   - [x] Type check `npx tsc --noEmit` lulus 0 error.
   - [x] Production build `npm run build` sukses (3440 modules, 27.44s).
 
+---
+
+## Phase 42: SweetAlert2 Global Z-Index & Modal Closing Sequence Fix
+
+- [x] **1. Root Cause Analysis - Tombol Menyimpan Berputar Terus & Berhasil Baru Muncul Setelah Modal di-Close**:
+  - [x] Menemukan bahwa proses upload ke Google Drive dan penyimpanan lisensi ke Supabase/LocalStorage sebenarnya telah selesai dengan cepat.
+  - [x] Namun pada `WorkerSioUploadModal.tsx`, baris `await SwalService.success(...)` dipanggil saat modal upload masih terbuka dengan `z-[99999]`.
+  - [x] Default container SweetAlert2 (`.swal2-container`) memiliki z-index rendah (`1060`), sehingga popup dialog konfirmasi sukses SweetAlert2 muncul di belakang backdrop modal upload.
+  - [x] Karena di-`await`, JavaScript menunggu pengguna menekan tombol "Mengerti", sementara pengguna di layer depan hanya melihat tombol modal upload masih "Menyimpan...".
+  - [x] Ketika pengguna menutup modal secara manual (klik silang), modal ter-unmount dan barulah dialog SweetAlert2 yang sedari tadi menunggu di layer belakang menjadi terlihat.
+- [x] **2. Implementasi Perbaikan Layering & Urutan Penutupan Modal**:
+  - [x] Menambahkan override global `.swal2-container { z-index: 1000000 !important; }` di `src/index.css` dan `container: '!z-[1000000]'` di `src/domain/SwalService.ts` sehingga SweetAlert2 selalu berada di layer terdepan aplikasi.
+  - [x] Menurunkan z-index modal `WorkerSioUploadModal.tsx` ke standar sistem `z-[9999]`.
+  - [x] Memperbaiki alur `handleSubmit`: memanggil `onSuccess?.(savedLicense)` dan `onClose()` sebelum memunculkan popup `SwalService.success(...)` sehingga modal tertutup mulus seketika dan pesan sukses tampil tanpa delay.
+  - [x] Menyediakan teks progres dinamis `saveStatus` pada tombol simpan ("Mengunggah berkas ke Google Drive...", "Sinkronisasi lisensi ke database K3...") untuk transparansi proses ke pengguna.
+- [x] **3. Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` lulus 0 error.
+  - [x] Production build `npm run build` sukses.
+
 

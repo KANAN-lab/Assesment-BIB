@@ -42,6 +42,7 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
   const [formExpiryDate, setFormExpiryDate] = useState('');
   const [formNotes, setFormNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('Menyimpan...');
 
   // Lock scroll
   useEffect(() => {
@@ -81,12 +82,24 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
       setExtractedMeta(extracted);
 
       // Pre-fill form fields
-      if (extracted.licenseNumber) setFormLicenseNumber(extracted.licenseNumber);
-      if (extracted.licenseType) setFormLicenseType(extracted.licenseType);
-      if (extracted.issuedDate) setFormIssuedDate(extracted.issuedDate);
-      if (extracted.expiryDate) setFormExpiryDate(extracted.expiryDate);
-      if (extracted.issuingAuthority) setFormAuthority(extracted.issuingAuthority);
-      if (extracted.notes) setFormNotes(extracted.notes);
+      if (extracted.licenseNumber) {
+        setFormLicenseNumber(extracted.licenseNumber);
+      }
+      if (extracted.licenseType) {
+        setFormLicenseType(extracted.licenseType);
+      }
+      if (extracted.issuingAuthority) {
+        setFormAuthority(extracted.issuingAuthority);
+      }
+      if (extracted.issuedDate) {
+        setFormIssuedDate(extracted.issuedDate);
+      }
+      if (extracted.expiryDate) {
+        setFormExpiryDate(extracted.expiryDate);
+      }
+      if (extracted.notes) {
+        setFormNotes(extracted.notes);
+      }
     } catch (err: any) {
       console.error('[WorkerSioUpload] Scan Error:', err);
       setScanError(err?.message || 'Gagal membaca berkas SIO dengan AI Vision. Pastikan berkas jelas dan terbaca.');
@@ -115,6 +128,7 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
     }
 
     setIsSaving(true);
+    setSaveStatus('Mengunggah berkas ke Google Drive...');
     let gdriveDocumentUrl: string | undefined = undefined;
 
     // Upload to Google Drive if file exists
@@ -136,6 +150,7 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
     }
 
     try {
+      setSaveStatus('Sinkronisasi lisensi ke database K3 & klaim reward...');
       const rewardPts = SystemConfigService.getConfig().sioRegisteredRewardPoints || 100;
 
       // Check existing license to decide add or update
@@ -168,13 +183,14 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
         });
       }
 
+      // Close modal first and notify parent before showing alert
+      onSuccess?.(savedLicense);
+      onClose();
+
       await SwalService.success(
         'SIO Berhasil Didaftarkan!',
         `Selamat! Lisensi ${formLicenseType} atas nama ${worker.name} berhasil terdaftar dan terverifikasi di sistem K3. Reward +${rewardPts} PTS telah ditambahkan ke akun Anda!`
       );
-
-      onSuccess?.(savedLicense);
-      onClose();
     } catch (err: any) {
       console.error('[WorkerSioUpload] Gagal simpan lisensi:', err);
       SwalService.error('Gagal Menyimpan SIO', err?.message || 'Terjadi kesalahan sistem saat menyimpan SIO.');
@@ -187,7 +203,7 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[99999] overflow-y-auto bg-black/85 backdrop-blur-md p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/85 backdrop-blur-md p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
     >
       <div
         className="relative w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-3xl p-5 sm:p-6 shadow-2xl text-left space-y-4 my-8"
@@ -416,7 +432,7 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
               {isSaving ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>Menyimpan...</span>
+                  <span>{saveStatus}</span>
                 </>
               ) : (
                 <>
