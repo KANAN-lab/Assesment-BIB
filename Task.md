@@ -637,6 +637,26 @@
   - [x] Type check `npx tsc --noEmit` lulus 0 error.
   - [x] Production build `npm run build` sukses (3440 modules, 19.91s).
 
+---
+
+## Phase 36: Mobile Responsive Layout & Kanban Tab Overflow Fix
+
+- [x] **1. Root Cause Analysis - Tab Switcher Offside / Terpotong (`HandoverKanbanBoard.tsx`)**:
+  - [x] Tombol mobile tab switcher menggunakan `flex gap-1` dengan anak `flex-1` tanpa batas `min-w-0`. Akibatnya teks panjang "Sedang Diproses" menghitung min-width intrinsik melebihi porsi sepertiga layar, mendorong tab ketiga "Selesai 1" meluap ke luar tepi container (offside / clipped).
+- [x] **2. Solusi Grid Simetris 3-Kolom & Teks Responsif**:
+  - [x] Mengganti flex layout menjadi `grid grid-cols-3 gap-1 w-full`, menjamin alokasi lebar tiap tab persis 33.33% merata tanpa risiko meluap.
+  - [x] Menambahkan `shortTitle: 'Diproses'` pada kolom proses untuk layar mobile, serta menambahkan `shrink-0` pada icon dan counter badge.
+  - [x] Menambahkan `min-w-0 w-full` dan `truncate text-[11px] sm:text-xs` pada label tab.
+- [x] **3. Optimasi Header Serah Terima Shift di Mobile**:
+  - [x] Memindahkan tombol aksi (Refresh & Arsip) agar sejajar di kanan atas dengan judul pada layar mobile, menghilangkan tombol refresh sendirian yang memakan ruang vertikal.
+  - [x] Padding card diadaptasi menjadi `p-3.5 sm:p-6` agar layout lebih proporsional di layar 360px - 400px.
+- [x] **4. Modal Header Responsive Safeguard (`SopSlideshowModal.tsx`)**:
+  - [x] Menambahkan `min-w-0 flex-1 mr-2` pada judul modul dan `shrink-0` pada action toolbar agar judul panjang tidak mendorong tombol TTS dan Close keluar layar.
+- [x] **5. Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` lulus 0 error.
+  - [x] Production build `npm run build` sukses (3440 modules, 21.19s).
+
+
 
 
 

@@ -230,58 +230,96 @@ export function HandoverKanbanBoard() {
     return visibleHandovers.filter((h: ShiftHandoverEntity) => h.status === status);
   };
 
-  const columns: { title: string; status: HandoverStatus; icon: React.ReactNode; colorClass: string; badgeClass: string }[] = [
+  const columns: {
+    title: string;
+    shortTitle: string;
+    status: HandoverStatus;
+    icon: React.ReactNode;
+    colorClass: string;
+    badgeClass: string;
+  }[] = [
     {
       title: 'Tertunda',
+      shortTitle: 'Tertunda',
       status: 'Tertunda',
-      icon: <AlertCircle className="w-4 h-4 text-rose-400" />,
+      icon: <AlertCircle className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-rose-400 shrink-0" />,
       colorClass: 'bg-rose-950/20 border-rose-900/30',
       badgeClass: 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
     },
     {
       title: 'Sedang Diproses',
+      shortTitle: 'Diproses',
       status: 'Proses',
-      icon: <Clock className="w-4 h-4 text-amber-400" />,
+      icon: <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400 shrink-0" />,
       colorClass: 'bg-amber-950/20 border-amber-900/30',
       badgeClass: 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
     },
     {
       title: 'Selesai',
+      shortTitle: 'Selesai',
       status: 'Selesai',
-      icon: <CheckCircle2 className="w-4 h-4 text-emerald-400" />,
+      icon: <CheckCircle2 className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400 shrink-0" />,
       colorClass: 'bg-emerald-950/20 border-emerald-900/30',
       badgeClass: 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
     }
   ];
 
   return (
-    <div className="bg-zinc-950 rounded-3xl border border-zinc-800/80 p-4 sm:p-6 shadow-2xl flex flex-col space-y-4">
+    <div className="bg-zinc-950 rounded-3xl border border-zinc-800/80 p-3.5 sm:p-6 shadow-2xl flex flex-col space-y-3.5 sm:space-y-4">
       {/* Header Section */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-zinc-800/60">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
-              <ClipboardList className="w-5 h-5 text-indigo-400 shrink-0" />
-              <span>Papan Serah Terima Shift</span>
-            </h2>
-            <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-indigo-500/30">
-              Tim Lapangan
-            </span>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-zinc-800/60">
+        <div className="flex items-start justify-between gap-2 w-full sm:w-auto">
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-base sm:text-lg font-black text-white tracking-tight flex items-center gap-2">
+                <ClipboardList className="w-5 h-5 text-indigo-400 shrink-0" />
+                <span>Papan Serah Terima Shift</span>
+              </h2>
+              <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-indigo-500/30">
+                Tim Lapangan
+              </span>
+            </div>
+            <p className="text-xs text-zinc-400 mt-0.5">
+              Pantau dan tindak lanjuti catatan serah terima operasional, 5R, & MHE secara transparan.
+            </p>
           </div>
-          <p className="text-xs text-zinc-400 mt-0.5">
-            Pantau dan tindak lanjuti catatan serah terima operasional, 5R, & MHE secara transparan.
-          </p>
+
+          {/* Mobile Quick Action Controls (Right aligned next to Title) */}
+          <div className="flex sm:hidden items-center gap-1.5 shrink-0 pt-0.5">
+            {archivedCount > 0 && (
+              <button
+                onClick={() => setShowArchived(!showArchived)}
+                className={`p-2 rounded-xl text-xs font-bold border transition ${
+                  showArchived
+                    ? 'bg-purple-600 text-white border-purple-500'
+                    : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'
+                }`}
+                title={showArchived ? 'Semua Arsip' : `+${archivedCount} Selesai Lama`}
+              >
+                <Archive className="w-4 h-4" />
+              </button>
+            )}
+            <button
+              onClick={fetchHandovers}
+              disabled={loading}
+              className="p-2 bg-zinc-900 border border-zinc-800 rounded-xl hover:bg-zinc-800 transition text-zinc-400 hover:text-white"
+              title="Refresh Data"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin text-indigo-400' : ''}`} />
+            </button>
+          </div>
         </div>
 
-        {/* Action Controls: Refresh & Archive Filter */}
-        <div className="flex items-center gap-2 self-start sm:self-auto">
+        {/* Desktop Action Controls */}
+        <div className="hidden sm:flex items-center gap-2">
           {archivedCount > 0 && (
             <button
               onClick={() => setShowArchived(!showArchived)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${showArchived
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 ${
+                showArchived
                   ? 'bg-purple-600 text-white border-purple-500'
                   : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'
-                }`}
+              }`}
               title="Tampilkan tugas selesai lama (>24 Jam)"
             >
               <Archive className="w-3.5 h-3.5" />
@@ -301,7 +339,7 @@ export function HandoverKanbanBoard() {
       </div>
 
       {/* Mobile Tab Switcher (Visible only on small screens < md) */}
-      <div className="flex md:hidden bg-zinc-900/80 p-1 rounded-2xl border border-zinc-800 gap-1">
+      <div className="grid grid-cols-3 md:hidden bg-zinc-900/80 p-1 rounded-2xl border border-zinc-800 gap-1 w-full">
         {columns.map((col) => {
           const count = getStatusItems(col.status).length;
           const isActive = activeMobileTab === col.status;
@@ -309,16 +347,18 @@ export function HandoverKanbanBoard() {
             <button
               key={col.status}
               onClick={() => setActiveMobileTab(col.status)}
-              className={`flex-1 py-2 px-2 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1.5 ${isActive
+              className={`w-full min-w-0 py-2 px-1 rounded-xl text-xs font-bold transition flex items-center justify-center gap-1 sm:gap-1.5 ${
+                isActive
                   ? 'bg-zinc-800 text-white shadow-sm border border-zinc-700'
-                  : 'text-zinc-400 hover:text-zinc-200'
-                }`}
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/40'
+              }`}
             >
               {col.icon}
-              <span className="truncate">{col.title}</span>
+              <span className="truncate text-[11px] sm:text-xs">{col.shortTitle}</span>
               <span
-                className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${isActive ? 'bg-zinc-700 text-white' : 'bg-zinc-800 text-zinc-400'
-                  }`}
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-black shrink-0 ${
+                  isActive ? 'bg-zinc-700 text-white' : 'bg-zinc-800 text-zinc-400'
+                }`}
               >
                 {count}
               </span>

@@ -470,22 +470,22 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
           </div>
 
           {/* Header Action Row */}
-          <div className="flex items-center justify-between pb-3 border-b border-zinc-800 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="font-mono text-[10px] font-bold bg-purple-950/80 text-purple-300 px-2 py-0.5 rounded border border-purple-800/60">
+          <div className="flex items-center justify-between pb-3 border-b border-zinc-800 text-xs gap-2">
+            <div className="flex items-center gap-2 min-w-0 flex-1">
+              <span className="font-mono text-[10px] font-bold bg-purple-950/80 text-purple-300 px-2 py-0.5 rounded border border-purple-800/60 shrink-0">
                 {module.code}
               </span>
-              <span className="text-zinc-400 font-semibold truncate max-w-[200px] sm:max-w-sm">
+              <span className="text-zinc-400 font-semibold truncate">
                 {module.title}
               </span>
               {isAlreadyCompleted && (
-                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] bg-emerald-950/80 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800/60 font-bold">
+                <span className="hidden sm:inline-flex items-center gap-1 text-[10px] bg-emerald-950/80 text-emerald-300 px-2 py-0.5 rounded border border-emerald-800/60 font-bold shrink-0">
                   <Check className="w-3 h-3" /> Sudah Selesai
                 </span>
               )}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 shrink-0">
               {/* TTS Voiceover Button */}
               {ttsSupported && (
                 <button
