@@ -1,5 +1,5 @@
 // src/components/SopManagementPanel.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import {
   BookOpen,
@@ -28,6 +28,10 @@ import {
   Target,
   Sliders,
   Maximize2,
+  Edit3,
+  Volume2,
+  VolumeX,
+  Scale,
 } from 'lucide-react';
 import {
   SopModule,
@@ -37,6 +41,8 @@ import {
   SopSlideType,
   SopPresentationFormat,
   SopHotspotPoint,
+  SopStepItem,
+  SopDoDontItem,
 } from '../types/sop';
 import { fetchAllSopModules } from '../lib/sopService';
 import { supabase } from '../lib/supabaseClient';
@@ -63,6 +69,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
   // Create/Edit Module Wizard State
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [creationStep, setCreationStep] = useState<1 | 2>(1); // 1: Pilih Format Dasar, 2: Multi-Slide Editor
+  const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
   const [formFormat, setFormFormat] = useState<SopPresentationFormat>('micro_deck');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -375,6 +382,120 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
     });
   };
 
+  // Voiceover TTS Testing & Narration State
+  const [isTestingAudio, setIsTestingAudio] = useState<boolean>(false);
+  const audioUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
+
+  // Cleanup speech synthesis on component unmount
+  useEffect(() => {
+    return () => {
+      if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    };
+  }, []);
+
+  // Generate complete narration text from current slide content
+  const generateNarrationTextForSlide = (slide: SopSlide): string => {
+    let text = `${slide.title}. `;
+    if (slide.subtitle) {
+      text += `${slide.subtitle}. `;
+    }
+    if (slide.slideType === 'step_instruction' && slide.steps && slide.steps.length > 0) {
+      text += slide.steps
+        .map((st) => `Langkah ${st.stepNumber}: ${st.title}. ${st.description}.${st.keyHighlight ? ` Tips penting: ${st.keyHighlight}.` : ''}`)
+        .join(' ');
+    } else if (slide.slideType === 'dos_and_donts' && slide.dosAndDonts && slide.dosAndDonts.length > 0) {
+      text += slide.dosAndDonts
+        .map((dd) => `Praktik benar: ${dd.doTitle}. ${dd.doText}. Larangan keras: ${dd.dontTitle}. ${dd.dontText}.`)
+        .join(' ');
+    } else if (slide.slideType === 'safety_alert') {
+      text += `Peringatan keselamatan ${slide.alertLevel || 'kritis'}: ${slide.content || ''}. `;
+      if (slide.steps && slide.steps.length > 0) {
+        text += slide.steps.map((st) => `${st.title}: ${st.description}.`).join(' ');
+      }
+    } else if (slide.slideType === 'quiz_checkpoint' && slide.quiz) {
+      text += `Pertanyaan evaluasi kuis: ${slide.quiz.question}. Pilihlah satu jawaban yang paling tepat.`;
+    } else if (slide.slideType === 'interactive_simulator' && slide.simulatorConfig) {
+      text += `Instruksi simulasi: ${slide.simulatorConfig.taskInstruction}. ${slide.simulatorConfig.hintText || ''}`;
+    } else if (slide.slideType === 'spot_the_mistake' && slide.spotMistakeConfig) {
+      text += `Tantangan Hazard Hunt: ${slide.spotMistakeConfig.challengePrompt}. Temukan letak bahaya pada foto.`;
+    } else if (slide.content) {
+      text += slide.content;
+    }
+    return text.trim();
+  };
+
+  // Preview test audio for voiceover narration
+  const handleToggleTestAudio = (text: string) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
+      if (onToast) onToast('Browser Anda tidak mendukung Web Speech API Text-to-Speech.');
+      return;
+    }
+
+    if (isTestingAudio) {
+      window.speechSynthesis.cancel();
+      audioUtteranceRef.current = null;
+      setIsTestingAudio(false);
+      return;
+    }
+
+    const cleanText = text.trim();
+    if (!cleanText) {
+      if (onToast) onToast('Teks narasi suara masih kosong. Tuliskan teks atau klik "Generate dari Materi" terlebih dahulu.');
+      return;
+    }
+
+    if (window.speechSynthesis.paused) {
+      window.speechSynthesis.resume();
+    }
+    window.speechSynthesis.cancel();
+
+    const utterance = new SpeechSynthesisUtterance(cleanText);
+    utterance.lang = 'id-ID';
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+
+    const voices = window.speechSynthesis.getVoices();
+    const idVoice = voices.find(
+      (v) =>
+        v.lang === 'id-ID' ||
+        v.lang.toLowerCase().startsWith('id') ||
+        v.name.toLowerCase().includes('indonesia') ||
+        v.name.toLowerCase().includes('bahasa')
+    );
+    if (idVoice) {
+      utterance.voice = idVoice;
+    }
+
+    audioUtteranceRef.current = utterance;
+
+    utterance.onend = () => {
+      audioUtteranceRef.current = null;
+      setIsTestingAudio(false);
+    };
+    utterance.onerror = () => {
+      audioUtteranceRef.current = null;
+      setIsTestingAudio(false);
+    };
+
+    setTimeout(() => {
+      window.speechSynthesis.speak(utterance);
+      setIsTestingAudio(true);
+    }, 60);
+  };
+
+  const handleGenerateNarrationForCurrentSlide = () => {
+    if (!currentActiveSlide) return;
+    const generated = generateNarrationTextForSlide(currentActiveSlide);
+    if (!generated) {
+      if (onToast) onToast('Tidak ada materi slide yang cukup untuk menyusun narasi otomatis.');
+      return;
+    }
+    handleUpdateActiveSlide({ audioNarrationText: generated });
+    if (onToast) onToast('✨ Teks narasi suara berhasil dibuat otomatis dari materi slide!');
+  };
+
   const handleImageFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -465,6 +586,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
         slideType: 'interactive_hotspot',
         title: `Diagram Inspeksi ${newSlideNumber}`,
         subtitle: 'Titik inspeksi interaktif',
+        audioNarrationText: 'Amati diagram inspeksi interaktif berikut. Ketuk titik penanda untuk memeriksa kondisi fisik komponen.',
         content: 'Ketuk pin untuk detail inspeksi komponen.',
         imageUrl: 'https://images.unsplash.com/photo-1553413077-190dd305871c?auto=format&fit=crop&w=1200&q=80',
         hotspots: [
@@ -478,9 +600,28 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
         slideType: 'dos_and_donts',
         title: 'Kaidah Aman (DO) vs Larangan (DON\'T)',
         subtitle: 'Komparasi visual keselamatan kerja',
+        audioNarrationText: 'Patuhi kaidah DO dan hindari larangan keras DONT.',
         dosAndDonts: [
-          { doTitle: 'Praktik Benar (DO)', doText: 'Lakukan sesuai panduan resmi.', dontTitle: 'Larangan (DON\'T)', dontText: 'Hindari tindakan berbahaya ini.' },
+          {
+            doTitle: 'Praktik Benar (DO)',
+            doText: 'Lakukan sesuai panduan resmi operasional.',
+            doTip: 'Selalu lakukan pengecekan ganda',
+            dontTitle: 'Larangan Keras (DON\'T)',
+            dontText: 'Hindari tindakan berisiko bahaya ini.',
+            dontWarning: 'Dapat memicu kecelakaan fatal',
+          },
         ],
+      };
+    } else if (type === 'safety_alert') {
+      newSlide = {
+        id: `sl-${Date.now()}-${newSlideNumber}`,
+        slideNumber: newSlideNumber,
+        slideType: 'safety_alert',
+        title: `Peringatan K3 & Golden Rules #${newSlideNumber}`,
+        subtitle: 'Kepatuhan mutlak keselamatan kerja',
+        audioNarrationText: 'Perhatikan peringatan keselamatan kritis berikut sebelum memulai pekerjaan.',
+        alertLevel: 'critical',
+        content: 'Wajib menghentikan pekerjaan (Stop Work Authority) jika ditemukan potensi bahaya di area kerja.',
       };
     } else if (type === 'quiz_checkpoint') {
       newSlide = {
@@ -489,6 +630,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
         slideType: 'quiz_checkpoint',
         title: `Kuis Checkpoint Evaluasi #${newSlideNumber}`,
         subtitle: 'Verifikasi pemahaman materi',
+        audioNarrationText: 'Uji pemahaman Anda dengan menjawab pertanyaan kuis evaluasi berikut secara tepat.',
         quiz: {
           id: `q-${Date.now()}`,
           question: 'Pertanyaan evaluasi pemahaman SOP:',
@@ -505,9 +647,10 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
         slideType: 'step_instruction',
         title: `Instruksi Langkah Kerja #${newSlideNumber}`,
         subtitle: 'Panduan langkah operasional',
+        audioNarrationText: 'Ikuti langkah-langkah kerja berikut secara berurutan.',
         steps: [
-          { stepNumber: 1, title: 'Persiapan', description: 'Lakukan pengecekan awal.' },
-          { stepNumber: 2, title: 'Eksekusi', description: 'Laksanakan tugas sesuai SOP.' },
+          { stepNumber: 1, title: 'Persiapan & Pengecekan APD', description: 'Periksa kelengkapan APD dan pastikan area aman.', keyHighlight: 'Cek kondisi kelayakan fisik' },
+          { stepNumber: 2, title: 'Pelaksanaan Kerja Standar', description: 'Laksanakan tahapan pekerjaan sesuai standar operasional.', keyHighlight: 'Patuhi limit kecepatan & beban' },
         ],
       };
     }
@@ -558,7 +701,67 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
     onToast?.('Slide berhasil diduplikasi.');
   };
 
-  // Handle Save New SOP Module
+  // Open modal in Create mode
+  const handleOpenCreateModal = () => {
+    setEditingModuleId(null);
+    setFormCode('');
+    setFormTitle('');
+    setFormDesc('');
+    setFormCategory('K3 & Safety');
+    setFormDifficulty('Beginner');
+    setFormFormat('micro_deck');
+    setFormTargetDivs(['ALL']);
+    setFormTargetRoles(['ALL']);
+    setFormEstMinutes(3);
+    setFormPoints(50);
+    setFormIsMandatory(false);
+    setEditingSlides([]);
+    setFormError(null);
+    setCreationStep(1);
+    setIsCreateModalOpen(true);
+  };
+
+  // Open modal in Edit mode
+  const handleOpenEditModal = (item: SopModule) => {
+    setEditingModuleId(item.id);
+    setFormCode(item.code || '');
+    setFormTitle(item.title || '');
+    setFormDesc(item.description || '');
+    setFormCategory(item.category || 'K3 & Safety');
+    setFormDifficulty(item.difficulty || 'Beginner');
+    setFormFormat(item.presentationFormat || 'micro_deck');
+    setFormTargetDivs(item.targetDivisions && item.targetDivisions.length > 0 ? item.targetDivisions : ['ALL']);
+    setFormTargetRoles(item.targetRoles && item.targetRoles.length > 0 ? item.targetRoles : ['ALL']);
+    setFormEstMinutes(item.estimatedMinutes || 3);
+    setFormPoints(item.pointsReward || 50);
+    setFormIsMandatory(!!item.isMandatory);
+
+    const rawSlides = Array.isArray(item.slides) ? item.slides : [];
+    const clonedSlides: SopSlide[] = JSON.parse(JSON.stringify(rawSlides));
+    setEditingSlides(
+      clonedSlides.length > 0
+        ? clonedSlides
+        : [
+            {
+              id: `sl-${Date.now()}-1`,
+              slideNumber: 1,
+              slideType: 'step_instruction',
+              title: item.title || 'Panduan Langkah Kerja',
+              subtitle: 'Ikuti langkah-langkah kerja operasional',
+              audioNarrationText: 'Ikuti langkah-langkah kerja berikut secara berurutan.',
+              steps: [
+                { stepNumber: 1, title: 'Persiapan', description: 'Lakukan pengecekan dan siapkan alat kerja.' },
+              ],
+            },
+          ]
+    );
+    setActiveSlideIndex(0);
+    setFormError(null);
+    setCreationStep(2);
+    setIsCreateModalOpen(true);
+  };
+
+  // Handle Save (Create or Update) SOP Module
   const handleSaveModule = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formCode.trim() || !formTitle.trim()) {
@@ -570,63 +773,155 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
       return;
     }
 
+    // Validasi kelengkapan slide
+    for (let i = 0; i < editingSlides.length; i++) {
+      const sl = editingSlides[i];
+      if (!sl.title.trim()) {
+        setFormError(`Slide #${i + 1} belum memiliki Judul Slide.`);
+        setActiveSlideIndex(i);
+        return;
+      }
+      if (sl.slideType === 'step_instruction') {
+        if (!sl.steps || sl.steps.length === 0) {
+          setFormError(`Slide #${i + 1} (Langkah Kerja) wajib memiliki minimal 1 langkah kerja.`);
+          setActiveSlideIndex(i);
+          return;
+        }
+        for (let j = 0; j < sl.steps.length; j++) {
+          if (!sl.steps[j].title.trim()) {
+            setFormError(`Slide #${i + 1}, Langkah #${j + 1} belum memiliki Judul Langkah.`);
+            setActiveSlideIndex(i);
+            return;
+          }
+        }
+      }
+      if (sl.slideType === 'quiz_checkpoint' && sl.quiz) {
+        if (!sl.quiz.question.trim()) {
+          setFormError(`Slide #${i + 1} (Kuis Checkpoint) belum memiliki pertanyaan.`);
+          setActiveSlideIndex(i);
+          return;
+        }
+      }
+    }
+
     setIsSubmitting(true);
     setFormError(null);
 
     try {
-      const newModuleId = `sop-${formCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`;
-      // Bersihkan slide dari string data:image/ Base64 raksasa sebelum persistensi
       const sanitizedSlides = sanitizeDataForStorage(editingSlides);
 
-      const newModuleRecord = {
-        id: newModuleId,
-        code: formCode.toUpperCase().trim(),
-        title: formTitle.trim(),
-        description: formDesc.trim(),
-        category: formCategory,
-        difficulty: formDifficulty,
-        target_divisions: formTargetDivs,
-        target_roles: formTargetRoles,
-        estimated_minutes: formEstMinutes,
-        points_reward: formPoints,
-        badge_icon: formFormat === 'interactive_simulator' ? 'Smartphone' : formFormat === 'spot_the_mistake' ? 'ShieldAlert' : 'BookOpen',
-        slides_data: sanitizedSlides,
-        is_mandatory: formIsMandatory,
-        deadline_days: 14,
-        version: 'v1.0',
-        is_active: true,
-        author: 'Supervisor / Admin Studio',
-      };
+      if (editingModuleId) {
+        // ── MODE UPDATE EXISTING MODULE ──
+        const updatePayload = {
+          code: formCode.toUpperCase().trim(),
+          title: formTitle.trim(),
+          description: formDesc.trim(),
+          category: formCategory,
+          difficulty: formDifficulty,
+          target_divisions: formTargetDivs,
+          target_roles: formTargetRoles,
+          estimated_minutes: formEstMinutes,
+          points_reward: formPoints,
+          badge_icon: formFormat === 'interactive_simulator' ? 'Smartphone' : formFormat === 'spot_the_mistake' ? 'ShieldAlert' : 'BookOpen',
+          slides_data: sanitizedSlides,
+          is_mandatory: formIsMandatory,
+          updated_at: new Date().toISOString(),
+        };
 
-      // 1. Try Supabase Insert
-      const { error } = await supabase.from('sop_modules').insert([newModuleRecord]);
-      if (error) {
-        console.warn('Supabase insert fallback to local custom cache:', error);
+        const { error } = await supabase
+          .from('sop_modules')
+          .update(updatePayload)
+          .eq('id', editingModuleId);
+
+        if (error) {
+          console.warn('Supabase update fallback to local custom cache:', error);
+        }
+
+        const localCustom = JSON.parse(localStorage.getItem('bib_sop_custom_modules_v2') || '[]');
+        const existingIdx = localCustom.findIndex((m: any) => m.id === editingModuleId);
+        const updatedModuleObj: any = {
+          id: editingModuleId,
+          ...updatePayload,
+          presentationFormat: formFormat,
+          targetDivisions: formTargetDivs,
+          targetRoles: formTargetRoles,
+          estimatedMinutes: formEstMinutes,
+          pointsReward: formPoints,
+          slides: sanitizedSlides,
+          isMandatory: formIsMandatory,
+          isActive: true,
+          updatedAt: new Date().toISOString(),
+        };
+
+        if (existingIdx >= 0) {
+          localCustom[existingIdx] = { ...localCustom[existingIdx], ...updatedModuleObj };
+        } else {
+          localCustom.push(updatedModuleObj);
+        }
+        safeLocalStorageSetItem('bib_sop_custom_modules_v2', localCustom);
+
+        setModules((prev) =>
+          prev.map((m) => (m.id === editingModuleId ? { ...m, ...updatedModuleObj } : m))
+        );
+
+        onToast?.(`Modul SOP ${formCode.toUpperCase()} berhasil diperbarui!`);
+      } else {
+        // ── MODE CREATE NEW MODULE ──
+        const newModuleId = `sop-${formCode.toLowerCase().replace(/[^a-z0-9]/g, '-')}-${Date.now()}`;
+        const newModuleRecord = {
+          id: newModuleId,
+          code: formCode.toUpperCase().trim(),
+          title: formTitle.trim(),
+          description: formDesc.trim(),
+          category: formCategory,
+          difficulty: formDifficulty,
+          target_divisions: formTargetDivs,
+          target_roles: formTargetRoles,
+          estimated_minutes: formEstMinutes,
+          points_reward: formPoints,
+          badge_icon: formFormat === 'interactive_simulator' ? 'Smartphone' : formFormat === 'spot_the_mistake' ? 'ShieldAlert' : 'BookOpen',
+          slides_data: sanitizedSlides,
+          is_mandatory: formIsMandatory,
+          deadline_days: 14,
+          version: 'v1.0',
+          is_active: true,
+          author: 'Supervisor / Admin Studio',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+
+        const { error } = await supabase.from('sop_modules').insert([newModuleRecord]);
+        if (error) {
+          console.warn('Supabase insert fallback to local custom cache:', error);
+        }
+
+        const localCustom = JSON.parse(localStorage.getItem('bib_sop_custom_modules_v2') || '[]');
+        const newModuleObj: any = {
+          ...newModuleRecord,
+          presentationFormat: formFormat,
+          targetDivisions: formTargetDivs,
+          targetRoles: formTargetRoles,
+          estimatedMinutes: formEstMinutes,
+          pointsReward: formPoints,
+          slides: sanitizedSlides,
+          isMandatory: formIsMandatory,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        localCustom.push(newModuleObj);
+        safeLocalStorageSetItem('bib_sop_custom_modules_v2', localCustom);
+
+        setModules((prev) => [newModuleObj, ...prev]);
+        onToast?.(`Modul SOP ${formCode.toUpperCase()} (${editingSlides.length} Slide) berhasil diterbitkan!`);
       }
 
-      // 2. Save locally dengan aman tanpa resiko QuotaExceededError
-      const localCustom = JSON.parse(localStorage.getItem('bib_sop_custom_modules_v2') || '[]');
-      localCustom.push({
-        ...newModuleRecord,
-        presentationFormat: formFormat,
-        targetDivisions: formTargetDivs,
-        targetRoles: formTargetRoles,
-        estimatedMinutes: formEstMinutes,
-        pointsReward: formPoints,
-        slides: sanitizedSlides,
-        isMandatory: formIsMandatory,
-        isActive: true,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-      safeLocalStorageSetItem('bib_sop_custom_modules_v2', localCustom);
-
-      onToast?.(`Modul SOP ${formCode.toUpperCase()} (${editingSlides.length} Slide) berhasil diterbitkan!`);
       setIsCreateModalOpen(false);
+      setEditingModuleId(null);
       setCreationStep(1);
       loadModules();
     } catch (err: any) {
-      setFormError(err.message || 'Gagal membuat modul SOP.');
+      setFormError(err.message || 'Gagal menyimpan modul SOP.');
     } finally {
       setIsSubmitting(false);
     }
@@ -714,10 +1009,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
           </button>
 
           <button
-            onClick={() => {
-              setIsCreateModalOpen(true);
-              setCreationStep(1);
-            }}
+            onClick={handleOpenCreateModal}
             className="flex items-center gap-1.5 px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition shadow-md shadow-purple-900/30"
           >
             <Plus className="w-4 h-4" />
@@ -817,6 +1109,15 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                 </button>
 
                 <button
+                  onClick={() => handleOpenEditModal(item)}
+                  className="p-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-lg transition flex items-center gap-1 text-[11px] font-bold px-2.5"
+                  title="Edit Modul SOP & Slide"
+                >
+                  <Edit3 className="w-3.5 h-3.5 text-purple-400" />
+                  <span className="hidden sm:inline">Edit</span>
+                </button>
+
+                <button
                   onClick={async () => {
                     try {
                       const { SopPdfExporter } = await import('../lib/sopPdfExporter');
@@ -861,11 +1162,15 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                     <h3 className="text-sm font-bold text-white">
                       {creationStep === 1
                         ? 'Langkah 1: Pilih Konsep Dasar Modul'
+                        : editingModuleId
+                        ? `Mode Edit Modul: ${formCode || 'Modul SOP'} (${editingSlides.length} Slide)`
                         : `Langkah 2: Studio Multi-Slide Deck (${editingSlides.length} Slide Aktif)`}
                     </h3>
                     <p className="text-[11px] text-zinc-400">
                       {creationStep === 1
                         ? 'Tentukan format utama modul sebelum menyusun alur slide interaktif'
+                        : editingModuleId
+                        ? 'Perbarui alur slide, instruksi langkah kerja, kuis checkpoint, atau informasi umum modul'
                         : 'Kelola alur multi-slide, koordinat klik simulator, foto anomali, dan kuis pemahaman'}
                     </p>
                   </div>
@@ -979,7 +1284,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                       <div>
                         <label className="block text-[11px] text-zinc-400 mb-1">Kode SOP *</label>
                         <input
@@ -990,7 +1295,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                           required
                         />
                       </div>
-                      <div className="sm:col-span-2">
+                      <div className="sm:col-span-3">
                         <label className="block text-[11px] text-zinc-400 mb-1">Judul Modul Pelatihan *</label>
                         <input
                           type="text"
@@ -1002,7 +1307,18 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-[11px] text-zinc-400 mb-1">Deskripsi Singkat Modul</label>
+                      <textarea
+                        rows={2}
+                        value={formDesc}
+                        onChange={(e) => setFormDesc(e.target.value)}
+                        placeholder="Tuliskan gambaran umum materi, tujuan pelatihan, atau standar operasional yang ditargetkan..."
+                        className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white resize-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                       <div>
                         <label className="block text-[11px] text-zinc-400 mb-1">Kategori</label>
                         <select
@@ -1035,6 +1351,18 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                       </div>
 
                       <div>
+                        <label className="block text-[11px] text-zinc-400 mb-1">Estimasi Waktu (Menit)</label>
+                        <input
+                          type="number"
+                          min={1}
+                          max={60}
+                          value={formEstMinutes}
+                          onChange={(e) => setFormEstMinutes(Number(e.target.value))}
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                        />
+                      </div>
+
+                      <div>
                         <label className="block text-[11px] text-zinc-400 mb-1">Poin Reward (PTS)</label>
                         <input
                           type="number"
@@ -1044,11 +1372,31 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                         />
                       </div>
                     </div>
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 border-t border-zinc-800">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs text-zinc-300 select-none">
+                        <input
+                          type="checkbox"
+                          checked={formIsMandatory}
+                          onChange={(e) => setFormIsMandatory(e.target.checked)}
+                          className="w-4 h-4 rounded bg-zinc-800 border-zinc-700 text-purple-600 focus:ring-purple-500 focus:ring-offset-zinc-900 cursor-pointer"
+                        />
+                        <span className="font-bold text-amber-300">Modul Wajib Kepatuhan (Mandatory Compliance)</span>
+                        <span className="text-[10px] text-zinc-400 hidden sm:inline">— Kuis & deck wajib diselesaikan seluruh personel</span>
+                      </label>
+
+                      <div className="flex items-center gap-1.5 text-[11px] text-zinc-400">
+                        <span className="font-semibold text-zinc-300">Target Divisi:</span>
+                        <span className="bg-zinc-800 px-2 py-0.5 rounded text-[10px] text-purple-300 font-mono">
+                          {formTargetDivs.join(', ')}
+                        </span>
+                      </div>
+                    </div>
                   </div>
 
                   {/* ─── 🎞️ SLIDE FILMSTRIP & TIMELINE NAVIGATION ─── */}
                   <div className="bg-zinc-900/90 p-3.5 rounded-xl border border-purple-500/30 space-y-3">
-                    <div className="flex items-center justify-between">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div className="flex items-center gap-2">
                         <Layers className="w-4 h-4 text-purple-400" />
                         <span className="text-xs font-bold text-white">
@@ -1057,33 +1405,53 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                       </div>
                       
                       {/* Add Slide Quick Menu */}
-                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
                         <span className="text-[10px] text-zinc-400 mr-1 hidden sm:inline">+ Tambah:</span>
                         <button
                           type="button"
+                          onClick={() => handleAddSlide('step_instruction')}
+                          className="px-2 py-1 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 rounded-lg text-[10px] font-bold transition flex items-center gap-1 shrink-0"
+                          title="Tambah Slide Langkah Kerja"
+                        >
+                          <ListOrdered className="w-3 h-3" /> Langkah Kerja
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAddSlide('dos_and_donts')}
+                          className="px-2 py-1 bg-cyan-950 hover:bg-cyan-900 text-cyan-300 border border-cyan-700/60 rounded-lg text-[10px] font-bold transition flex items-center gap-1 shrink-0"
+                          title="Tambah Slide DOs & DON'Ts"
+                        >
+                          <Scale className="w-3 h-3" /> Do's & Don'ts
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleAddSlide('safety_alert')}
+                          className="px-2 py-1 bg-rose-950 hover:bg-rose-900 text-rose-300 border border-rose-700/60 rounded-lg text-[10px] font-bold transition flex items-center gap-1 shrink-0"
+                          title="Tambah Slide Peringatan Bahaya K3"
+                        >
+                          <ShieldAlert className="w-3 h-3" /> Peringatan K3
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => handleAddSlide('interactive_simulator')}
-                          className="px-2 py-1 bg-indigo-950 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/60 rounded-lg text-[10px] font-bold transition flex items-center gap-1"
+                          className="px-2 py-1 bg-indigo-950 hover:bg-indigo-900 text-indigo-300 border border-indigo-700/60 rounded-lg text-[10px] font-bold transition flex items-center gap-1 shrink-0"
+                          title="Tambah Slide Simulator Klik WMS"
                         >
                           <Smartphone className="w-3 h-3" /> Simulator
                         </button>
                         <button
                           type="button"
                           onClick={() => handleAddSlide('spot_the_mistake')}
-                          className="px-2 py-1 bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-700/60 rounded-lg text-[10px] font-bold transition flex items-center gap-1"
+                          className="px-2 py-1 bg-amber-950 hover:bg-amber-900 text-amber-300 border border-amber-700/60 rounded-lg text-[10px] font-bold transition flex items-center gap-1 shrink-0"
+                          title="Tambah Slide Hazard Hunt"
                         >
                           <ShieldAlert className="w-3 h-3" /> Hazard Hunt
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleAddSlide('step_instruction')}
-                          className="px-2 py-1 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 border border-emerald-700/60 rounded-lg text-[10px] font-bold transition flex items-center gap-1"
-                        >
-                          <ListOrdered className="w-3 h-3" /> Langkah
-                        </button>
-                        <button
-                          type="button"
                           onClick={() => handleAddSlide('quiz_checkpoint')}
-                          className="px-2 py-1 bg-purple-950 hover:bg-purple-900 text-purple-300 border border-purple-700/60 rounded-lg text-[10px] font-bold transition flex items-center gap-1"
+                          className="px-2 py-1 bg-purple-950 hover:bg-purple-900 text-purple-300 border border-purple-700/60 rounded-lg text-[10px] font-bold transition flex items-center gap-1 shrink-0"
+                          title="Tambah Slide Kuis Checkpoint"
                         >
                           <HelpCircle className="w-3 h-3" /> Kuis
                         </button>
@@ -1099,6 +1467,9 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                         if (slide.slideType === 'spot_the_mistake') typeIcon = '🔍';
                         if (slide.slideType === 'interactive_hotspot') typeIcon = '📌';
                         if (slide.slideType === 'quiz_checkpoint') typeIcon = '❓';
+                        if (slide.slideType === 'dos_and_donts') typeIcon = '⚖️';
+                        if (slide.slideType === 'safety_alert') typeIcon = '🚨';
+                        if (slide.slideType === 'step_instruction') typeIcon = '📋';
 
                         return (
                           <div
@@ -1181,12 +1552,14 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                       {/* Common Slide Title & Subtitle */}
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-[11px] text-zinc-400 mb-1">Judul Slide</label>
+                          <label className="block text-[11px] text-zinc-400 mb-1">Judul Slide *</label>
                           <input
                             type="text"
                             value={currentActiveSlide.title}
                             onChange={(e) => handleUpdateActiveSlide({ title: e.target.value })}
                             className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
+                            placeholder="Cth: Standar Pengoperasian MHE"
+                            required
                           />
                         </div>
                         <div>
@@ -1195,10 +1568,400 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                             type="text"
                             value={currentActiveSlide.subtitle || ''}
                             onChange={(e) => handleUpdateActiveSlide({ subtitle: e.target.value })}
+                            placeholder="Cth: Patuhi urutan 6 langkah kerja aman berikut"
                             className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
                           />
                         </div>
                       </div>
+
+                      {/* Common Audio Narration (TTS Voiceover) */}
+                      <div className="bg-purple-950/20 border border-purple-800/40 rounded-xl p-3 space-y-2">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <label className="text-[11px] text-purple-300 font-semibold flex items-center gap-1.5">
+                            <Volume2 className="w-3.5 h-3.5 text-purple-400" />
+                            <span>Teks Narasi Suara / Voiceover TTS</span>
+                            <span className="text-[10px] text-zinc-400 font-normal hidden sm:inline">(Otomatis dibacakan saat pekerja membuka slide)</span>
+                          </label>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={handleGenerateNarrationForCurrentSlide}
+                              className="px-2.5 py-1 text-[11px] bg-purple-900/60 hover:bg-purple-800 text-purple-200 rounded-lg border border-purple-700/60 transition flex items-center gap-1 font-medium"
+                              title="Rangkai kalimat narasi otomatis dari judul, instruksi langkah kerja, atau kuis di slide ini"
+                            >
+                              <Sparkles className="w-3 h-3 text-purple-300" />
+                              <span>Generate dari Materi</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleTestAudio(currentActiveSlide.audioNarrationText || '')}
+                              className={`px-2.5 py-1 text-[11px] rounded-lg border transition flex items-center gap-1 font-medium ${
+                                isTestingAudio
+                                  ? 'bg-red-950/80 text-red-300 border-red-700 hover:bg-red-900 animate-pulse'
+                                  : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-200 border-zinc-700'
+                              }`}
+                              title={isTestingAudio ? 'Hentikan uji coba audio' : 'Dengarkan pratinjau suara narator dalam bahasa Indonesia'}
+                            >
+                              {isTestingAudio ? <VolumeX className="w-3 h-3 text-red-400" /> : <Volume2 className="w-3 h-3 text-purple-400" />}
+                              <span>{isTestingAudio ? 'Stop' : 'Uji Suara'}</span>
+                            </button>
+                          </div>
+                        </div>
+                        <textarea
+                          rows={2}
+                          value={currentActiveSlide.audioNarrationText || ''}
+                          onChange={(e) => handleUpdateActiveSlide({ audioNarrationText: e.target.value })}
+                          placeholder="Tuliskan kalimat instruksi yang ingin diucapkan oleh sistem suara narator (atau klik 'Generate dari Materi')..."
+                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white resize-none placeholder-zinc-500 focus:border-purple-500 focus:outline-none"
+                        />
+                      </div>
+
+                      {/* ── TYPE: STEP INSTRUCTION (PANDUAN LANGKAH KERJA) ── */}
+                      {currentActiveSlide.slideType === 'step_instruction' && (
+                        <div className="space-y-3 bg-emerald-950/20 p-3.5 rounded-xl border border-emerald-500/30">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs text-emerald-300 font-bold flex items-center gap-1.5">
+                              <ListOrdered className="w-4 h-4 text-emerald-400" />
+                              Daftar Urutan Langkah Kerja ({currentActiveSlide.steps?.length || 0} Langkah)
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const curSteps = currentActiveSlide.steps || [];
+                                const nextNum = curSteps.length + 1;
+                                const newStep: SopStepItem = {
+                                  stepNumber: nextNum,
+                                  title: `Langkah ${nextNum}: `,
+                                  description: '',
+                                  keyHighlight: '',
+                                };
+                                handleUpdateActiveSlide({ steps: [...curSteps, newStep] });
+                              }}
+                              className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Tambah Langkah</span>
+                            </button>
+                          </div>
+
+                          {/* Steps List */}
+                          <div className="space-y-2.5">
+                            {(!currentActiveSlide.steps || currentActiveSlide.steps.length === 0) ? (
+                              <div className="text-center py-6 border border-dashed border-emerald-800/60 rounded-xl bg-zinc-950/40 text-xs text-zinc-400">
+                                Belum ada langkah kerja. Klik tombol <strong className="text-emerald-300">+ Tambah Langkah</strong> di atas untuk menambahkan langkah kerja (bisa 6 langkah atau lebih).
+                              </div>
+                            ) : (
+                              currentActiveSlide.steps.map((step, sIdx) => (
+                                <div
+                                  key={sIdx}
+                                  className="bg-zinc-950/80 border border-zinc-800 rounded-xl p-3 space-y-2 hover:border-emerald-500/40 transition"
+                                >
+                                  {/* Step header & reordering/delete controls */}
+                                  <div className="flex items-center justify-between border-b border-zinc-800/80 pb-1.5">
+                                    <div className="flex items-center gap-2">
+                                      <span className="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 font-mono font-black text-[11px] flex items-center justify-center">
+                                        {sIdx + 1}
+                                      </span>
+                                      <span className="text-[11px] font-bold text-zinc-300">
+                                        Langkah Kerja #{sIdx + 1}
+                                      </span>
+                                    </div>
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (sIdx === 0) return;
+                                          const steps = [...(currentActiveSlide.steps || [])];
+                                          const temp = steps[sIdx];
+                                          steps[sIdx] = steps[sIdx - 1];
+                                          steps[sIdx - 1] = temp;
+                                          const renumbered = steps.map((s, i) => ({ ...s, stepNumber: i + 1 }));
+                                          handleUpdateActiveSlide({ steps: renumbered });
+                                        }}
+                                        disabled={sIdx === 0}
+                                        className="p-1 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-25 text-zinc-300 rounded text-xs"
+                                        title="Pindah ke atas"
+                                      >
+                                        <ArrowUp className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const steps = [...(currentActiveSlide.steps || [])];
+                                          if (sIdx >= steps.length - 1) return;
+                                          const temp = steps[sIdx];
+                                          steps[sIdx] = steps[sIdx + 1];
+                                          steps[sIdx + 1] = temp;
+                                          const renumbered = steps.map((s, i) => ({ ...s, stepNumber: i + 1 }));
+                                          handleUpdateActiveSlide({ steps: renumbered });
+                                        }}
+                                        disabled={sIdx === (currentActiveSlide.steps?.length || 0) - 1}
+                                        className="p-1 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-25 text-zinc-300 rounded text-xs"
+                                        title="Pindah ke bawah"
+                                      >
+                                        <ArrowDown className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const steps = (currentActiveSlide.steps || [])
+                                            .filter((_, i) => i !== sIdx)
+                                            .map((s, i) => ({ ...s, stepNumber: i + 1 }));
+                                          handleUpdateActiveSlide({ steps });
+                                        }}
+                                        className="p-1 bg-rose-950/80 hover:bg-rose-900 text-rose-300 rounded text-xs ml-1"
+                                        title="Hapus langkah ini"
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Inputs: Title, Description, Key Highlight */}
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                    <div className="sm:col-span-2">
+                                      <label className="block text-[10px] text-zinc-400 mb-0.5">Judul Langkah *</label>
+                                      <input
+                                        type="text"
+                                        value={step.title}
+                                        onChange={(e) => {
+                                          const steps = [...(currentActiveSlide.steps || [])];
+                                          steps[sIdx] = { ...steps[sIdx], title: e.target.value };
+                                          handleUpdateActiveSlide({ steps });
+                                        }}
+                                        placeholder="Cth: Persiapan APD & Matriks Bahaya"
+                                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="block text-[10px] text-emerald-400 mb-0.5">💡 Tips / Key Highlight (Opsional)</label>
+                                      <input
+                                        type="text"
+                                        value={step.keyHighlight || ''}
+                                        onChange={(e) => {
+                                          const steps = [...(currentActiveSlide.steps || [])];
+                                          steps[sIdx] = { ...steps[sIdx], keyHighlight: e.target.value };
+                                          handleUpdateActiveSlide({ steps });
+                                        }}
+                                        placeholder="Cth: Pastikan tali helm terkunci"
+                                        className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-500"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className="block text-[10px] text-zinc-400 mb-0.5">Penjelasan / Deskripsi Detail Prosedur *</label>
+                                    <textarea
+                                      rows={2}
+                                      value={step.description}
+                                      onChange={(e) => {
+                                        const steps = [...(currentActiveSlide.steps || [])];
+                                        steps[sIdx] = { ...steps[sIdx], description: e.target.value };
+                                        handleUpdateActiveSlide({ steps });
+                                      }}
+                                      placeholder="Jelaskan secara runtut tindakan teknis yang harus dilakukan pekerja..."
+                                      className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white resize-none"
+                                    />
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── TYPE: DOS AND DON'TS ── */}
+                      {currentActiveSlide.slideType === 'dos_and_donts' && (
+                        <div className="space-y-3 bg-zinc-950/40 p-3.5 rounded-xl border border-zinc-800">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs text-zinc-300 font-bold flex items-center gap-1.5">
+                              <Scale className="w-4 h-4 text-cyan-400" />
+                              Komparasi Aturan Benar (DO) vs Larangan (DON'T) ({currentActiveSlide.dosAndDonts?.length || 0} Pasangan)
+                            </label>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const cur = currentActiveSlide.dosAndDonts || [];
+                                const newItem: SopDoDontItem = {
+                                  doTitle: '',
+                                  doText: '',
+                                  doTip: '',
+                                  dontTitle: '',
+                                  dontText: '',
+                                  dontWarning: '',
+                                };
+                                handleUpdateActiveSlide({ dosAndDonts: [...cur, newItem] });
+                              }}
+                              className="px-2.5 py-1 bg-cyan-600 hover:bg-cyan-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1 shadow"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                              <span>Tambah Pasangan</span>
+                            </button>
+                          </div>
+
+                          <div className="space-y-3">
+                            {(!currentActiveSlide.dosAndDonts || currentActiveSlide.dosAndDonts.length === 0) ? (
+                              <div className="text-center py-6 border border-dashed border-zinc-800 rounded-xl text-xs text-zinc-400">
+                                Belum ada pasangan DO & DON'T. Klik tombol <strong className="text-cyan-300">+ Tambah Pasangan</strong> di atas.
+                              </div>
+                            ) : (
+                              currentActiveSlide.dosAndDonts.map((dd, ddIdx) => (
+                                <div key={ddIdx} className="p-3 bg-zinc-900 border border-zinc-800 rounded-xl space-y-3">
+                                  <div className="flex items-center justify-between border-b border-zinc-800 pb-1.5">
+                                    <span className="text-xs font-bold text-zinc-300">Pasangan Aturan #{ddIdx + 1}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        const updated = (currentActiveSlide.dosAndDonts || []).filter((_, i) => i !== ddIdx);
+                                        handleUpdateActiveSlide({ dosAndDonts: updated });
+                                      }}
+                                      className="p-1 bg-rose-950/80 hover:bg-rose-900 text-rose-300 rounded text-xs"
+                                      title="Hapus pasangan ini"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    {/* DO side */}
+                                    <div className="bg-emerald-950/20 border border-emerald-500/30 p-2.5 rounded-lg space-y-2">
+                                      <span className="text-[11px] font-black text-emerald-400 uppercase flex items-center gap-1">
+                                        <CheckCircle2 className="w-3.5 h-3.5" /> DO (Praktik Benar)
+                                      </span>
+                                      <div>
+                                        <label className="block text-[10px] text-zinc-400 mb-0.5">Judul Tindakan Benar *</label>
+                                        <input
+                                          type="text"
+                                          value={dd.doTitle}
+                                          onChange={(e) => {
+                                            const list = [...(currentActiveSlide.dosAndDonts || [])];
+                                            list[ddIdx] = { ...list[ddIdx], doTitle: e.target.value };
+                                            handleUpdateActiveSlide({ dosAndDonts: list });
+                                          }}
+                                          placeholder="Cth: Selalu Bunyikan Klakson di Persimpangan"
+                                          className="w-full bg-zinc-900 border border-zinc-700 rounded px-2.5 py-1 text-xs text-white"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] text-zinc-400 mb-0.5">Penjelasan DO *</label>
+                                        <textarea
+                                          rows={2}
+                                          value={dd.doText}
+                                          onChange={(e) => {
+                                            const list = [...(currentActiveSlide.dosAndDonts || [])];
+                                            list[ddIdx] = { ...list[ddIdx], doText: e.target.value };
+                                            handleUpdateActiveSlide({ dosAndDonts: list });
+                                          }}
+                                          placeholder="Alasan mengapa tindakan ini wajib..."
+                                          className="w-full bg-zinc-900 border border-zinc-700 rounded px-2.5 py-1 text-xs text-white resize-none"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] text-emerald-400 mb-0.5">Tips Tambahan (Opsional)</label>
+                                        <input
+                                          type="text"
+                                          value={dd.doTip || ''}
+                                          onChange={(e) => {
+                                            const list = [...(currentActiveSlide.dosAndDonts || [])];
+                                            list[ddIdx] = { ...list[ddIdx], doTip: e.target.value };
+                                            handleUpdateActiveSlide({ dosAndDonts: list });
+                                          }}
+                                          placeholder="Cth: Cek kaca cembung di sudut lorong"
+                                          className="w-full bg-zinc-900 border border-zinc-700 rounded px-2.5 py-1 text-xs text-white"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    {/* DONT side */}
+                                    <div className="bg-rose-950/20 border border-rose-500/30 p-2.5 rounded-lg space-y-2">
+                                      <span className="text-[11px] font-black text-rose-400 uppercase flex items-center gap-1">
+                                        <X className="w-3.5 h-3.5" /> DON'T (Larangan Keras)
+                                      </span>
+                                      <div>
+                                        <label className="block text-[10px] text-zinc-400 mb-0.5">Judul Larangan *</label>
+                                        <input
+                                          type="text"
+                                          value={dd.dontTitle}
+                                          onChange={(e) => {
+                                            const list = [...(currentActiveSlide.dosAndDonts || [])];
+                                            list[ddIdx] = { ...list[ddIdx], dontTitle: e.target.value };
+                                            handleUpdateActiveSlide({ dosAndDonts: list });
+                                          }}
+                                          placeholder="Cth: Dilarang Mengoperasikan HP Saat Berkendara"
+                                          className="w-full bg-zinc-900 border border-zinc-700 rounded px-2.5 py-1 text-xs text-white"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] text-zinc-400 mb-0.5">Penjelasan DON'T *</label>
+                                        <textarea
+                                          rows={2}
+                                          value={dd.dontText}
+                                          onChange={(e) => {
+                                            const list = [...(currentActiveSlide.dosAndDonts || [])];
+                                            list[ddIdx] = { ...list[ddIdx], dontText: e.target.value };
+                                            handleUpdateActiveSlide({ dosAndDonts: list });
+                                          }}
+                                          placeholder="Dampak buruk atau risiko bahayanya..."
+                                          className="w-full bg-zinc-900 border border-zinc-700 rounded px-2.5 py-1 text-xs text-white resize-none"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] text-rose-400 mb-0.5">Peringatan Bahaya (Opsional)</label>
+                                        <input
+                                          type="text"
+                                          value={dd.dontWarning || ''}
+                                          onChange={(e) => {
+                                            const list = [...(currentActiveSlide.dosAndDonts || [])];
+                                            list[ddIdx] = { ...list[ddIdx], dontWarning: e.target.value };
+                                            handleUpdateActiveSlide({ dosAndDonts: list });
+                                          }}
+                                          placeholder="Cth: Pelanggaran memicu sanksi SP-2"
+                                          className="w-full bg-zinc-900 border border-zinc-700 rounded px-2.5 py-1 text-xs text-white"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              ))
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* ── TYPE: SAFETY ALERT ── */}
+                      {currentActiveSlide.slideType === 'safety_alert' && (
+                        <div className="space-y-3 bg-amber-950/20 p-3.5 rounded-xl border border-amber-500/30">
+                          <label className="text-xs text-amber-300 font-bold flex items-center gap-1.5">
+                            <ShieldAlert className="w-4 h-4 text-amber-400" />
+                            Konfigurasi Peringatan Bahaya Kritis & Golden Rules K3
+                          </label>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-[10px] text-zinc-400 mb-1">Tingkat Bahaya (Alert Level)</label>
+                              <select
+                                value={currentActiveSlide.alertLevel || 'critical'}
+                                onChange={(e) => handleUpdateActiveSlide({ alertLevel: e.target.value as any })}
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white font-bold"
+                              >
+                                <option value="critical">🔴 Critical (Bahaya Fatal / Jiwa)</option>
+                                <option value="warning">🟡 Warning (Peringatan Insiden / Kerusakan)</option>
+                                <option value="info">🔵 Info (Petunjuk Kepatuhan Standar)</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="block text-[10px] text-zinc-400 mb-1">Isi Peringatan / Golden Rule *</label>
+                              <textarea
+                                rows={2}
+                                value={currentActiveSlide.content || ''}
+                                onChange={(e) => handleUpdateActiveSlide({ content: e.target.value })}
+                                placeholder="Tuliskan pesan peringatan keselamatan yang wajib dipatuhi pekerja..."
+                                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1 text-xs text-white resize-none"
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* ── TYPE: INTERACTIVE SIMULATOR ── */}
                       {currentActiveSlide.slideType === 'interactive_simulator' && (
@@ -1802,24 +2565,30 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
 
                   {/* Submit Action Buttons */}
                   <div className="flex gap-2 pt-2 border-t border-zinc-800">
-                    <button
-                      type="button"
-                      onClick={() => setCreationStep(1)}
-                      className="w-1/3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold py-2.5 rounded-xl text-xs transition"
-                    >
-                      ← Ganti Format Dasar
-                    </button>
+                    {!editingModuleId && (
+                      <button
+                        type="button"
+                        onClick={() => setCreationStep(1)}
+                        className="w-1/3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-semibold py-2.5 rounded-xl text-xs transition"
+                      >
+                        ← Ganti Format Dasar
+                      </button>
+                    )}
                     <button
                       type="submit"
                       disabled={isSubmitting || isUploadingImage}
-                      className="w-2/3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-purple-900/30"
+                      className={`${
+                        editingModuleId ? 'w-full' : 'w-2/3'
+                      } bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl text-xs transition flex items-center justify-center gap-2 shadow-lg shadow-purple-900/30`}
                     >
                       {(isSubmitting || isUploadingImage) && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                       <span>
                         {isUploadingImage
                           ? 'Mengunggah ke Drive...'
                           : isSubmitting
-                          ? 'Menerbitkan Modul...'
+                          ? 'Menyimpan Perubahan...'
+                          : editingModuleId
+                          ? `Simpan Perubahan Modul (${editingSlides.length} Slide)`
                           : `Simpan & Terbitkan Modul (${editingSlides.length} Slide)`}
                       </span>
                     </button>

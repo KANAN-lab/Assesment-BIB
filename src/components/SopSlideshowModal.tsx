@@ -66,8 +66,12 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
   const [spotTimer, setSpotTimer] = useState(25);
   const [spotRevealed, setSpotRevealed] = useState(false);
 
+  // Audio Voiceover (TTS) Persistent Mode & Engine Refs
+  const [voiceoverMode, setVoiceoverMode] = useState(false);
+  const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const startTimeRef = useRef<number>(Date.now());
   const synthRef = useRef<SpeechSynthesis | null>(null);
+  const activeUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
 
   const fallbackSlides: SopSlide[] = [
     {
@@ -93,20 +97,146 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
   const currentSlide: SopSlide = effectiveSlides[currentSlideIndex] || effectiveSlides[0] || fallbackSlides[0];
   const isLastSlide = currentSlideIndex === totalSlides - 1;
 
-  // Initialize Speech Synthesis
+  // Stop current speech playback and clean heartbeat timer
+  const stopSpeech = useCallback(() => {
+    if (heartbeatIntervalRef.current) {
+      clearInterval(heartbeatIntervalRef.current);
+      heartbeatIntervalRef.current = null;
+    }
+    if (synthRef.current) {
+      synthRef.current.cancel();
+    }
+    activeUtteranceRef.current = null;
+    setIsSpeaking(false);
+  }, []);
+
+  // Speak speech synthesis for a given slide
+  const speakSlide = useCallback((slide: SopSlide) => {
+    if (!synthRef.current || !('speechSynthesis' in window)) return;
+
+    stopSpeech();
+
+    if (synthRef.current.paused) {
+      synthRef.current.resume();
+    }
+
+    // Susun teks narasi lengkap dengan fallback komprehensif jika audioNarrationText belum diisi manual
+    let textToRead = slide.audioNarrationText?.trim();
+    if (!textToRead) {
+      textToRead = `${slide.title}. `;
+      if (slide.subtitle) {
+        textToRead += `${slide.subtitle}. `;
+      }
+      if (slide.slideType === 'step_instruction' && slide.steps && slide.steps.length > 0) {
+        textToRead += slide.steps
+          .map((st) => `Langkah ${st.stepNumber}: ${st.title}. ${st.description}.${st.keyHighlight ? ` Tips penting: ${st.keyHighlight}.` : ''}`)
+          .join(' ');
+      } else if (slide.slideType === 'dos_and_donts' && slide.dosAndDonts && slide.dosAndDonts.length > 0) {
+        textToRead += slide.dosAndDonts
+          .map((dd) => `Praktik benar: ${dd.doTitle}. ${dd.doText}. Larangan keras: ${dd.dontTitle}. ${dd.dontText}.`)
+          .join(' ');
+      } else if (slide.slideType === 'safety_alert') {
+        textToRead += `Peringatan keselamatan ${slide.alertLevel || 'kritis'}: ${slide.content || ''}. `;
+        if (slide.steps && slide.steps.length > 0) {
+          textToRead += slide.steps.map((st) => `${st.title}: ${st.description}.`).join(' ');
+        }
+      } else if (slide.slideType === 'quiz_checkpoint' && slide.quiz) {
+        textToRead += `Pertanyaan evaluasi kuis: ${slide.quiz.question}.`;
+      } else if (slide.slideType === 'interactive_simulator' && slide.simulatorConfig) {
+        textToRead += `Instruksi simulasi: ${slide.simulatorConfig.taskInstruction}. ${slide.simulatorConfig.hintText || ''}`;
+      } else if (slide.slideType === 'spot_the_mistake' && slide.spotMistakeConfig) {
+        textToRead += `Tantangan Hazard Hunt: ${slide.spotMistakeConfig.challengePrompt}. Temukan letak bahaya pada foto.`;
+      } else if (slide.content) {
+        textToRead += slide.content;
+      }
+    }
+
+    if (!textToRead.trim()) return;
+
+    const utterance = new SpeechSynthesisUtterance(textToRead);
+    utterance.lang = 'id-ID';
+    utterance.rate = 1.0;
+    utterance.pitch = 1.0;
+
+    // Pilih suara bahasa Indonesia jika tersedia agar tidak beraksen asing
+    const voices = synthRef.current.getVoices();
+    const idVoice = voices.find(
+      (v) =>
+        v.lang === 'id-ID' ||
+        v.lang.toLowerCase().startsWith('id') ||
+        v.name.toLowerCase().includes('indonesia') ||
+        v.name.toLowerCase().includes('bahasa')
+    );
+    if (idVoice) {
+      utterance.voice = idVoice;
+    }
+
+    // Simpan di ref agar tidak di-garbage collect oleh engine V8 Chrome
+    activeUtteranceRef.current = utterance;
+
+    utterance.onend = () => {
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+      activeUtteranceRef.current = null;
+      setIsSpeaking(false);
+    };
+
+    utterance.onerror = () => {
+      if (heartbeatIntervalRef.current) {
+        clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = null;
+      }
+      activeUtteranceRef.current = null;
+      setIsSpeaking(false);
+    };
+
+    // Jeda 60ms untuk memastikan event cancel terdahulu selesai oleh audio pipeline browser
+    setTimeout(() => {
+      if (synthRef.current) {
+        synthRef.current.speak(utterance);
+        setIsSpeaking(true);
+
+        // Heartbeat interval untuk mengatasi bug Chromium di mana utterance panjang freeze setelah 10-15s
+        if (heartbeatIntervalRef.current) clearInterval(heartbeatIntervalRef.current);
+        heartbeatIntervalRef.current = setInterval(() => {
+          if (!window.speechSynthesis || !window.speechSynthesis.speaking) {
+            if (heartbeatIntervalRef.current) {
+              clearInterval(heartbeatIntervalRef.current);
+              heartbeatIntervalRef.current = null;
+            }
+          } else {
+            window.speechSynthesis.pause();
+            window.speechSynthesis.resume();
+          }
+        }, 10000);
+      }
+    }, 60);
+  }, [stopSpeech]);
+
+  // Initialize Speech Synthesis with voice listener
   useEffect(() => {
     if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       synthRef.current = window.speechSynthesis;
       setTtsSupported(true);
-    }
-    return () => {
-      if (synthRef.current) {
-        synthRef.current.cancel();
-      }
-    };
-  }, []);
 
-  // Anti-speedrun timer reset on slide change
+      const handleVoices = () => {
+        if (synthRef.current) {
+          synthRef.current.getVoices();
+        }
+      };
+      handleVoices();
+      window.speechSynthesis.addEventListener('voiceschanged', handleVoices);
+
+      return () => {
+        window.speechSynthesis.removeEventListener('voiceschanged', handleVoices);
+        stopSpeech();
+      };
+    }
+  }, [stopSpeech]);
+
+  // Anti-speedrun timer reset on slide change & auto-narration on slide change
   useEffect(() => {
     setSpeedrunTimer(isAlreadyCompleted ? 0 : 3);
     const interval = setInterval(() => {
@@ -119,10 +249,13 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
       });
     }, 1000);
 
-    // Stop speaking when changing slide
-    if (synthRef.current) {
-      synthRef.current.cancel();
-      setIsSpeaking(false);
+    // Stop speaking when changing slide, and auto-narrate if voiceover mode is active
+    stopSpeech();
+    let speakTimer: ReturnType<typeof setTimeout> | null = null;
+    if (voiceoverMode) {
+      speakTimer = setTimeout(() => {
+        speakSlide(currentSlide);
+      }, 150);
     }
 
     // Reset slide-specific interactive states
@@ -137,8 +270,11 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
     setSpotRevealed(false);
     setSpotTimer(currentSlide.spotMistakeConfig?.timeLimitSeconds || 25);
 
-    return () => clearInterval(interval);
-  }, [currentSlideIndex, isAlreadyCompleted, currentSlide]);
+    return () => {
+      clearInterval(interval);
+      if (speakTimer) clearTimeout(speakTimer);
+    };
+  }, [currentSlideIndex, isAlreadyCompleted, currentSlide, voiceoverMode, stopSpeech, speakSlide]);
 
   // Spot-the-mistake countdown timer
   useEffect(() => {
@@ -215,32 +351,18 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
     }
   };
 
-  // Handle Text-to-Speech
+  // Handle Text-to-Speech Toggle
   const toggleSpeech = useCallback(() => {
     if (!synthRef.current || !ttsSupported) return;
 
-    if (isSpeaking) {
-      synthRef.current.cancel();
-      setIsSpeaking(false);
-      return;
+    if (voiceoverMode || isSpeaking) {
+      setVoiceoverMode(false);
+      stopSpeech();
+    } else {
+      setVoiceoverMode(true);
+      speakSlide(currentSlide);
     }
-
-    const textToRead =
-      currentSlide.audioNarrationText ||
-      `${currentSlide.title}. ${currentSlide.subtitle || ''}. ${currentSlide.content || ''}`;
-
-    const utterance = new SpeechSynthesisUtterance(textToRead);
-    utterance.lang = 'id-ID';
-    utterance.rate = 1.0;
-    utterance.pitch = 1.0;
-
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-
-    synthRef.current.cancel();
-    synthRef.current.speak(utterance);
-    setIsSpeaking(true);
-  }, [currentSlide, isSpeaking, ttsSupported]);
+  }, [voiceoverMode, isSpeaking, stopSpeech, speakSlide, currentSlide, ttsSupported]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -368,15 +490,29 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
               {ttsSupported && (
                 <button
                   onClick={toggleSpeech}
-                  className={`p-1.5 rounded-lg border text-xs transition flex items-center gap-1 ${
+                  className={`p-1.5 rounded-lg border text-xs transition flex items-center gap-1.5 ${
                     isSpeaking
                       ? 'bg-purple-600/30 text-purple-300 border-purple-500 animate-pulse'
+                      : voiceoverMode
+                      ? 'bg-purple-950/60 text-purple-300 border-purple-700 hover:bg-purple-900/50'
                       : 'bg-zinc-800/80 text-zinc-400 border-zinc-700 hover:text-white'
                   }`}
-                  title={isSpeaking ? 'Matikan Suara Narasi' : 'Dengarkan Narasi Suara (TTS)'}
+                  title={
+                    voiceoverMode
+                      ? 'Matikan Mode Narasi Suara Voiceover'
+                      : 'Nyalakan Narasi Suara Voiceover Otomatis (TTS)'
+                  }
                 >
-                  {isSpeaking ? <Volume2 className="w-4 h-4 text-purple-400" /> : <VolumeX className="w-4 h-4" />}
-                  <span className="hidden sm:inline text-[11px] font-semibold">{isSpeaking ? 'Bersuara...' : 'Suara'}</span>
+                  {isSpeaking ? (
+                    <Volume2 className="w-4 h-4 text-purple-400" />
+                  ) : voiceoverMode ? (
+                    <Volume2 className="w-4 h-4 text-purple-400" />
+                  ) : (
+                    <VolumeX className="w-4 h-4" />
+                  )}
+                  <span className="hidden sm:inline text-[11px] font-semibold">
+                    {isSpeaking ? 'Bersuara...' : voiceoverMode ? 'Narasi ON' : 'Suara'}
+                  </span>
                 </button>
               )}
 

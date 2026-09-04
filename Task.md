@@ -588,4 +588,55 @@
   - [x] Type check `npx tsc --noEmit` lulus 0 error.
   - [x] Production build `npm run build` berhasil.
 
+---
+
+## Phase 34: SOP Module Creator & Management Studio Overhaul (Full Step Builder & Edit Capability)
+
+- [x] **1. Step Instruction Form Builder (`step_instruction`)**:
+  - [x] Bangun UI daftar langkah kerja interaktif per slide pada studio builder `SopManagementPanel.tsx`.
+  - [x] Tambahkan input Judul Langkah (`title`), Deskripsi Detail (`description`), dan Tips K3 (`keyHighlight`).
+  - [x] Tambahkan tombol `+ Tambah Langkah Kerja` dinamis (bebas menambah hingga 6 langkah atau lebih).
+  - [x] Tambahkan tombol Hapus Langkah dan tombol Geser Urutan (Naik/Turun) dengan auto-renumbering index.
+- [x] **2. Do's & Don'ts and Safety Alert Form Builders**:
+  - [x] Sediakan UI komparasi aturan benar (DO) vs larangan keras (DON'T) dengan field judul, penjelasan, tips/peringatan.
+  - [x] Sediakan UI konfigurasi Golden Safety Rules (`safety_alert`) dengan selector tingkat bahaya (`critical`, `warning`, `info`) dan isi pesan peringatan.
+  - [x] Lengkapi toolbar timeline dengan tombol shortcut tambah cepat untuk Do's & Don'ts dan Safety Alert.
+- [x] **3. Fitur Edit Modul SOP Existing (Update Mode)**:
+  - [x] Tambahkan state `editingModuleId` untuk membedakan mode Create vs Edit.
+  - [x] Tambahkan tombol "Edit" pada setiap kartu modul di katalog SOP.
+  - [x] Buat handler `handleOpenEditModal` untuk me-load seluruh konfigurasi slide, metadata, dan timeline.
+  - [x] Upgrade `handleSaveModule` agar mendukung SQL UPDATE (Supabase + Local Cache) saat mode edit aktif.
+- [x] **4. Metadata Modul Lengkap & Narasi Suara (TTS Voiceover)**:
+  - [x] Tambahkan input Deskripsi Modul, Estimasi Waktu Baca (Menit), Checkbox Wajib Kepatuhan (isMandatory), dan Tag Target Divisi/Role.
+  - [x] Tambahkan field input Textarea "Teks Narasi Suara (TTS Voiceover)" di setiap slide.
+- [x] **5. Validasi Integritas Payload & Build Verification**:
+  - [x] Validasi langkah kerja dan kuis sebelum simpan agar mencegah slide kosong/invalid.
+  - [x] Jalankan `npx tsc --noEmit` dan `npm run build` untuk memverifikasi kelulusan 100%.
+
+---
+
+## Phase 35: Audio Narasi Voiceover (TTS) Stabilization & Studio Testing
+
+- [x] **1. Pencegahan Bug Freeze / Hanging Web Speech API Chromium (`SopSlideshowModal.tsx`)**:
+  - [x] Implementasi ref persisten `activeUtteranceRef` untuk mencegah Garbage Collection dini oleh V8 engine Chrome.
+  - [x] Implementasi heartbeat pulse interval (10s) untuk mencegah pemutusan otomatis Chrome pada narasi berdurasi panjang (>15 detik).
+  - [x] Workaround penundaan eksekusi 60ms setelah `.cancel()` agar pipeline audio browser tidak langsung mematikan `.speak()` baru.
+  - [x] Auto-unpause / `resume()` jika synthesizer browser berada dalam kondisi freeze/stuck.
+- [x] **2. Deteksi & Seleksi Suara Bahasa Indonesia (`id-ID`)**:
+  - [x] Prioritaskan voice pack bahasa Indonesia (`id-ID`, `indonesia`, `bahasa`) dari `speechSynthesis.getVoices()` agar terhindar dari aksen Inggris/pecah.
+  - [x] Pasang event listener `voiceschanged` untuk browser yang memuat voice list secara asinkron.
+- [x] **3. Persistent Auto-Narration Mode (Slide to Slide)**:
+  - [x] Tambahkan state `voiceoverMode` agar saat pekerja mengaktifkan narasi di slide awal, narasi otomatis berlanjut saat berpindah ke slide berikutnya tanpa perlu menekan tombol berulang kali.
+  - [x] Tombol header dinamis dengan status visual: `Bersuara...` (pulse purple), `Narasi ON`, dan `Suara` (mute).
+- [x] **4. Generator & Uji Coba Suara di Studio Modul (`SopManagementPanel.tsx`)**:
+  - [x] Tambahkan tombol `✨ Generate dari Materi` untuk menyusun naskah narasi otomatis dari judul, instruksi langkah kerja, DO/DON'T, kuis, dan safety alert.
+  - [x] Tambahkan tombol `🔊 Uji Suara / Stop` di panel editor agar admin dapat mendengarkan pratinjau pembacaan suara sebelum modul diterbitkan.
+  - [x] Tambahkan template `audioNarrationText` default pada tipe slide `interactive_hotspot` dan `quiz_checkpoint`.
+  - [x] Unmount cleanup untuk menghentikan audio preview jika modal studio ditutup.
+- [x] **5. Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` lulus 0 error.
+  - [x] Production build `npm run build` sukses (3440 modules, 19.91s).
+
+
+
 
