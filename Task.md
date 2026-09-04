@@ -556,3 +556,37 @@
   - [x] Type check `npx tsc --noEmit` lulus 0 error.
   - [x] Production build `npm run build` berhasil.
 
+---
+
+## Phase 33: High-Performance Database Indexing & Free-Tier Scalability Architecture
+
+- [x] **1. Analisis Query Hotspots & Desain Indeks (`supabase_setup.sql`)**:
+  - [x] Audit titik berat beban query pada jam sibuk pergantian shift (Leaderboard, Login, Kuis, Checklist, Reward, SIO, APD).
+  - [x] Rancang 20+ indeks komposit & B-Tree khusus dengan klausa aman `CREATE INDEX IF NOT EXISTS`.
+- [x] **2. Implementasi Indeks Spesifik Tabel**:
+  - [x] **Tabel `workers`**:
+    - `idx_workers_login_lookup` `(employee_id, email)` — pencarian akun login instan O(1).
+    - `idx_workers_user_id` `(user_id)` — relasi Supabase Auth.
+    - `idx_workers_role_status` `(role, status)` — penyaringan antrean verifikasi supervisor.
+    - `idx_workers_global_leaderboard` `(total_points DESC, bib_total_score DESC) WHERE status = 'active'` — eliminasi operasi memory sort pada leaderboard global.
+    - `idx_workers_division_leaderboard` `(division, total_points DESC) WHERE status = 'active'` — leaderboard per divisi operasional.
+    - `idx_workers_daily_activity` `(last_activity_date, daily_quiz_completed, pre_shift_checklist_done)` — query auto-reset harian.
+  - [x] **Tabel `redemption_history` & `reward_catalog`**:
+    - `idx_redemptions_worker_history` `(worker_id, created_at DESC)` — riwayat voucher pekerja.
+    - `idx_redemptions_pending_fulfill` `(status, created_at DESC)` — filter voucher belum diserahkan admin.
+    - `idx_reward_catalog_browse` `(category, min_tier) WHERE available_stock > 0` — filtering marketplace reward.
+  - [x] **Tabel Operasional & Kuis (`quiz_questions`, `sop_completions`, `pre_shift_checklists`, `sop_modules`)**:
+    - `idx_quiz_questions_category_active` `(category) WHERE is_active = true` — query bank soal kuis.
+    - `idx_sop_completions_worker` `(worker_id, completed_at DESC)` — validasi penyelesaian modul SOP.
+    - `idx_pre_shift_worker_date` `(worker_id, checklist_date DESC)` — validasi absensi shift.
+    - `idx_sop_modules_cat_code` `(category, code)` — penataan katalog SOP.
+  - [x] **Tabel HSE & K3 (`incident_reports`, `disciplinary_actions`, `mhe_licenses`, `ppe_distributions`, `safety_patrol_logs`, `audit_5s_records`)**:
+    - Indeks filtering status, severity, dan tanggal pada insiden, sanksi, lisensi operator MHE, APD, dan audit 5S.
+- [x] **3. Panduan Eksekusi & Zero-Headache VPS Migration**:
+  - [x] Penataan format SQL siap pakai di Supabase SQL Editor.
+  - [x] Penyiapan kompatibilitas 1:1 jika migrasi ke self-hosted Supabase Docker di VPS.
+- [x] **4. Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` lulus 0 error.
+  - [x] Production build `npm run build` berhasil.
+
+
