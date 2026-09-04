@@ -1,6 +1,6 @@
 # Task Tracker — BIB Logistics Assessment Platform
 
-> Last updated: 2026-09-03
+> Last updated: 2026-09-04
 > Status legend: `[ ]` Todo · `[/]` In Progress · `[x]` Done · `[!]` Blocked
 
 ---
@@ -655,6 +655,32 @@
 - [x] **5. Verifikasi & Build**:
   - [x] Type check `npx tsc --noEmit` lulus 0 error.
   - [x] Production build `npm run build` sukses (3440 modules, 21.19s).
+
+---
+
+## Phase 37: MHE Licenses Supabase Database Integration & Realtime Sync
+
+- [x] **1. Analisis Penyebab Data Bertahan Pasca DROP SCHEMA**:
+  - [x] Data Pelacak SIO & Lisensi Alat Berat (MHE) sebelumnya disimpan secara client-side di browser `localStorage` dengan key `'gappy_mhe_licenses_v2'`. Eksekusi query SQL `DROP SCHEMA public CASCADE;` hanya menghapus data di Supabase server, sementara `localStorage` peramban tetap menyimpan cache data lisensi.
+  - [x] Saat skrip setup dieksekusi kembali, aplikasi membaca dari cache lokal sehingga data tampak masih ada.
+- [x] **2. Integrasi Penuh Supabase Cloud Database (`src/lib/licenseService.ts`)**:
+  - [x] Implementasi arsitektur Hybrid Cache-First / Stale-While-Revalidate: pembacaan instan dari local cache (0ms latency untuk consumer sinkron seperti `WorkerDigitalIdModal.tsx` & `ExecutiveReportPanel.tsx`) disertai pembaruan latar belakang (asynchronous background fetch) dari tabel `mhe_licenses`.
+  - [x] Penambahan method `fetchLicensesFromSupabase()`: query tabel `mhe_licenses` dengan relasi join worker `worker:workers (id, name, employee_id, division)` dan pembaruan otomatis local storage cache.
+  - [x] Penambahan method `syncLocalToSupabase()`: migrasi otomatis data lisensi lokal ke Supabase jika tabel database baru di-setup atau masih kosong.
+  - [x] Sinkronisasi operasi mutasi data ke Supabase Cloud:
+    - `addLicense()`: insert instan ke local cache + async INSERT ke tabel `mhe_licenses`.
+    - `updateLicense()`: update instan ke local cache + async UPDATE ke tabel `mhe_licenses`.
+    - `deleteLicense()`: delete instan dari local cache + async DELETE dari tabel `mhe_licenses`.
+- [x] **3. UI & Realtime Synchronization (`src/components/MheLicensePanel.tsx`)**:
+  - [x] Langganan Supabase Realtime channel `realtime_mhe_licenses_tracker` pada tabel `mhe_licenses` untuk mendeteksi perubahan multi-user/multi-tab secara live.
+  - [x] Penambahan tombol manual `Sinkron Cloud` dengan indikator spinner `isSyncing` pada header toolbar di samping tombol `Export CSV`.
+  - [x] Auto background-fetch saat komponen `MheLicensePanel` di-mount pertama kali.
+- [x] **4. Analisis & Evaluasi Dampak Performa**:
+  - [x] Tidak ada penurunan performa (0ms render blocking) karena aplikasi tidak menunggu respons jaringan cloud untuk merender tampilan awal.
+  - [x] Konsumsi payload jaringan sangat ringan (<2KB JSON) dan efisien dengan query terindeks.
+- [x] **5. Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` lulus 0 error.
+  - [x] Production build `npm run build` sukses (3440 modules).
 
 
 

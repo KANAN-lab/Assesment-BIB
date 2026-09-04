@@ -37,6 +37,7 @@ import { PaginationControls } from './PaginationControls';
 import { SioAiService, ExtractedSioData } from '../lib/sioAiService';
 import { uploadFileToGoogleDrive } from '../lib/googleDriveService';
 import { SwalService } from '../domain/SwalService';
+import { supabase } from '../lib/supabaseClient';
 
 interface MheLicensePanelProps {
   workers: WorkerProfile[];
@@ -77,6 +78,7 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -87,12 +89,45 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
     setLicenses(LicenseService.getAllLicenses());
   };
 
+  const handleSyncCloud = async () => {
+    setIsSyncing(true);
+    try {
+      const cloudData = await LicenseService.fetchLicensesFromSupabase();
+      setLicenses(cloudData);
+      showToast(`✓ Data SIO tersinkronisasi dengan Supabase Cloud (${cloudData.length} lisensi).`);
+    } catch (err: any) {
+      showToast(`Gagal sinkronisasi cloud: ${err?.message || err}`);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
     LicenseService.checkAndDispatchExpiryAlerts();
+
+    // Background stale-while-revalidate fetch from Supabase
+    LicenseService.fetchLicensesFromSupabase().then((data) => {
+      if (data && data.length > 0) {
+        setLicenses(data);
+      }
+    });
+
     const handleUpdate = () => loadData();
     window.addEventListener('gappy_licenses_updated', handleUpdate);
-    return () => window.removeEventListener('gappy_licenses_updated', handleUpdate);
+
+    // Setup Supabase Realtime channel for live multi-device sync
+    const channel = supabase
+      .channel('realtime_mhe_licenses_tracker')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'mhe_licenses' }, () => {
+        LicenseService.fetchLicensesFromSupabase();
+      })
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('gappy_licenses_updated', handleUpdate);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const stats = useMemo(() => {
@@ -370,6 +405,17 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
 
         <div className="flex items-center gap-2 flex-wrap">
           <button
+            type="button"
+            onClick={handleSyncCloud}
+            disabled={isSyncing}
+            className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
+            title="Sinkronkan data SIO dengan Cloud Database Supabase"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 text-indigo-400 ${isSyncing ? 'animate-spin' : ''}`} />
+            <span>{isSyncing ? 'Sinkronisasi...' : 'Sinkron Cloud'}</span>
+          </button>
+          <button
+            type="button"
             onClick={() => LicenseService.exportLicensesCSV(filteredLicenses)}
             className="px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
             title="Ekspor rekap SIO ke CSV"
@@ -378,6 +424,7 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
             <span>Export CSV</span>
           </button>
           <button
+            type="button"
             onClick={() => handleOpenAddModal(false)}
             className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-black font-black text-xs rounded-xl transition flex items-center gap-1.5 shadow-md shadow-amber-950"
           >

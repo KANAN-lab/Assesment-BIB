@@ -15,7 +15,7 @@ export class LicenseService {
   }
 
   /**
-   * Fetch all licenses with updated live statuses (purging any legacy dummy seed)
+   * Fetch all licenses with updated live statuses from local cache (synchronous, 0ms)
    */
   public static getAllLicenses(): MheLicenseEntity[] {
     try {
@@ -48,6 +48,91 @@ export class LicenseService {
   }
 
   /**
+   * Asynchronously fetch licenses from Supabase `mhe_licenses` table, update local cache, and notify UI
+   */
+  public static async fetchLicensesFromSupabase(): Promise<MheLicenseEntity[]> {
+    try {
+      const { data, error } = await supabase
+        .from('mhe_licenses')
+        .select(`
+          *,
+          worker:workers (id, name, employee_id, division)
+        `)
+        .order('expiry_date', { ascending: true });
+
+      if (error) {
+        console.warn('[LicenseService] Supabase fetch error, fallback ke local storage:', error.message);
+        return this.getAllLicenses();
+      }
+
+      if (data && Array.isArray(data) && data.length > 0) {
+        const remoteList: MheLicenseEntity[] = data.map((row: any) => {
+          const worker = row.worker;
+          const { status, daysRemaining } = this.calculateStatusAndDays(row.expiry_date);
+          return {
+            id: row.id,
+            workerId: row.worker_id,
+            workerName: worker?.name || row.worker_name || 'Operator',
+            employeeId: worker?.employee_id || row.employee_id || '-',
+            division: worker?.division || row.division || 'OPERASIONAL',
+            licenseType: row.license_type,
+            licenseNumber: row.license_number,
+            issuingAuthority: row.issuing_authority || 'Kementerian Ketenagakerjaan RI',
+            issuedDate: row.issued_date,
+            expiryDate: row.expiry_date,
+            status,
+            daysRemaining,
+            notes: row.notes || undefined,
+            documentUrl: row.document_url || undefined,
+            createdAt: row.created_at || new Date().toISOString(),
+            updatedAt: row.updated_at || new Date().toISOString(),
+          };
+        });
+
+        this.saveAll(remoteList);
+        return remoteList;
+      }
+
+      // Jika remote masih kosong tetapi lokal memiliki data, tawarkan initial sync ke Supabase
+      const localList = this.getAllLicenses();
+      if (localList.length > 0) {
+        this.syncLocalToSupabase(localList);
+      }
+
+      return localList;
+    } catch (err) {
+      console.warn('[LicenseService] Network exception fetching from Supabase:', err);
+      return this.getAllLicenses();
+    }
+  }
+
+  /**
+   * Upload existing local licenses to Supabase if table is clean
+   */
+  public static async syncLocalToSupabase(localList: MheLicenseEntity[]): Promise<void> {
+    try {
+      for (const lic of localList) {
+        const payload = {
+          id: lic.id,
+          worker_id: lic.workerId,
+          license_type: lic.licenseType,
+          license_number: lic.licenseNumber,
+          sio_category: lic.licenseType,
+          issued_date: lic.issuedDate,
+          expiry_date: lic.expiryDate,
+          issuing_authority: lic.issuingAuthority,
+          document_url: lic.documentUrl || null,
+          status: lic.status,
+          notes: lic.notes || null,
+        };
+        await supabase.from('mhe_licenses').upsert(payload, { onConflict: 'id' });
+      }
+    } catch (err) {
+      console.warn('[LicenseService] Sync local to Supabase warning:', err);
+    }
+  }
+
+  /**
    * Get active license for a specific worker
    */
   public static getLicenseByWorkerId(workerId: string): MheLicenseEntity | undefined {
@@ -57,7 +142,7 @@ export class LicenseService {
   }
 
   /**
-   * Clear all licenses
+   * Clear all licenses from local cache and optionally purge remote
    */
   public static clearAll(): void {
     localStorage.removeItem(this.STORAGE_KEY);
@@ -66,7 +151,7 @@ export class LicenseService {
   }
 
   /**
-   * Save list to local storage
+   * Save list to local storage and broadcast update
    */
   private static saveAll(list: MheLicenseEntity[]): void {
     try {
@@ -78,7 +163,7 @@ export class LicenseService {
   }
 
   /**
-   * Add a new license and dispatch notification
+   * Add a new license: saves locally (0ms) and syncs to Supabase mhe_licenses
    */
   public static addLicense(
     data: Omit<MheLicenseEntity, 'id' | 'status' | 'daysRemaining' | 'createdAt' | 'updatedAt'>
@@ -97,6 +182,29 @@ export class LicenseService {
 
     const updated = [newLicense, ...list];
     this.saveAll(updated);
+
+    // Sync insert to Supabase asynchronously in background
+    Promise.resolve(
+      supabase.from('mhe_licenses').insert({
+        id: newLicense.id,
+        worker_id: data.workerId,
+        license_type: data.licenseType,
+        license_number: data.licenseNumber,
+        sio_category: data.licenseType,
+        issued_date: data.issuedDate,
+        expiry_date: data.expiryDate,
+        issuing_authority: data.issuingAuthority,
+        document_url: data.documentUrl || null,
+        status: newLicense.status,
+        notes: data.notes || null,
+      })
+    ).then(({ error }) => {
+      if (error) {
+        console.warn('[LicenseService] Gagal insert ke Supabase mhe_licenses:', error.message);
+      }
+    }).catch((err) => {
+      console.warn('[LicenseService] Exception insert Supabase:', err);
+    });
 
     // Dispatch Notification & Points to Worker
     if (data.workerId) {
@@ -158,6 +266,28 @@ export class LicenseService {
 
     list[index] = updatedLicense;
     this.saveAll(list);
+
+    // Sync update to Supabase asynchronously in background
+    Promise.resolve(
+      supabase.from('mhe_licenses').update({
+        license_type: updatedLicense.licenseType,
+        license_number: updatedLicense.licenseNumber,
+        sio_category: updatedLicense.licenseType,
+        issued_date: updatedLicense.issuedDate,
+        expiry_date: updatedLicense.expiryDate,
+        issuing_authority: updatedLicense.issuingAuthority,
+        document_url: updatedLicense.documentUrl || null,
+        status: updatedLicense.status,
+        notes: updatedLicense.notes || null,
+        updated_at: new Date().toISOString(),
+      }).eq('id', id)
+    ).then(({ error }) => {
+      if (error) {
+        console.warn('[LicenseService] Gagal update ke Supabase mhe_licenses:', error.message);
+      }
+    }).catch((err) => {
+      console.warn('[LicenseService] Exception update Supabase:', err);
+    });
 
     // Dispatch Renewal Notification & Points to Worker & Supervisor
     if (updatedLicense.workerId) {
@@ -231,7 +361,7 @@ export class LicenseService {
   }
 
   /**
-   * Delete a license
+   * Delete a license: deletes locally and syncs to Supabase mhe_licenses
    */
   public static deleteLicense(id: string): boolean {
     const list = this.getAllLicenses();
@@ -239,6 +369,18 @@ export class LicenseService {
     if (filtered.length === list.length) return false;
 
     this.saveAll(filtered);
+
+    // Sync delete to Supabase asynchronously in background
+    Promise.resolve(
+      supabase.from('mhe_licenses').delete().eq('id', id)
+    ).then(({ error }) => {
+      if (error) {
+        console.warn('[LicenseService] Gagal delete dari Supabase mhe_licenses:', error.message);
+      }
+    }).catch((err) => {
+      console.warn('[LicenseService] Exception delete Supabase:', err);
+    });
+
     return true;
   }
 
