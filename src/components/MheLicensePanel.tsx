@@ -79,6 +79,7 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
 
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [aiScanStatus, setAiScanStatus] = useState<string>('Gappy AI sedang membaca nomor lisensi, nama pekerja, & tanggal berlaku...');
 
   const showToast = (msg: string) => {
     setToastMsg(msg);
@@ -231,8 +232,11 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
       const previewUrl = URL.createObjectURL(file);
       setImagePreview(previewUrl);
 
-      // Call Gemini Multimodal SIO Vision Extractor
-      const extracted = await SioAiService.extractSioFromImage(file, workers);
+      // Call Gemini Multimodal SIO Vision Extractor with live progress callback
+      setAiScanStatus('Menyiapkan & mengompresi gambar (HD)...');
+      const extracted = await SioAiService.extractSioFromImage(file, workers, (status) => {
+        setAiScanStatus(status);
+      });
       setExtractedMeta(extracted);
 
       // Auto populate form fields
@@ -732,7 +736,7 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
                   <div className="absolute inset-0 bg-indigo-500/10 animate-pulse pointer-events-none" />
                   <div className="flex items-center justify-center gap-2 text-indigo-300 text-xs font-bold">
                     <ScanLine className="w-4 h-4 animate-bounce text-indigo-400" />
-                    <span>Gappy AI sedang membaca nomor lisensi, nama pekerja, & tanggal berlaku...</span>
+                    <span>{aiScanStatus}</span>
                   </div>
                 </div>
               )}

@@ -1,14 +1,21 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Zap, RefreshCw, Trash2, Key, Cpu, Sparkles, Clock, ExternalLink,
-  Loader2, AlertTriangle, CheckCircle2, HelpCircle
+  Loader2, AlertTriangle, CheckCircle2, HelpCircle, Sliders, Check,
+  ArrowUp, ArrowDown, X, ShieldCheck
 } from 'lucide-react';
 import {
   getQuizStatusMeta,
   QuizStatusMeta,
   forceRefreshDailyQuiz,
   clearQuizCache,
-  saveGeminiApiKeyToSupabase
+  saveGeminiApiKeyToSupabase,
+  getCandidateModelsSync,
+  resolveCandidateModels,
+  saveCandidateModelsToSupabase,
+  fetchAvailableGeminiModels,
+  AvailableGeminiModelInfo,
+  DEFAULT_GEMINI_CANDIDATE_MODELS,
 } from '../../lib/geminiService';
 import { QuizQuestion } from '../../types/assessment';
 
@@ -21,6 +28,27 @@ export const AdminAiQuizPanel: React.FC<AdminAiQuizPanelProps> = ({ showToast })
   const [refreshingQuiz, setRefreshingQuiz] = useState(false);
   const [inputApiKey, setInputApiKey] = useState('');
   const [savingKey, setSavingKey] = useState(false);
+
+  // Dynamic Candidate Models Management
+  const [selectedModels, setSelectedModels] = useState<string[]>(() => getCandidateModelsSync());
+  const [apiModels, setApiModels] = useState<AvailableGeminiModelInfo[]>([]);
+  const [loadingApiModels, setLoadingApiModels] = useState(false);
+  const [savingModels, setSavingModels] = useState(false);
+  const [hasFetchedLive, setHasFetchedLive] = useState(false);
+
+  useEffect(() => {
+    resolveCandidateModels().then((models) => {
+      setSelectedModels(models);
+    });
+
+    const handleModelsUpdated = (e: any) => {
+      if (Array.isArray(e.detail)) {
+        setSelectedModels(e.detail);
+      }
+    };
+    window.addEventListener('gappy_gemini_models_updated', handleModelsUpdated);
+    return () => window.removeEventListener('gappy_gemini_models_updated', handleModelsUpdated);
+  }, []);
 
   const handleForceRefreshQuiz = async () => {
     setRefreshingQuiz(true);
@@ -54,6 +82,75 @@ export const AdminAiQuizPanel: React.FC<AdminAiQuizPanelProps> = ({ showToast })
       showToast(err.message || 'Gagal menyimpan API key');
     } finally {
       setSavingKey(false);
+    }
+  };
+
+  const handleFetchLiveModels = async () => {
+    setLoadingApiModels(true);
+    try {
+      const models = await fetchAvailableGeminiModels();
+      setApiModels(models);
+      setHasFetchedLive(true);
+      showToast(`✓ Berhasil memuat ${models.length} model aktif langsung dari Gemini API!`);
+    } catch (err: any) {
+      showToast(`Gagal memuat model dari API: ${err?.message || err}`);
+    } finally {
+      setLoadingApiModels(false);
+    }
+  };
+
+  const handleToggleModel = (modelName: string) => {
+    setSelectedModels((prev) => {
+      if (prev.includes(modelName)) {
+        if (prev.length <= 1) {
+          showToast('Minimal harus ada 1 model kandidat aktif.');
+          return prev;
+        }
+        return prev.filter((m) => m !== modelName);
+      } else {
+        return [...prev, modelName];
+      }
+    });
+  };
+
+  const handleMovePriority = (index: number, direction: 'up' | 'down') => {
+    setSelectedModels((prev) => {
+      const next = [...prev];
+      const targetIndex = direction === 'up' ? index - 1 : index + 1;
+      if (targetIndex < 0 || targetIndex >= next.length) return prev;
+      const temp = next[index];
+      next[index] = next[targetIndex];
+      next[targetIndex] = temp;
+      return next;
+    });
+  };
+
+  const handleSaveModels = async () => {
+    if (selectedModels.length === 0) {
+      showToast('Pilih minimal 1 model AI.');
+      return;
+    }
+    setSavingModels(true);
+    try {
+      await saveCandidateModelsToSupabase(selectedModels);
+      showToast(`✓ Berhasil menyimpan ${selectedModels.length} model kandidat ke database Supabase!`);
+    } catch (err: any) {
+      showToast(`Gagal menyimpan model: ${err?.message || err}`);
+    } finally {
+      setSavingModels(false);
+    }
+  };
+
+  const handleResetRecommended = async () => {
+    setSelectedModels(DEFAULT_GEMINI_CANDIDATE_MODELS);
+    setSavingModels(true);
+    try {
+      await saveCandidateModelsToSupabase(DEFAULT_GEMINI_CANDIDATE_MODELS);
+      showToast('Model kandidat direset ke konfigurasi rekomendasi default.');
+    } catch (err: any) {
+      showToast(`Gagal reset model: ${err?.message || err}`);
+    } finally {
+      setSavingModels(false);
     }
   };
 
@@ -203,6 +300,176 @@ export const AdminAiQuizPanel: React.FC<AdminAiQuizPanelProps> = ({ showToast })
               <div className="text-[11px] text-amber-200/80 mt-0.5">
                 Aplikasi saat ini menggunakan <strong>Bank Soal Fallback Lokal</strong> agar kuis harian tetap berjalan 100% lancar. Masukkan API key di atas untuk mengaktifkan AI Generatif secara penuh.
               </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Dynamic Candidate Models Configuration Card */}
+      <div className="card p-5 space-y-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+              <Sliders className="w-4 h-4" />
+            </div>
+            <div>
+              <h3 className="font-bold text-white text-xs flex items-center gap-1.5">
+                Konfigurasi Multi-Model AI Gemini (Dinamis & Multi-Selection)
+                <span className="text-[10px] font-normal text-indigo-300 bg-indigo-500/10 border border-indigo-500/30 px-1.5 py-0.5 rounded">
+                  {selectedModels.length} Terpilih
+                </span>
+              </h3>
+              <p className="text-[11px] text-zinc-400 mt-0.5">
+                Model dieksekusi berurutan (fallback otomatis jika model kehabisan kuota atau didepresiasi). Berlaku untuk <strong>Kuis K3</strong> &amp; <strong>AI Vision SIO Extractor</strong>.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              type="button"
+              onClick={handleFetchLiveModels}
+              disabled={loadingApiModels}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white font-bold text-xs transition"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingApiModels ? 'animate-spin' : ''}`} />
+              <span>{loadingApiModels ? 'Menghubungi Google API...' : 'Muat Model dari API Gemini'}</span>
+            </button>
+            <button
+              type="button"
+              onClick={handleResetRecommended}
+              disabled={savingModels}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold text-xs transition border border-zinc-700"
+              title="Kembalikan ke susunan model rekomendasi stabil"
+            >
+              <span>Reset Rekomendasi</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Selected Models Priority List */}
+        <div className="p-3.5 rounded-xl bg-zinc-950 border border-zinc-800/80 space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-zinc-300 flex items-center gap-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              Urutan Prioritas Eksekusi Model ({selectedModels.length} Aktif)
+            </span>
+            <button
+              type="button"
+              onClick={handleSaveModels}
+              disabled={savingModels}
+              className="flex items-center gap-1.5 px-3 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold transition shadow-sm"
+            >
+              {savingModels ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+              <span>Simpan ke Database</span>
+            </button>
+          </div>
+
+          <div className="space-y-1.5">
+            {selectedModels.map((modelName, idx) => (
+              <div
+                key={modelName}
+                className="flex items-center justify-between p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-xs"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className={`w-5 h-5 rounded text-[10px] font-mono font-bold flex items-center justify-center shrink-0 ${
+                    idx === 0 ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-zinc-800 text-zinc-400'
+                  }`}>
+                    #{idx + 1}
+                  </span>
+                  <span className="font-mono font-bold text-white truncate">{modelName}</span>
+                  {idx === 0 && (
+                    <span className="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-1.5 py-0.2 rounded shrink-0">
+                      Utama (Primary)
+                    </span>
+                  )}
+                  {idx > 0 && (
+                    <span className="text-[10px] bg-zinc-800 text-zinc-400 px-1.5 py-0.2 rounded shrink-0">
+                      Fallback #{idx}
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => handleMovePriority(idx, 'up')}
+                    disabled={idx === 0}
+                    className="p-1 rounded bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-300 transition"
+                    title="Naikkan prioritas"
+                  >
+                    <ArrowUp className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleMovePriority(idx, 'down')}
+                    disabled={idx === selectedModels.length - 1}
+                    className="p-1 rounded bg-zinc-800 hover:bg-zinc-700 disabled:opacity-30 text-zinc-300 transition"
+                    title="Turunkan prioritas"
+                  >
+                    <ArrowDown className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleModel(modelName)}
+                    className="p-1 rounded bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition ml-1"
+                    title="Hapus dari kandidat"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Live API Models Selection Grid */}
+        {hasFetchedLive && apiModels.length > 0 && (
+          <div className="space-y-2.5 pt-1">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                <Cpu className="w-3.5 h-3.5 text-indigo-400" />
+                Daftar Model Resmi Terdeteksi dari Google Gemini API ({apiModels.length} Model Tersedia)
+              </span>
+              <span className="text-[10px] text-zinc-500">
+                Klik kartu untuk memilih/melepas model
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-h-64 overflow-y-auto pr-1">
+              {apiModels.map((m) => {
+                const isSelected = selectedModels.includes(m.name);
+                return (
+                  <div
+                    key={m.name}
+                    onClick={() => handleToggleModel(m.name)}
+                    className={`p-2.5 rounded-xl border text-xs cursor-pointer transition flex flex-col justify-between gap-1.5 select-none ${
+                      isSelected
+                        ? 'bg-indigo-500/10 border-indigo-500/40 text-white'
+                        : 'bg-zinc-950 border-zinc-800/80 text-zinc-400 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-mono font-bold text-[11px] truncate text-white">{m.name}</div>
+                        <div className="text-[10px] text-zinc-400 truncate">{m.displayName || m.name}</div>
+                      </div>
+                      <div
+                        className={`w-4 h-4 rounded flex items-center justify-center shrink-0 border ${
+                          isSelected
+                            ? 'bg-indigo-600 border-indigo-500 text-white'
+                            : 'border-zinc-700 bg-zinc-900'
+                        }`}
+                      >
+                        {isSelected && <Check className="w-3 h-3" />}
+                      </div>
+                    </div>
+                    {m.description && (
+                      <p className="text-[10px] text-zinc-500 line-clamp-2">{m.description}</p>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

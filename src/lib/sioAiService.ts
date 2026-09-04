@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { resolveGeminiApiKey } from './geminiService';
+import imageCompression from 'browser-image-compression';
+import { resolveGeminiApiKey, resolveCandidateModels } from './geminiService';
 import { LicenseType } from '../types/license';
 import { WorkerProfile } from '../types/assessment';
 
@@ -21,10 +22,12 @@ export interface ExtractedSioData {
 }
 
 export class SioAiService {
+  private static cachedWorkingModel: string | null = null;
+
   /**
    * Convert File / Blob to Base64 String
    */
-  public static async fileToBase64(file: File): Promise<{ base64: string; mimeType: string }> {
+  public static async fileToBase64(file: File | Blob): Promise<{ base64: string; mimeType: string }> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
@@ -81,21 +84,43 @@ export class SioAiService {
   }
 
   /**
-   * Extract SIO Information using Gemini Multimodal Vision AI
+   * Extract SIO Information using Gemini Multimodal Vision AI with smart client-side compression & fast models
    */
   public static async extractSioFromImage(
     file: File,
-    existingWorkers: WorkerProfile[] = []
+    existingWorkers: WorkerProfile[] = [],
+    onProgress?: (status: string) => void
   ): Promise<ExtractedSioData> {
     const apiKey = await resolveGeminiApiKey();
     if (!apiKey) {
       throw new Error('API Key Gemini tidak ditemukan. Harap konfigurasi Gemini API Key di Pengaturan Sistem.');
     }
 
-    const { base64, mimeType } = await this.fileToBase64(file);
+    // 1. Client-side HD compression: scale to max 1400px, reducing 5-10MB photo to ~300KB (95% bandwidth saving)
+    let processedFile: File | Blob = file;
+    if (file.type.startsWith('image/') && file.size > 250 * 1024) {
+      try {
+        onProgress?.('Mengompresi foto kartu SIO (HD)...');
+        const options = {
+          maxSizeMB: 0.35,
+          maxWidthOrHeight: 1400,
+          useWebWorker: true,
+        };
+        processedFile = await imageCompression(file, options);
+      } catch (compressErr) {
+        console.warn('[SioAiService] Kompresi gambar dilewati, memakai berkas asli:', compressErr);
+      }
+    }
+
+    onProgress?.('Menganalisis dokumen dengan Gemini AI Vision...');
+    const { base64, mimeType } = await this.fileToBase64(processedFile);
     const genAI = new GoogleGenerativeAI(apiKey.trim());
 
-    const candidateModels = ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.1-flash-lite', 'gemini-3.7-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+    // 2. Load candidate models dynamically from Admin configuration / Supabase
+    const availableModels = await resolveCandidateModels();
+    const candidateModels = this.cachedWorkingModel && availableModels.includes(this.cachedWorkingModel)
+      ? [this.cachedWorkingModel, ...availableModels.filter((m) => m !== this.cachedWorkingModel)]
+      : availableModels;
 
     const prompt = `
 Anda adalah AI Vision Expert spesialis dokumen K3 & Surat Izin Operator (SIO) Kementerian Ketenagakerjaan Republik Indonesia (Kemnaker RI) / Lisensi K3 Pesawat Angkat dan Pesawat Angkut.
@@ -147,21 +172,33 @@ Format Output JSON WAJIB (tanpa markdown tambahan):
       try {
         const model = genAI.getGenerativeModel({
           model: modelName,
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.1,
+          },
         });
 
-        const result = await model.generateContent([
-          prompt,
-          {
-            inlineData: {
-              data: base64,
-              mimeType,
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error(`Timeout model ${modelName} (12s)`)), 12000)
+        );
+
+        const result: any = await Promise.race([
+          model.generateContent([
+            prompt,
+            {
+              inlineData: {
+                data: base64,
+                mimeType,
+              },
             },
-          },
+          ]),
+          timeoutPromise,
         ]);
 
         const text = result.response.text();
         if (text && text.trim().length > 0) {
           responseText = text.trim();
+          SioAiService.cachedWorkingModel = modelName;
           break;
         }
       } catch (err: any) {

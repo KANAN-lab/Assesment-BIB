@@ -79,6 +79,160 @@ export async function saveGeminiApiKeyToSupabase(apiKey: string): Promise<void> 
   activeSupabaseApiKey = cleanKey;
 }
 
+// ─── Dynamic Candidate Models Management (Multi-Selection & Live API) ───────
+
+export const DEFAULT_GEMINI_CANDIDATE_MODELS = [
+  'gemini-3.6-flash',
+  'gemini-3.5-flash',
+  'gemini-3.1-flash-lite',
+  'gemini-3.7-flash',
+  'gemini-3.5-flash-lite',
+];
+
+const STORAGE_KEY_CANDIDATE_MODELS = 'komar_gemini_candidate_models';
+let activeCandidateModelsCache: string[] | null = null;
+
+export function getCandidateModelsSync(): string[] {
+  if (activeCandidateModelsCache && activeCandidateModelsCache.length > 0) {
+    return activeCandidateModelsCache;
+  }
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CANDIDATE_MODELS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        activeCandidateModelsCache = parsed;
+        return parsed;
+      }
+    }
+  } catch {}
+  return [...DEFAULT_GEMINI_CANDIDATE_MODELS];
+}
+
+export async function resolveCandidateModels(): Promise<string[]> {
+  if (activeCandidateModelsCache && activeCandidateModelsCache.length > 0) {
+    return activeCandidateModelsCache;
+  }
+
+  // 1. Cek LocalStorage
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY_CANDIDATE_MODELS);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        activeCandidateModelsCache = parsed;
+      }
+    }
+  } catch {}
+
+  // 2. Cek Supabase system_settings
+  try {
+    const { data } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'gemini_candidate_models')
+      .maybeSingle();
+
+    if (data && data.value) {
+      const parsed = JSON.parse(data.value);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        activeCandidateModelsCache = parsed;
+        try {
+          localStorage.setItem(STORAGE_KEY_CANDIDATE_MODELS, JSON.stringify(parsed));
+        } catch {}
+        return parsed;
+      }
+    }
+  } catch (err) {
+    console.warn('Gagal membaca gemini_candidate_models dari Supabase:', err);
+  }
+
+  if (!activeCandidateModelsCache || activeCandidateModelsCache.length === 0) {
+    activeCandidateModelsCache = [...DEFAULT_GEMINI_CANDIDATE_MODELS];
+  }
+
+  return activeCandidateModelsCache;
+}
+
+export async function saveCandidateModelsToSupabase(models: string[]): Promise<void> {
+  const cleanModels = models.filter((m) => m && m.trim().length > 0).map((m) => m.trim());
+  if (cleanModels.length === 0) {
+    throw new Error('Minimal harus memilih 1 model AI.');
+  }
+
+  const { error } = await supabase.from('system_settings').upsert({
+    key: 'gemini_candidate_models',
+    value: JSON.stringify(cleanModels),
+    updated_at: new Date().toISOString(),
+  });
+
+  if (error) {
+    throw new Error(`Gagal menyimpan daftar model ke Supabase: ${error.message}`);
+  }
+
+  activeCandidateModelsCache = cleanModels;
+  try {
+    localStorage.setItem(STORAGE_KEY_CANDIDATE_MODELS, JSON.stringify(cleanModels));
+  } catch {}
+
+  window.dispatchEvent(new CustomEvent('gappy_gemini_models_updated', { detail: cleanModels }));
+}
+
+export interface AvailableGeminiModelInfo {
+  name: string; // e.g. "gemini-3.6-flash"
+  rawName: string; // e.g. "models/gemini-3.6-flash"
+  displayName: string;
+  description: string;
+  isFlash: boolean;
+  supportedMethods: string[];
+}
+
+export async function fetchAvailableGeminiModels(customKey?: string): Promise<AvailableGeminiModelInfo[]> {
+  const apiKey = customKey || (await resolveGeminiApiKey());
+  if (!apiKey || apiKey.trim().length < 10) {
+    throw new Error('API Key Gemini tidak valid atau belum dikonfigurasi.');
+  }
+
+  const endpoint = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey.trim()}`;
+  const response = await fetch(endpoint);
+  if (!response.ok) {
+    const errJson = await response.json().catch(() => ({}));
+    throw new Error(errJson?.error?.message || `Gagal mengambil daftar model dari Gemini API (${response.status})`);
+  }
+
+  const data = await response.json();
+  if (!data.models || !Array.isArray(data.models)) {
+    throw new Error('Format respon API Gemini tidak valid (tidak ada properti models).');
+  }
+
+  // Filter model yang mendukung generateContent
+  const contentModels = data.models.filter(
+    (m: any) => m.supportedGenerationMethods && m.supportedGenerationMethods.includes('generateContent')
+  );
+
+  const formatted: AvailableGeminiModelInfo[] = contentModels.map((m: any) => {
+    const cleanName = (m.name || '').replace(/^models\//, '');
+    const isFlash = cleanName.toLowerCase().includes('flash');
+    return {
+      name: cleanName,
+      rawName: m.name,
+      displayName: m.displayName || cleanName,
+      description: m.description || '',
+      isFlash,
+      supportedMethods: m.supportedGenerationMethods || [],
+    };
+  });
+
+  // Urutkan model Flash / Lite di atas, lalu abjad
+  formatted.sort((a, b) => {
+    if (a.isFlash && !b.isFlash) return -1;
+    if (!a.isFlash && b.isFlash) return 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  return formatted;
+}
+
 // ─── Dynamic Competency Matrix Extractor ─────────────────────────────────────
 
 export function getCompetencyMatrixForRole(roleName: string): { title: string; definition: string }[] {
@@ -312,7 +466,7 @@ export async function generateDailyQuiz(
     return [];
   }
 
-  const candidateModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  const candidateModels = await resolveCandidateModels();
   const genAI = new GoogleGenerativeAI(apiKey!.trim());
 
   for (const modelName of candidateModels) {
@@ -397,7 +551,7 @@ export interface QuizStatusMeta {
   lastModelUsed: string;
 }
 
-let lastModelNameUsed = 'gemini-2.5-flash';
+let lastModelNameUsed = 'gemini-3.6-flash';
 
 export function clearQuizCache(): void {
   try {
@@ -462,7 +616,7 @@ export async function forceRefreshDailyQuiz(
     );
   }
 
-  const candidateModels = ['gemini-2.5-flash', 'gemini-2.0-flash', 'gemini-1.5-flash'];
+  const candidateModels = await resolveCandidateModels();
   const genAI = new GoogleGenerativeAI(apiKey!.trim());
 
   let lastErrorMsg = '';
