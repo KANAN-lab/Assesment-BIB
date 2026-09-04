@@ -389,7 +389,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
         {activeTab === 'announcements' && (
           <AdminAnnouncementPanel currentAdminId={currentAdminId} showToast={showToast} />
         )}
-        {activeTab === 'notifications' && <AdminNotificationPanel />}
+        {activeTab === 'notifications' && <AdminNotificationPanel workers={workers} />}
       </React.Suspense>
     </div>
   );

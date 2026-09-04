@@ -252,6 +252,29 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('online', handleOnline);
   }, []);
 
+  // ── Auto-Sync Realtime Pengumuman Tim (Lintas View & Cross-Tab Broadcast) ──
+  useEffect(() => {
+    const refreshAnnouncements = () => {
+      fetchAnnouncements(true).then(setAnnouncements).catch(() => {});
+    };
+
+    refreshAnnouncements();
+
+    const bc = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('gappy_announcements_channel') : null;
+    if (bc) {
+      bc.onmessage = () => refreshAnnouncements();
+    }
+
+    window.addEventListener('gappy_announcement_updated', refreshAnnouncements);
+    window.addEventListener('storage', refreshAnnouncements);
+
+    return () => {
+      if (bc) bc.close();
+      window.removeEventListener('gappy_announcement_updated', refreshAnnouncements);
+      window.removeEventListener('storage', refreshAnnouncements);
+    };
+  }, []);
+
   // ── Auto Sync Effect: Tarik poin & data worker terbaru dari Supabase setiap 8 detik ──
   useEffect(() => {
     if (!currentWorker) return;
@@ -372,6 +395,13 @@ export const App: React.FC = () => {
         { event: '*', schema: 'public', table: 'reward_catalog' },
         () => {
           fetchRewardCatalog().then(setRewardCatalog).catch(console.warn);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'announcements' },
+        () => {
+          fetchAnnouncements(true).then(setAnnouncements).catch(console.warn);
         }
       )
       .subscribe();
@@ -776,6 +806,13 @@ export const App: React.FC = () => {
       {/* Main Content */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
 
+        {/* Global Broadcast Announcement Banner (Tampil di semua view: Worker, Supervisor, Admin) */}
+        {announcements.length > 0 && (
+          <div className="mb-6">
+            <AnnouncementBanner announcements={announcements} />
+          </div>
+        )}
+
         {activeView === 'worker' ? (
           <div className="space-y-6 animate-fade-in">
 
@@ -811,11 +848,13 @@ export const App: React.FC = () => {
                       <h1 className="text-base sm:text-lg font-black text-white truncate tracking-tight">
                         {currentWorker.name}
                       </h1>
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${
-                        currentWorker.tier.includes('Champion') ? 'tier-legendary' :
-                        currentWorker.tier.includes('Elite')    ? 'tier-elite' :
-                        currentWorker.tier.includes('Pro')      ? 'tier-pro' : 'tier-novice'
-                      }`}>{currentWorker.tier}</span>
+                      <span
+                        className="text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1"
+                        style={SystemConfigService.getTierBadgeStyle(currentWorker.tier)}
+                      >
+                        <span>{SystemConfigService.getTierByName(currentWorker.tier)?.icon || '🔰'}</span>
+                        <span>{currentWorker.tier}</span>
+                      </span>
                     </div>
 
                     <div className="flex items-center gap-2 text-xs text-zinc-400 font-mono mt-0.5 flex-wrap">
@@ -992,9 +1031,6 @@ export const App: React.FC = () => {
                 </div>
               </div>
             </div>
-
-            {/* Announcement Banner */}
-            {announcements.length > 0 && <AnnouncementBanner announcements={announcements} />}
 
             {/* Shift Handover Kanban Board */}
             <div className="mb-6">

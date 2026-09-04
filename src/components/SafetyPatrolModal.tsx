@@ -130,7 +130,6 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
   return createPortal(
     <div
       className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-      onClick={onClose}
     >
       <div
         className="relative w-full max-w-2xl max-h-[90vh] m-auto card-elevated p-6 space-y-4 border border-orange-500/40 overflow-y-auto custom-scrollbar"

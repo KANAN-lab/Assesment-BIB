@@ -12,6 +12,7 @@ import {
   AdminRedemptionRecord
 } from '../../lib/supabaseService';
 import { SystemConfigService } from '../../domain/SystemConfigService';
+import { SwalService } from '../../domain/SwalService';
 
 interface AdminRewardCatalogPanelProps {
   rewardCatalog: RewardItem[];
@@ -94,7 +95,13 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
   }, []);
 
   const handleFulfillFromAdmin = async (redemptionId: string) => {
-    if (!window.confirm('Tandai voucher ini sebagai SUDAH DISERAHKAN ke pekerja?')) return;
+    const isConfirmed = await SwalService.confirm({
+      title: 'Serahkan Voucher Reward?',
+      text: 'Tandai voucher ini sebagai SUDAH DISERAHKAN ke pekerja? Pastikan barang/voucher fisik telah diterima pekerja.',
+      confirmButtonText: 'Ya, Tandai Diserahkan',
+      isDestructive: false,
+    });
+    if (!isConfirmed) return;
     setFulfillingRewardId(redemptionId);
     try {
       await fulfillRedemption(redemptionId, currentAdminId || 'SYS-ADMIN');
@@ -315,7 +322,13 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
   };
 
   const handleDeleteItem = async (item: RewardItem) => {
-    if (!window.confirm(`Yakin ingin menghapus item reward "${item.title}"?`)) return;
+    const isConfirmed = await SwalService.confirm({
+      title: `Hapus Reward "${item.title}"?`,
+      text: 'Yakin ingin menghapus item reward ini dari katalog marketplace logistik? Tindakan ini permanen.',
+      confirmButtonText: 'Ya, Hapus Reward',
+      isDestructive: true,
+    });
+    if (!isConfirmed) return;
     try {
       if (onDeleteReward) await onDeleteReward(item.id);
       showToast(`Item reward "${item.title}" dihapus.`);
@@ -454,13 +467,8 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
               {filteredAdminCatalog.map((item) => {
-                const TIER_COLOR: Record<string, string> = {
-                  'Novice Operational': 'text-zinc-400 border-zinc-700',
-                  'Pro Specialist': 'text-blue-400 border-blue-700/50',
-                  'Elite Logistician': 'text-purple-400 border-purple-700/50',
-                  'Legendary Champion': 'text-amber-400 border-amber-700/50',
-                };
-                const tierColor = TIER_COLOR[item.minTier || 'Novice Operational'] || 'text-zinc-400 border-zinc-700';
+                const tierDef = item.minTier ? SystemConfigService.getTierByName(item.minTier) : undefined;
+                const isBaselineTier = !item.minTier || (tierDef ? tierDef.level === 1 : item.minTier === 'Novice Operational');
 
                 return (
                   <div
@@ -474,9 +482,15 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
                           {item.badgeTag}
                         </span>
                       )}
-                      {item.minTier && item.minTier !== 'Novice Operational' && (
-                        <span className={`text-[9px] font-bold px-2 py-0.5 rounded border bg-zinc-950 ${tierColor}`}>
-                          🔒 {item.minTier}
+                      {!isBaselineTier && item.minTier && (
+                        <span
+                          className="text-[9px] font-bold px-2 py-0.5 rounded border bg-zinc-950/90"
+                          style={{
+                            color: tierDef?.badgeColor || '#a1a1aa',
+                            borderColor: tierDef?.badgeBorder || `${tierDef?.badgeColor || '#a1a1aa'}40`,
+                          }}
+                        >
+                          🔒 {tierDef?.icon || '⭐'} {item.minTier}
                         </span>
                       )}
                     </div>

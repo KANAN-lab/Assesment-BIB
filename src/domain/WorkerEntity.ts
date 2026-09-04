@@ -1,11 +1,10 @@
 import type { WorkerProfile, TierType, BibScores } from '../types/assessment';
+import { SystemConfigService } from './SystemConfigService';
 
 export class WorkerEntity {
   public static calculateTier(totalPoints: number): TierType {
-    if (totalPoints >= 3000) return 'Legendary Champion';
-    if (totalPoints >= 1500) return 'Elite Logistician';
-    if (totalPoints >= 500) return 'Pro Specialist';
-    return 'Novice Operational';
+    const tierConfig = SystemConfigService.getTierByPoints(totalPoints);
+    return tierConfig.name as TierType;
   }
 
   public static getStreakMultiplier(streakDays: number): number {

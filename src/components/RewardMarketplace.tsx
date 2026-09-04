@@ -5,6 +5,7 @@ import { RewardEntity, TIER_LEVEL_MAP } from '../domain/RewardEntity';
 import { SystemConfigService } from '../domain/SystemConfigService';
 import { PaginationControls } from './PaginationControls';
 import { VoucherQRCode } from './VoucherQRCode';
+import { SwalService } from '../domain/SwalService';
 import {
   Coins,
   CheckCircle,
@@ -104,16 +105,20 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
   const [resettingQuota, setResettingQuota] = useState(false);
 
   const handleResetQuota = async () => {
-    if (!window.confirm('Apakah Anda yakin ingin mereset kuota bulanan seluruh item reward kembali ke stok default?')) {
-      return;
-    }
+    const isConfirmed = await SwalService.confirm({
+      title: 'Reset Kuota Bulanan?',
+      text: 'Apakah Anda yakin ingin mereset kuota bulanan seluruh item reward kembali ke stok default sistem?',
+      confirmButtonText: 'Ya, Reset Kuota',
+      isDestructive: false,
+    });
+    if (!isConfirmed) return;
     setResettingQuota(true);
     try {
       if (onResetMonthlyQuota) {
         await onResetMonthlyQuota();
       }
     } catch (err: any) {
-      alert(err.message || 'Gagal mereset kuota bulanan.');
+      SwalService.error('Gagal Reset Kuota', err.message || 'Gagal mereset kuota bulanan.');
     } finally {
       setResettingQuota(false);
     }
@@ -215,12 +220,18 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
 
   const handleFulfillItem = async (redemptionId: string) => {
     if (!onFulfillRedemption) return;
-    if (!window.confirm('Tandai voucher ini sebagai SUDAH DISERAHKAN ke pekerja?')) return;
+    const isConfirmed = await SwalService.confirm({
+      title: 'Serahkan Voucher Reward?',
+      text: 'Tandai voucher ini sebagai SUDAH DISERAHKAN ke pekerja? Pastikan barang atau voucher fisik telah diterima pekerja.',
+      confirmButtonText: 'Ya, Tandai Diserahkan',
+      isDestructive: false,
+    });
+    if (!isConfirmed) return;
     setFulfillingId(redemptionId);
     try {
       await onFulfillRedemption(redemptionId);
     } catch (err: any) {
-      alert(err.message || 'Gagal menandai penyerahan voucher.');
+      SwalService.error('Gagal Penyerahan', err.message || 'Gagal menandai penyerahan voucher.');
     } finally {
       setFulfillingId(null);
     }
@@ -228,7 +239,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
 
   const handleExportCSV = () => {
     if (!redemptionHistory || redemptionHistory.length === 0) {
-      alert('Tidak ada data riwayat penukaran untuk diekspor.');
+      SwalService.warning('Data Kosong', 'Tidak ada data riwayat penukaran untuk diekspor.');
       return;
     }
 
@@ -394,7 +405,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                   className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/40 rounded-xl text-xs font-bold transition flex items-center gap-1.5 disabled:opacity-50"
                 >
                   <RefreshCw className={`w-3.5 h-3.5 ${resettingQuota ? 'animate-spin' : ''}`} />
-                  <span>Reset Kuota Tgl 1</span>
+                  <span>Perbarui Kuota Bulanan</span>
                 </button>
               )}
             </div>
@@ -441,12 +452,12 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
 
       {activeTab === 'catalog' ? (
         <>
-          {/* FCFS Fair-Play Info Banner */}
+          {/* Info Banner Program Hadiah Bulanan */}
           <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-3 flex items-start gap-2.5 text-xs text-amber-200/90">
             <ShieldCheck className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <div>
-              <span className="font-bold text-amber-300">Penukaran FCFS & Syarat Tier: </span>
-              Kuota bulanan di-reset otomatis setiap tanggal 1. Penukaran menggunakan transaksi atomik FCFS (Siapa Cepat Dia Dapat). Beberapa reward eksklusif membutuhkan syarat minimal Tier pekerja.
+              <span className="font-bold text-amber-300">Program Hadiah Bulanan: </span>
+              Stok hadiah diperbarui setiap awal bulan dengan prinsip Siapa Cepat Dia Dapat! Tingkatkan poin kinerja & raih Tier lebih tinggi untuk membuka koleksi hadiah eksklusif.
             </div>
           </div>
 
@@ -502,18 +513,26 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                 >
                   {/* Top Badges */}
                   <div className="flex items-center gap-1.5 absolute top-3 right-3">
-                    {item.minTier && item.minTier !== 'Novice Operational' && (
-                      <div
-                        className={`text-[9px] font-bold px-2 py-0.5 rounded flex items-center gap-1 ${
-                          isTierOk
-                            ? 'bg-purple-950/80 text-purple-300 border border-purple-800/50'
-                            : 'bg-zinc-900 text-zinc-400 border border-zinc-700'
-                        }`}
-                        title={`Syarat Tier Minimal: ${item.minTier}`}
-                      >
-                        <Lock className="w-2.5 h-2.5" />
-                        <span>{item.minTier.split(' ')[0]}</span>
-                      </div>
+                    {item.minTier && (
+                      (() => {
+                        const tierDef = SystemConfigService.getTierByName(item.minTier);
+                        const isBaseline = !item.minTier || (tierDef ? tierDef.level === 1 : item.minTier === 'Novice Operational');
+                        if (isBaseline) return null;
+                        return (
+                          <div
+                            className="text-[9px] font-bold px-2 py-0.5 rounded flex items-center gap-1 border"
+                            style={{
+                              color: isTierOk ? tierDef?.badgeColor || '#a855f7' : '#71717a',
+                              backgroundColor: isTierOk ? tierDef?.badgeBg || 'rgba(168, 85, 247, 0.1)' : '#18181b',
+                              borderColor: isTierOk ? tierDef?.badgeBorder || 'rgba(168, 85, 247, 0.3)' : '#27272a',
+                            }}
+                            title={`Syarat Tier Minimal: ${item.minTier}`}
+                          >
+                            <Lock className="w-2.5 h-2.5" />
+                            <span>{tierDef?.icon || ''} {item.minTier.split(' ')[0]}</span>
+                          </div>
+                        );
+                      })()
                     )}
 
                     {item.badgeTag && (
@@ -548,8 +567,14 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                           </button>
                           {onDeleteReward && (
                             <button
-                              onClick={() => {
-                                if (window.confirm(`Hapus item "${item.title}"?`)) {
+                              onClick={async () => {
+                                const isConfirmed = await SwalService.confirm({
+                                  title: `Hapus Item "${item.title}"?`,
+                                  text: 'Apakah Anda yakin ingin menghapus item reward ini dari marketplace?',
+                                  confirmButtonText: 'Ya, Hapus',
+                                  isDestructive: true,
+                                });
+                                if (isConfirmed) {
                                   onDeleteReward(item.id);
                                 }
                               }}
@@ -569,7 +594,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                     {/* Kuota Bulanan FCFS Progress Bar */}
                     <div className="bg-zinc-900/90 border border-zinc-800 p-2 rounded-lg mb-3 space-y-1">
                       <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-zinc-400">Kuota FCFS Bulan Ini:</span>
+                        <span className="text-zinc-400">Sisa Kuota Bulan Ini:</span>
                         <span className={`font-mono font-bold ${item.availableStock > 5 ? 'text-emerald-400' : item.availableStock > 0 ? 'text-amber-400' : 'text-rose-400'}`}>
                           {item.availableStock} / {monthlyLimit} pcs
                         </span>
@@ -805,11 +830,9 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
       {selectedReward && createPortal(
         <div
           className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-          onClick={handleCloseModal}
         >
           <div
             className="relative w-full max-w-md max-h-[85vh] m-auto card-elevated p-6 text-center overflow-y-auto custom-scrollbar"
-            onClick={e => e.stopPropagation()}
           >
             {!claimedCode ? (
               <>
@@ -836,11 +859,24 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                     <span className="font-black text-amber-400">-{selectedReward.pointsRequired} PTS</span>
                   </div>
 
-                  {selectedReward.minTier && selectedReward.minTier !== 'Novice Operational' && (
-                    <div className="flex items-center justify-between text-xs text-zinc-400">
-                      <span>Syarat Tier:</span>
-                      <span className="font-bold text-purple-300">{selectedReward.minTier}</span>
-                    </div>
+                  {selectedReward.minTier && (
+                    (() => {
+                      const tierDef = SystemConfigService.getTierByName(selectedReward.minTier);
+                      const isBaseline = !selectedReward.minTier || (tierDef ? tierDef.level === 1 : selectedReward.minTier === 'Novice Operational');
+                      if (isBaseline) return null;
+                      return (
+                        <div className="flex items-center justify-between text-xs text-zinc-400">
+                          <span>Syarat Tier:</span>
+                          <span
+                            className="font-bold flex items-center gap-1"
+                            style={{ color: tierDef?.badgeColor || '#d8b4fe' }}
+                          >
+                            <span>{tierDef?.icon || '🔒'}</span>
+                            <span>{selectedReward.minTier}</span>
+                          </span>
+                        </div>
+                      );
+                    })()
                   )}
 
                   <div className="flex items-center justify-between text-xs text-zinc-400">
@@ -922,11 +958,9 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
       {showAddEditModal && createPortal(
         <div
           className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-          onClick={() => setShowAddEditModal(false)}
         >
           <div
             className="relative w-full max-w-lg max-h-[85vh] m-auto card-elevated p-6 overflow-y-auto custom-scrollbar"
-            onClick={e => e.stopPropagation()}
           >
             <button
               onClick={() => setShowAddEditModal(false)}
@@ -997,12 +1031,13 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                   <select
                     value={formMinTier}
                     onChange={(e) => setFormMinTier(e.target.value as TierType)}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 font-medium"
                   >
-                    <option value="Novice Operational">Novice Operational (Semua)</option>
-                    <option value="Pro Specialist">Pro Specialist</option>
-                    <option value="Elite Logistician">Elite Logistician</option>
-                    <option value="Legendary Champion">Legendary Champion</option>
+                    {SystemConfigService.getTierConfigs().map((t, idx) => (
+                      <option key={t.id || t.name} value={t.name}>
+                        {t.name} {idx === 0 ? '(Semua Pekerja)' : ''}
+                      </option>
+                    ))}
                   </select>
                 </div>
 
@@ -1114,11 +1149,9 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
       {showRestockModal && restockItem && createPortal(
         <div
           className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-          onClick={() => setShowRestockModal(false)}
         >
           <div
             className="relative w-full max-w-sm max-h-[85vh] m-auto card-elevated p-6 overflow-y-auto custom-scrollbar"
-            onClick={e => e.stopPropagation()}
           >
             <button
               onClick={() => setShowRestockModal(false)}

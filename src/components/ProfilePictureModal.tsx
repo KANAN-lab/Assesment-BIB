@@ -84,7 +84,6 @@ export const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({
   return createPortal(
     <div
       className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-      onClick={onClose}
     >
       <div
         className="relative w-full max-w-md max-h-[82vh] sm:max-h-[85vh] m-auto card-elevated p-6 overflow-y-auto custom-scrollbar"
@@ -201,7 +200,7 @@ export const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({
                   <Upload className="w-8 h-8 text-emerald-400" />
                 )}
                 <span className="text-xs font-bold text-zinc-200">
-                  {uploading ? 'Mengunggah ke Supabase Storage...' : 'Klik atau Tarik Foto ke Sini'}
+                  {uploading ? 'Mengunggah foto profil...' : 'Klik atau Tarik Foto ke Sini'}
                 </span>
                 <span className="text-[10px] text-zinc-500">Format: JPG, PNG, WebP</span>
               </div>

@@ -16,9 +16,12 @@ import {
   Check,
   AlertTriangle,
   Sparkles,
-  User
+  User,
+  Inbox,
+  AlertCircle
 } from 'lucide-react';
 import { NotificationEngine, AppNotification } from '../domain/NotificationEngine';
+import { SwalService } from '../domain/SwalService';
 import { PaginationControls } from './PaginationControls';
 import { WorkerProfile } from '../types/assessment';
 
@@ -66,7 +69,7 @@ export const AdminNotificationPanel: React.FC<AdminNotificationPanelProps> = ({ 
 
     if (recipientRole === 'specific') {
       if (!selectedWorkerId) {
-        alert('Silakan pilih pekerja penerima khusus terlebih dahulu.');
+        SwalService.warning('Pekerja Belum Dipilih', 'Silakan pilih pekerja penerima khusus terlebih dahulu.');
         setSending(false);
         return;
       }
@@ -110,8 +113,14 @@ export const AdminNotificationPanel: React.FC<AdminNotificationPanelProps> = ({ 
     reloadData();
   };
 
-  const handleClearAll = () => {
-    if (window.confirm('Apakah Anda yakin ingin menghapus seluruh riwayat notifikasi sistem?')) {
+  const handleClearAll = async () => {
+    const isConfirmed = await SwalService.confirm({
+      title: 'Hapus Seluruh Notifikasi?',
+      text: 'Apakah Anda yakin ingin menghapus seluruh riwayat notifikasi sistem? Tindakan ini tidak dapat dibatalkan.',
+      confirmButtonText: 'Ya, Hapus Semua',
+      isDestructive: true,
+    });
+    if (isConfirmed) {
       NotificationEngine.clearAllNotifications();
       reloadData();
     }

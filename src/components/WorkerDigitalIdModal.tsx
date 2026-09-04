@@ -128,11 +128,9 @@ export const WorkerDigitalIdModal: React.FC<WorkerDigitalIdModalProps> = ({
   return createPortal(
     <div
       className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-3 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-      onClick={onClose}
     >
       <div
         className="relative w-full max-w-md bg-zinc-950 border border-zinc-800 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-white"
-        onClick={(e) => e.stopPropagation()}
       >
         {/* Header Bar */}
         <div className="px-5 py-4 border-b border-zinc-800/80 flex items-center justify-between bg-zinc-900/60">

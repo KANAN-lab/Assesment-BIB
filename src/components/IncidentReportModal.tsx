@@ -127,7 +127,7 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
         }
       }
 
-      setUploadStep('Menyimpan laporan insiden ke Supabase Database...');
+      setUploadStep('Menyimpan laporan insiden ke sistem...');
 
       if (!photoUrlData) {
         photoUrlData = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop&q=80';
@@ -182,7 +182,6 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
   return (
     <div
       className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-      onClick={onClose}
     >
       <div
         className="relative w-full max-w-5xl max-h-[82vh] sm:max-h-[85vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden border-orange-500/30"

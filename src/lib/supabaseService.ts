@@ -1233,21 +1233,75 @@ function rowToAnnouncement(row: any): Announcement {
     priority: row.priority,
     createdBy: row.created_by ?? undefined,
     isActive: row.is_active,
+    startsAt: row.starts_at ?? row.created_at ?? undefined,
     expiresAt: row.expires_at ?? undefined,
     createdAt: row.created_at,
   };
 }
 
+const ANNOUNCEMENT_STORAGE_KEY = 'komar_announcements_cache';
+const announcementBroadcast = typeof BroadcastChannel !== 'undefined' ? new BroadcastChannel('gappy_announcements_channel') : null;
+
+function getLocalAnnouncements(): Announcement[] {
+  try {
+    const raw = localStorage.getItem(ANNOUNCEMENT_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+// Hanya menulis cache ke localStorage TANPA memicu loop event
+function writeLocalAnnouncementsCache(items: Announcement[]): void {
+  try {
+    localStorage.setItem(ANNOUNCEMENT_STORAGE_KEY, JSON.stringify(items));
+  } catch {}
+}
+
+// Hanya dipanggil saat terjadi mutasi data nyata oleh pengguna (create, toggle, delete)
+function notifyAnnouncementUpdated(): void {
+  try {
+    window.dispatchEvent(new CustomEvent('gappy_announcement_updated'));
+    announcementBroadcast?.postMessage({ type: 'gappy_announcement_updated' });
+  } catch {}
+}
+
 export async function fetchAnnouncements(activeOnly = true): Promise<Announcement[]> {
-  let q = supabase.from('announcements').select('*').order('created_at', { ascending: false });
-  if (activeOnly) q = q.eq('is_active', true);
-  const { data, error } = await q;
-  if (error) throw new Error(`Gagal memuat pengumuman: ${error.message}`);
-  const now = new Date();
-  return (data ?? []).map(rowToAnnouncement).filter((a) => {
-    if (!activeOnly) return true;
-    return !a.expiresAt || new Date(a.expiresAt) > now;
-  });
+  try {
+    let q = supabase.from('announcements').select('*').order('created_at', { ascending: false });
+    if (activeOnly) q = q.eq('is_active', true);
+    const { data, error } = await q;
+    if (error) throw error;
+    const now = new Date();
+    const mapped = (data ?? []).map(rowToAnnouncement).filter((a) => {
+      if (!activeOnly) return true;
+      const hasStarted = !a.startsAt || new Date(a.startsAt) <= now;
+      const notExpired = !a.expiresAt || new Date(a.expiresAt) > now;
+      return a.isActive && hasStarted && notExpired;
+    });
+
+    // Update local cache silently (NO EVENT DISPATCH TO PREVENT RE-RENDER LOOP)
+    if (!activeOnly) {
+      writeLocalAnnouncementsCache(mapped);
+    } else if (mapped.length > 0) {
+      const existing = getLocalAnnouncements();
+      const mergedMap = new Map<string, Announcement>();
+      existing.forEach((item) => mergedMap.set(item.id, item));
+      mapped.forEach((item) => mergedMap.set(item.id, item));
+      writeLocalAnnouncementsCache(Array.from(mergedMap.values()));
+    }
+    return mapped;
+  } catch (err) {
+    console.warn('[fetchAnnouncements] Menggunakan cadangan lokal pengumuman:', err);
+    const local = getLocalAnnouncements();
+    const now = new Date();
+    return local.filter((a) => {
+      if (!activeOnly) return true;
+      const hasStarted = !a.startsAt || new Date(a.startsAt) <= now;
+      const notExpired = !a.expiresAt || new Date(a.expiresAt) > now;
+      return a.isActive && hasStarted && notExpired;
+    });
+  }
 }
 
 export async function createAnnouncement(
@@ -1255,25 +1309,103 @@ export async function createAnnouncement(
   content: string,
   priority: Announcement['priority'],
   createdBy: string,
+  startsAt?: string,
   expiresAt?: string
 ): Promise<Announcement> {
-  const { data, error } = await supabase
-    .from('announcements')
-    .insert({ title, content, priority, created_by: createdBy, is_active: true, expires_at: expiresAt ?? null })
-    .select('*')
-    .single();
-  if (error) throw new Error(`Gagal membuat pengumuman: ${error.message}`);
-  return rowToAnnouncement(data);
+  const localId = 'ann_' + Date.now() + '_' + Math.random().toString(36).substring(2, 7);
+  const fallbackItem: Announcement = {
+    id: localId,
+    title,
+    content,
+    priority,
+    createdBy,
+    isActive: true,
+    startsAt: startsAt ?? new Date().toISOString(),
+    expiresAt,
+    createdAt: new Date().toISOString(),
+  };
+
+  try {
+    // 1. Coba insert standar ke Supabase dengan starts_at
+    const insertPayload: any = {
+      title,
+      content,
+      priority,
+      created_by: createdBy,
+      is_active: true,
+      starts_at: startsAt ?? new Date().toISOString(),
+      expires_at: expiresAt ?? null,
+    };
+
+    let res = await supabase
+      .from('announcements')
+      .insert(insertPayload)
+      .select('*')
+      .single();
+
+    // 2. Jika kolom starts_at belum ada di skema database (error code 42703)
+    if (res.error && (res.error.code === '42703' || res.error.message.includes('starts_at'))) {
+      delete insertPayload.starts_at;
+      res = await supabase
+        .from('announcements')
+        .insert(insertPayload)
+        .select('*')
+        .single();
+    }
+
+    // 3. Jika gagal karena foreign key violation (kode 23503), coba insert dengan created_by null
+    if (res.error && (res.error.code === '23503' || res.error.message.includes('foreign key'))) {
+      insertPayload.created_by = null;
+      res = await supabase
+        .from('announcements')
+        .insert(insertPayload)
+        .select('*')
+        .single();
+    }
+
+    if (res.error) throw res.error;
+
+    const finalItem = rowToAnnouncement(res.data);
+    if (!finalItem.startsAt && startsAt) {
+      finalItem.startsAt = startsAt;
+    }
+    const currentList = getLocalAnnouncements().filter((a) => a.id !== finalItem.id);
+    writeLocalAnnouncementsCache([finalItem, ...currentList]);
+    notifyAnnouncementUpdated();
+    return finalItem;
+  } catch (err) {
+    console.warn('[createAnnouncement] Gagal insert remote, disimpan di storage lokal:', err);
+    const currentList = getLocalAnnouncements();
+    writeLocalAnnouncementsCache([fallbackItem, ...currentList]);
+    notifyAnnouncementUpdated();
+    return fallbackItem;
+  }
 }
 
 export async function toggleAnnouncement(id: string, isActive: boolean): Promise<void> {
-  const { error } = await supabase.from('announcements').update({ is_active: isActive }).eq('id', id);
-  if (error) throw new Error(`Gagal update pengumuman: ${error.message}`);
+  const currentList = getLocalAnnouncements().map((a) => (a.id === id ? { ...a, isActive } : a));
+  writeLocalAnnouncementsCache(currentList);
+  notifyAnnouncementUpdated();
+
+  try {
+    const { error } = await supabase.from('announcements').update({ is_active: isActive }).eq('id', id);
+    if (error) console.warn('[toggleAnnouncement] Supabase warn:', error.message);
+  } catch (e) {
+    console.warn('[toggleAnnouncement] Remote toggle failed, kept in local:', e);
+  }
 }
 
 export async function deleteAnnouncement(id: string): Promise<void> {
-  const { error } = await supabase.from('announcements').delete().eq('id', id);
-  if (error) throw new Error(`Gagal hapus pengumuman: ${error.message}`);
+  const currentList = getLocalAnnouncements().filter((a) => a.id !== id);
+  writeLocalAnnouncementsCache(currentList);
+  notifyAnnouncementUpdated();
+
+  try {
+    const { error } = await supabase.from('announcements').delete().eq('id', id);
+    if (error) console.warn('[deleteAnnouncement] Supabase warn:', error.message);
+  } catch (e) {
+    console.warn('[deleteAnnouncement] Remote delete failed, removed from local:', e);
+  }
 }
 
 // ─── Badges ──────────────────────────────────────────────────────────────────

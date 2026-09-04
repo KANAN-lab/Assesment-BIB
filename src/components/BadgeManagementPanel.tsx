@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Award, Plus, Edit2, Trash2, Loader2, CheckCircle2, X, ShieldCheck } from 'lucide-react';
+import {
+  Award, Plus, Edit2, Trash2, Loader2, CheckCircle2, X, ShieldCheck,
+  Flame, Zap, Coins, Trophy, BookOpen, Brain, Star, Medal, Sparkles, Target, Rocket
+} from 'lucide-react';
 import type { Badge } from '../types/assessment';
 import {
   fetchAllBadges,
@@ -8,6 +11,51 @@ import {
   updateBadge,
   deleteBadge,
 } from '../lib/supabaseService';
+import { SwalService } from '../domain/SwalService';
+
+const BADGE_LUCIDE_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  'check-circle': CheckCircle2,
+  'book-open': BookOpen,
+  flame: Flame,
+  brain: Brain,
+  zap: Zap,
+  'shield-check': ShieldCheck,
+  coins: Coins,
+  trophy: Trophy,
+  award: Award,
+  star: Star,
+  medal: Medal,
+  sparkles: Sparkles,
+  target: Target,
+  rocket: Rocket,
+};
+
+export const resolveBadgeColor = (color: string = '#fbbf24'): string => {
+  const COLOR_NAME_MAP: Record<string, string> = {
+    gold: '#fbbf24',
+    amber: '#f59e0b',
+    yellow: '#facc15',
+    green: '#10b981',
+    emerald: '#34d399',
+    orange: '#fb923c',
+    cyan: '#06b6d4',
+    blue: '#3b82f6',
+    violet: '#8b5cf6',
+    purple: '#a855f7',
+    red: '#ef4444',
+  };
+  if (color.startsWith('#')) return color;
+  return COLOR_NAME_MAP[color.toLowerCase()] || '#fbbf24';
+};
+
+export const renderBadgeIcon = (icon: string, className = 'w-5 h-5') => {
+  if (!icon) return <Award className={className} />;
+  const LucideComp = BADGE_LUCIDE_MAP[icon.toLowerCase()];
+  if (LucideComp) {
+    return <LucideComp className={className} />;
+  }
+  return <span className="leading-none select-none">{icon}</span>;
+};
 
 const CONDITION_OPTIONS = [
   { value: 'streak_days',       label: 'Streak Harian (hari berturut-turut)' },
@@ -17,7 +65,10 @@ const CONDITION_OPTIONS = [
   { value: 'checklist_streak',  label: 'Streak Pre-Shift Checklist' },
 ];
 
-const ICON_OPTIONS = ['🏆','⭐','🔥','🛡️','⚡','💎','🎯','🥇','🌟','🦁','🚀','💪','🎖️','🏅','✨'];
+const ICON_OPTIONS = [
+  '🏆','⭐','🔥','🛡️','⚡','💎','🎯','🥇','🌟','🦁','🚀','💪','🎖️','🏅','✨',
+  'check-circle', 'book-open', 'brain', 'coins', 'shield-check', 'flame', 'zap', 'trophy'
+];
 const COLOR_OPTIONS = [
   { value: '#fbbf24', label: 'Emas' },
   { value: '#818cf8', label: 'Ungu' },
@@ -112,7 +163,13 @@ export const BadgeManagementPanel: React.FC = () => {
   };
 
   const handleDelete = async (badge: Badge) => {
-    if (!window.confirm(`Hapus badge "${badge.name}"? Ini akan menghapus badge dari semua worker.`)) return;
+    const isConfirmed = await SwalService.confirm({
+      title: `Hapus Badge "${badge.name}"?`,
+      text: 'Ini akan menghapus badge dari seluruh riwayat worker. Tindakan ini permanen.',
+      confirmButtonText: 'Ya, Hapus Badge',
+      isDestructive: true,
+    });
+    if (!isConfirmed) return;
     setDeletingId(badge.id);
     try {
       await deleteBadge(badge.id);
@@ -166,12 +223,21 @@ export const BadgeManagementPanel: React.FC = () => {
               <div key={badge.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 flex flex-col gap-3">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-3">
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
-                      style={{ background: badge.color + '18', border: `1px solid ${badge.color}40` }}
-                    >
-                      {badge.icon}
-                    </div>
+                    {(() => {
+                      const hexColor = resolveBadgeColor(badge.color);
+                      return (
+                        <div
+                          className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
+                          style={{
+                            background: `${hexColor}18`,
+                            border: `1px solid ${hexColor}40`,
+                            color: hexColor,
+                          }}
+                        >
+                          {renderBadgeIcon(badge.icon, 'w-5 h-5')}
+                        </div>
+                      );
+                    })()}
                     <div className="min-w-0">
                       <div className="text-sm font-bold text-white truncate">{badge.name}</div>
                       <div className="text-[10px] text-zinc-500 truncate">{badge.description}</div>
@@ -213,11 +279,9 @@ export const BadgeManagementPanel: React.FC = () => {
       {showForm && createPortal(
         <div
           className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-          onClick={() => setShowForm(false)}
         >
           <div
             className="relative w-full max-w-lg max-h-[82vh] sm:max-h-[85vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-            onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
               <h3 className="text-sm font-bold text-white">{editingId ? 'Edit Badge' : 'Tambah Badge Baru'}</h3>
@@ -227,18 +291,27 @@ export const BadgeManagementPanel: React.FC = () => {
             </div>
             <form onSubmit={handleSubmit} className="p-5 space-y-4">
               {/* Preview */}
-              <div className="flex items-center gap-3 bg-zinc-950 rounded-xl border border-zinc-800 p-3">
-                <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
-                  style={{ background: form.color + '18', border: `1px solid ${form.color}40` }}
-                >
-                  {form.icon}
-                </div>
-                <div>
-                  <div className="text-sm font-bold text-white">{form.name || 'Nama Badge'}</div>
-                  <div className="text-[10px] text-zinc-500">{form.description || 'Deskripsi badge'}</div>
-                </div>
-              </div>
+              {(() => {
+                const hexColor = resolveBadgeColor(form.color);
+                return (
+                  <div className="flex items-center gap-3 bg-zinc-950 rounded-xl border border-zinc-800 p-3">
+                    <div
+                      className="w-10 h-10 rounded-xl flex items-center justify-center text-xl shrink-0"
+                      style={{
+                        background: `${hexColor}18`,
+                        border: `1px solid ${hexColor}40`,
+                        color: hexColor,
+                      }}
+                    >
+                      {renderBadgeIcon(form.icon, 'w-5 h-5')}
+                    </div>
+                    <div>
+                      <div className="text-sm font-bold text-white">{form.name || 'Nama Badge'}</div>
+                      <div className="text-[10px] text-zinc-500">{form.description || 'Deskripsi badge'}</div>
+                    </div>
+                  </div>
+                );
+              })()}
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
@@ -263,15 +336,22 @@ export const BadgeManagementPanel: React.FC = () => {
                 <div>
                   <label className="text-[11px] text-zinc-400 font-bold mb-1 block">Icon</label>
                   <div className="flex flex-wrap gap-1.5">
-                    {ICON_OPTIONS.map(ic => (
-                      <button
-                        key={ic} type="button"
-                        onClick={() => setForm(f => ({ ...f, icon: ic }))}
-                        className={`w-8 h-8 rounded-lg text-base flex items-center justify-center transition ${form.icon === ic ? 'bg-emerald-500/20 ring-1 ring-emerald-500' : 'bg-zinc-800 hover:bg-zinc-700'}`}
-                      >
-                        {ic}
-                      </button>
-                    ))}
+                    {ICON_OPTIONS.map(ic => {
+                      const isSelected = form.icon === ic;
+                      return (
+                        <button
+                          key={ic}
+                          type="button"
+                          onClick={() => setForm(f => ({ ...f, icon: ic }))}
+                          className={`w-8 h-8 rounded-lg text-base flex items-center justify-center transition ${
+                            isSelected ? 'bg-emerald-500/20 ring-1 ring-emerald-500 text-emerald-400' : 'bg-zinc-800 hover:bg-zinc-700 text-zinc-300'
+                          }`}
+                          title={ic}
+                        >
+                          {renderBadgeIcon(ic, 'w-4 h-4')}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
                 <div>

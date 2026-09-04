@@ -6,6 +6,8 @@
  * NO HARDCODED POINTS OR NUMBERING — All configurations are fully maintained in Admin Console.
  */
 
+import type { TierConfig } from '../types/assessment';
+
 export type DocumentType =
   | 'competency_matrix'
   | 'k3_incident'
@@ -80,6 +82,7 @@ export interface SystemConfig {
   quizCategories: string[];
   ppeCategories: PpeCategoryConfig[];
   masterTiers: string[];
+  tierConfigs: TierConfig[];
 
   // 11. Cloud Storage & Google Drive Integration
   gdriveTargetFolderId: string;
@@ -93,6 +96,49 @@ export const FREQUENCY_OPTIONS = [
   { days: 30, label: 'Bulanan (30 Hari)',           shortLabel: '1x / Bulan' },
 ];
 
+export const DEFAULT_TIER_CONFIGS: TierConfig[] = [
+  {
+    id: 'tier-novice',
+    name: 'Novice Operational',
+    minPoints: 0,
+    level: 1,
+    badgeColor: '#a1a1aa',
+    badgeBg: 'rgba(161, 161, 170, 0.08)',
+    badgeBorder: 'rgba(63, 63, 70, 0.6)',
+    icon: '🔰',
+  },
+  {
+    id: 'tier-pro',
+    name: 'Pro Specialist',
+    minPoints: 500,
+    level: 2,
+    badgeColor: '#34d399',
+    badgeBg: 'rgba(52, 211, 153, 0.08)',
+    badgeBorder: 'rgba(52, 211, 153, 0.2)',
+    icon: '🛡️',
+  },
+  {
+    id: 'tier-elite',
+    name: 'Elite Logistician',
+    minPoints: 1500,
+    level: 3,
+    badgeColor: '#818cf8',
+    badgeBg: 'rgba(129, 140, 248, 0.08)',
+    badgeBorder: 'rgba(129, 140, 248, 0.2)',
+    icon: '💎',
+  },
+  {
+    id: 'tier-legendary',
+    name: 'Legendary Champion',
+    minPoints: 3000,
+    level: 4,
+    badgeColor: '#fbbf24',
+    badgeBg: 'rgba(251, 191, 36, 0.08)',
+    badgeBorder: 'rgba(251, 191, 36, 0.2)',
+    icon: '👑',
+  },
+];
+
 export class SystemConfigService {
   private static STORAGE_KEY = 'gappy_system_config_v4';
 
@@ -101,9 +147,17 @@ export class SystemConfigService {
       const raw = localStorage.getItem(this.STORAGE_KEY);
       if (!raw) return this.getDefaultConfig();
       const parsed = JSON.parse(raw);
+      const defaultConfig = this.getDefaultConfig();
+      const tierConfigs: TierConfig[] =
+        Array.isArray(parsed.tierConfigs) && parsed.tierConfigs.length > 0
+          ? parsed.tierConfigs
+          : DEFAULT_TIER_CONFIGS;
+
       return {
-        ...this.getDefaultConfig(),
+        ...defaultConfig,
         ...parsed,
+        tierConfigs,
+        masterTiers: tierConfigs.map((t) => t.name),
       };
     } catch {
       return this.getDefaultConfig();
@@ -112,12 +166,17 @@ export class SystemConfigService {
 
   public static updateConfig(updates: Partial<SystemConfig>): SystemConfig {
     const current = this.getConfig();
-    const updated = { ...current, ...updates };
+    const updated: SystemConfig = { ...current, ...updates };
 
     // Update label based on days if days changed
     if (updates.auditFrequencyDays) {
       const opt = FREQUENCY_OPTIONS.find((o) => o.days === updates.auditFrequencyDays);
       if (opt) updated.auditFrequencyLabel = opt.shortLabel;
+    }
+
+    // Auto-sync masterTiers and tierConfigs
+    if (updates.tierConfigs && Array.isArray(updates.tierConfigs)) {
+      updated.masterTiers = updates.tierConfigs.map((t) => t.name);
     }
 
     try {
@@ -132,6 +191,69 @@ export class SystemConfigService {
     this.syncRemoteConfig(updated).catch(() => {});
 
     return updated;
+  }
+
+  /**
+   * Mengambil daftar Tier aktif terurut dari level terendah ke tertinggi
+   */
+  public static getTierConfigs(): TierConfig[] {
+    const config = this.getConfig();
+    const tiers = config.tierConfigs && config.tierConfigs.length > 0
+      ? config.tierConfigs
+      : DEFAULT_TIER_CONFIGS;
+    return [...tiers].sort((a, b) => a.level - b.level || a.minPoints - b.minPoints);
+  }
+
+  /**
+   * Menghitung Tier yang diperoleh berdasarkan total poin secara dinamis
+   */
+  public static getTierByPoints(points: number): TierConfig {
+    const tiers = this.getTierConfigs();
+    // Urutkan dari poin tertinggi ke terendah untuk evaluasi threshold
+    const sortedDesc = [...tiers].sort((a, b) => b.minPoints - a.minPoints);
+    for (const t of sortedDesc) {
+      if (points >= t.minPoints) {
+        return t;
+      }
+    }
+    return tiers[0] || DEFAULT_TIER_CONFIGS[0];
+  }
+
+  /**
+   * Mencari konfigurasi Tier berdasarkan nama tier
+   */
+  public static getTierByName(name?: string): TierConfig | undefined {
+    if (!name) return undefined;
+    const tiers = this.getTierConfigs();
+    return tiers.find((t) => t.name.toLowerCase() === name.toLowerCase());
+  }
+
+  /**
+   * Mendapatkan bobot level numerik tier (untuk komparasi kelayakan syarat reward)
+   */
+  public static getTierLevel(tierName?: string): number {
+    if (!tierName) return 1;
+    const tier = this.getTierByName(tierName);
+    return tier ? tier.level : 1;
+  }
+
+  /**
+   * Mendapatkan style inline untuk badge tier (color, backgroundColor, border)
+   */
+  public static getTierBadgeStyle(tierName?: string): { color: string; backgroundColor: string; border: string } {
+    const tier = this.getTierByName(tierName);
+    if (!tier) {
+      return {
+        color: '#a1a1aa',
+        backgroundColor: 'rgba(161, 161, 170, 0.08)',
+        border: '1px solid rgba(63, 63, 70, 0.6)',
+      };
+    }
+    return {
+      color: tier.badgeColor,
+      backgroundColor: tier.badgeBg || `${tier.badgeColor}14`,
+      border: `1px solid ${tier.badgeBorder || `${tier.badgeColor}33`}`,
+    };
   }
 
   /**
@@ -376,12 +498,8 @@ export class SystemConfigService {
         { id: 'hearing_protection', label: 'Pelindung Telinga (Earplug/Earmuff)', icon: '🎧' },
         { id: 'cold_storage_protection', label: 'Perlindungan Suhu Dingin (Thermal Jacket)', icon: '🧥' },
       ],
-      masterTiers: [
-        'Novice Operational',
-        'Pro Specialist',
-        'Elite Logistician',
-        'Legendary Champion',
-      ],
+      masterTiers: DEFAULT_TIER_CONFIGS.map((t) => t.name),
+      tierConfigs: DEFAULT_TIER_CONFIGS,
 
       // 11. Cloud Storage & Google Drive Integration (Root Folder & Webhook)
       gdriveTargetFolderId: '16p6cnEb7o6zOF2jFcPm3z7Md-Utntrkr',

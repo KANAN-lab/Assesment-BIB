@@ -36,6 +36,7 @@ import {
 import { PpeService } from '../lib/ppeService';
 import { WorkerProfile } from '../types/assessment';
 import { SystemConfigService } from '../domain/SystemConfigService';
+import { SwalService } from '../domain/SwalService';
 
 interface PpeManagementPanelProps {
   workers: WorkerProfile[];
@@ -278,17 +279,17 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
   const handleSubmitDistribution = (e: React.FormEvent) => {
     e.preventDefault();
     if (!distWorkerId) {
-      alert('Silakan pilih pekerja penerima APD.');
+      SwalService.warning('Pilih Pekerja', 'Silakan pilih pekerja penerima APD.');
       return;
     }
     if (!distPpeItemId) {
-      alert('Silakan pilih jenis APD dari katalog.');
+      SwalService.warning('Pilih Katalog APD', 'Silakan pilih jenis APD dari katalog.');
       return;
     }
 
     const worker = workers.find((w) => w.id === distWorkerId);
     if (!worker) {
-      alert('Data pekerja tidak valid.');
+      SwalService.warning('Pekerja Tidak Valid', 'Data pekerja tidak valid.');
       return;
     }
 
@@ -309,18 +310,18 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
 
       setIsDistributeModalOpen(false);
     } catch (err: any) {
-      alert(err.message || 'Gagal menyerahkan APD.');
+      SwalService.error('Gagal Menyerahkan APD', err.message || 'Gagal menyerahkan APD.');
     }
   };
 
   const handleSubmitMasterItem = (e: React.FormEvent) => {
     e.preventDefault();
     if (!masterName.trim()) {
-      alert('Nama APD wajib diisi.');
+      SwalService.warning('Nama APD Kosong', 'Nama APD wajib diisi.');
       return;
     }
     if (!masterCategory) {
-      alert('Silakan pilih kategori APD.');
+      SwalService.warning('Pilih Kategori', 'Silakan pilih kategori APD.');
       return;
     }
 
@@ -357,11 +358,11 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
     e.preventDefault();
     if (!selectedDistForDamage) return;
     if (!damageReason) {
-      alert('Silakan pilih penyebab kerusakan / penggantian.');
+      SwalService.warning('Pilih Penyebab', 'Silakan pilih penyebab kerusakan / penggantian.');
       return;
     }
     if (!damageDescription.trim()) {
-      alert('Deskripsi kondisi kerusakan wajib diisi.');
+      SwalService.warning('Deskripsi Kerusakan Kosong', 'Deskripsi kondisi kerusakan wajib diisi.');
       return;
     }
 
@@ -373,7 +374,7 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
       });
       setIsDamageModalOpen(false);
     } catch (err: any) {
-      alert(err.message || 'Gagal membuat laporan kerusakan APD.');
+      SwalService.error('Gagal Mengirim Laporan', err.message || 'Gagal membuat laporan kerusakan APD.');
     }
   };
 
@@ -391,12 +392,18 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
       });
       setIsReviewModalOpen(false);
     } catch (err: any) {
-      alert(err.message || 'Gagal memproses tiket penggantian APD.');
+      SwalService.error('Gagal Memproses Tiket', err.message || 'Gagal memproses tiket penggantian APD.');
     }
   };
 
-  const handleDeleteMasterItem = (id: string, name: string) => {
-    if (confirm(`Hapus master APD "${name}"? Data distribusi terkait mungkin terpengaruh.`)) {
+  const handleDeleteMasterItem = async (id: string, name: string) => {
+    const isConfirmed = await SwalService.confirm({
+      title: 'Hapus Master APD?',
+      text: `Hapus master APD "${name}"? Data riwayat distribusi terkait mungkin terpengaruh.`,
+      confirmButtonText: 'Ya, Hapus Master APD',
+      isDestructive: true,
+    });
+    if (isConfirmed) {
       PpeService.deleteMasterItem(id);
     }
   };
@@ -921,11 +928,9 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
       {isDistributeModalOpen && createPortal(
         <div
           className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-          onClick={() => setIsDistributeModalOpen(false)}
         >
           <div
             className="relative w-full max-w-lg max-h-[88vh] sm:max-h-[90vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950">
               <div className="flex items-center gap-2.5">
@@ -1078,11 +1083,9 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
       {isMasterModalOpen && createPortal(
         <div
           className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-          onClick={() => setIsMasterModalOpen(false)}
         >
           <div
             className="relative w-full max-w-md max-h-[88vh] sm:max-h-[90vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950">
               <div className="flex items-center gap-2.5">
@@ -1269,11 +1272,9 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
       {isDamageModalOpen && selectedDistForDamage && createPortal(
         <div
           className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-          onClick={() => setIsDamageModalOpen(false)}
         >
           <div
             className="relative w-full max-w-md max-h-[88vh] sm:max-h-[90vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950">
               <div className="flex items-center gap-2.5">
@@ -1355,11 +1356,9 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
       {isReviewModalOpen && selectedReportForReview && createPortal(
         <div
           className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-          onClick={() => setIsReviewModalOpen(false)}
         >
           <div
             className="relative w-full max-w-md max-h-[88vh] sm:max-h-[90vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950">
               <div className="flex items-center gap-2.5">

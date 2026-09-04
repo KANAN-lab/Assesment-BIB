@@ -11,6 +11,7 @@ import { CustomDataTable, DataTableColumn } from '../CustomDataTable';
 import { WorkerAvatar } from '../WorkerAvatar';
 import { exportWorkersCSV, batchImportWorkers } from '../../lib/supabaseService';
 import { RoleMutationManager } from '../../domain/RoleMutationManager';
+import { SystemConfigService } from '../../domain/SystemConfigService';
 
 export const SAMPLE_EMPLOYEE_IMPORT_DATA = `328000257\tAGUNG BAGASKARA\tOperator Forklift (WFG)\tWFG
 328000261\tARANIKITA BERU SIBIRO\tAdmin (Timbangan)\tTIM
@@ -310,11 +311,18 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
       key: 'tier',
       header: 'Tier',
       sortable: true,
-      render: (w) => (
-        <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-400 border border-purple-500/20">
-          {w.tier}
-        </span>
-      ),
+      render: (w) => {
+        const tierDef = SystemConfigService.getTierByName(w.tier);
+        return (
+          <span
+            className="text-[10px] font-bold px-2 py-0.5 rounded inline-flex items-center gap-1"
+            style={SystemConfigService.getTierBadgeStyle(w.tier)}
+          >
+            <span>{tierDef?.icon || '🔰'}</span>
+            <span>{w.tier}</span>
+          </span>
+        );
+      },
     },
     {
       key: 'totalPoints',

@@ -30,7 +30,10 @@ import {
   SystemConfig,
   FREQUENCY_OPTIONS,
   DocumentType,
+  DEFAULT_TIER_CONFIGS,
 } from '../domain/SystemConfigService';
+import type { TierConfig } from '../types/assessment';
+import { SwalService } from '../domain/SwalService';
 
 interface SystemConfigPanelProps {
   onToast?: (message: string) => void;
@@ -45,6 +48,14 @@ export const SystemConfigPanel: React.FC<SystemConfigPanelProps> = ({ onToast })
   const [newQuizCat, setNewQuizCat] = useState('');
   const [newPpeCatIcon, setNewPpeCatIcon] = useState('🛡️');
   const [newPpeCatLabel, setNewPpeCatLabel] = useState('');
+
+  // Local Tier Inputs
+  const [newTierName, setNewTierName] = useState('');
+  const [newTierMinPoints, setNewTierMinPoints] = useState<number>(0);
+  const [newTierIcon, setNewTierIcon] = useState('🎖️');
+  const [newTierColor, setNewTierColor] = useState('#38bdf8');
+  const [activeIconPickerTierId, setActiveIconPickerTierId] = useState<string | null>(null);
+  const [showNewTierIconPicker, setShowNewTierIconPicker] = useState<boolean>(false);
 
   useEffect(() => {
     const handleUpdate = (e: any) => {
@@ -114,6 +125,88 @@ export const SystemConfigPanel: React.FC<SystemConfigPanelProps> = ({ onToast })
     handleChange('ppeCategories', updated);
   };
 
+  // ─── Tier Management Handlers ───
+  const handleTierChange = (id: string, field: keyof TierConfig, val: any) => {
+    const currentTiers = config.tierConfigs && config.tierConfigs.length > 0
+      ? config.tierConfigs
+      : DEFAULT_TIER_CONFIGS;
+    const updated = currentTiers.map((t) => {
+      if (t.id === id) {
+        const item = { ...t, [field]: val };
+        if (field === 'badgeColor') {
+          item.badgeBg = `${val}14`;
+          item.badgeBorder = `${val}33`;
+        }
+        return item;
+      }
+      return t;
+    });
+    handleChange('tierConfigs', updated);
+  };
+
+  const handleAddTier = () => {
+    const trimmed = newTierName.trim();
+    if (!trimmed) {
+      if (onToast) onToast('Nama tier tidak boleh kosong.');
+      return;
+    }
+    const currentTiers = config.tierConfigs && config.tierConfigs.length > 0
+      ? config.tierConfigs
+      : DEFAULT_TIER_CONFIGS;
+
+    if (currentTiers.some((t) => t.name.toLowerCase() === trimmed.toLowerCase())) {
+      if (onToast) onToast('Tier dengan nama tersebut sudah terdaftar.');
+      return;
+    }
+
+    const nextLevel = currentTiers.length > 0 ? Math.max(...currentTiers.map((t) => t.level)) + 1 : 1;
+    const newTier: TierConfig = {
+      id: `tier-${Date.now()}`,
+      name: trimmed,
+      minPoints: Math.max(0, Number(newTierMinPoints) || 0),
+      level: nextLevel,
+      badgeColor: newTierColor,
+      badgeBg: `${newTierColor}14`,
+      badgeBorder: `${newTierColor}33`,
+      icon: newTierIcon || '🎖️',
+    };
+
+    const updated = [...currentTiers, newTier].sort((a, b) => a.level - b.level);
+    handleChange('tierConfigs', updated);
+    setNewTierName('');
+    setNewTierMinPoints(0);
+    if (onToast) onToast(`Tier "${trimmed}" berhasil ditambahkan.`);
+  };
+
+  const handleRemoveTier = (id: string) => {
+    const currentTiers = config.tierConfigs && config.tierConfigs.length > 0
+      ? config.tierConfigs
+      : DEFAULT_TIER_CONFIGS;
+
+    if (currentTiers.length <= 1) {
+      if (onToast) onToast('Minimal harus ada 1 tier aktif di sistem.');
+      return;
+    }
+
+    const target = currentTiers.find((t) => t.id === id);
+    const updated = currentTiers.filter((t) => t.id !== id);
+    handleChange('tierConfigs', updated);
+    if (onToast) onToast(`Tier "${target?.name || id}" berhasil dihapus.`);
+  };
+
+  const handleResetTiers = async () => {
+    const isConfirmed = await SwalService.confirm({
+      title: 'Reset Konfigurasi Tier?',
+      text: 'Kembalikan konfigurasi tier ke standar default (Novice, Pro, Elite, Legendary)? Perubahan kustom Anda pada tier akan digantikan.',
+      confirmButtonText: 'Ya, Reset Tier',
+      isDestructive: false,
+    });
+    if (isConfirmed) {
+      handleChange('tierConfigs', DEFAULT_TIER_CONFIGS);
+      if (onToast) onToast('Tier berhasil dikembalikan ke standar default.');
+    }
+  };
+
   const handleSave = (e: React.FormEvent) => {
     e.preventDefault();
     SystemConfigService.updateConfig(config);
@@ -122,8 +215,14 @@ export const SystemConfigPanel: React.FC<SystemConfigPanelProps> = ({ onToast })
     setTimeout(() => setSavedSuccess(false), 3000);
   };
 
-  const handleResetDefaults = () => {
-    if (confirm('Kembalikan semua nilai poin dan aturan sistem ke nilai standar default?')) {
+  const handleResetDefaults = async () => {
+    const isConfirmed = await SwalService.confirm({
+      title: 'Reset Semua Konfigurasi?',
+      text: 'Kembalikan seluruh nilai poin dan aturan tata kelola sistem ke nilai standar default pabrik?',
+      confirmButtonText: 'Ya, Reset Semuanya',
+      isDestructive: true,
+    });
+    if (isConfirmed) {
       const def = SystemConfigService.resetToDefaults();
       setConfig(def);
       if (onToast) onToast('Konfigurasi sistem berhasil di-reset ke nilai default!');
@@ -897,6 +996,241 @@ export const SystemConfigPanel: React.FC<SystemConfigPanelProps> = ({ onToast })
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Tambah Kategori APD</span>
+            </button>
+          </div>
+        </div>
+
+        {/* 10.4 Master Tier Pekerja & Ambang Batas Poin */}
+        <div className="space-y-3 pt-3 border-t border-zinc-800">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <label className="block text-xs font-bold text-zinc-200">
+                Master Tier Pekerja & Ambang Batas Poin ({(config.tierConfigs || DEFAULT_TIER_CONFIGS).length} Tier)
+              </label>
+              <p className="text-[11px] text-zinc-400">
+                Pekerja otomatis naik tier saat akumulasi total poin mencapai atau melebihi ambang batas minimal.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleResetTiers}
+              className="text-[10px] text-zinc-400 hover:text-amber-300 transition underline flex items-center gap-1 self-start sm:self-auto"
+            >
+              Reset ke 4 Tier Default
+            </button>
+          </div>
+
+          {/* List Tier Cards / Rows */}
+          <div className="space-y-2">
+            {(config.tierConfigs || DEFAULT_TIER_CONFIGS).map((tier, idx) => (
+              <div
+                key={tier.id || idx}
+                className="p-3 bg-zinc-950/80 rounded-xl border border-zinc-800 hover:border-zinc-700 transition flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+              >
+                {/* Visual Preview & Level */}
+                <div className="flex items-center gap-3 min-w-[200px]">
+                  <div className="w-6 text-center text-xs font-mono font-bold text-zinc-500">
+                    L{tier.level}
+                  </div>
+                  <div
+                    className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold"
+                    style={{
+                      color: tier.badgeColor,
+                      backgroundColor: tier.badgeBg || `${tier.badgeColor}14`,
+                      border: `1px solid ${tier.badgeBorder || `${tier.badgeColor}33`}`,
+                    }}
+                  >
+                    <span>{tier.icon}</span>
+                    <span>{tier.name}</span>
+                  </div>
+                </div>
+
+                {/* Editable Fields */}
+                <div className="flex flex-wrap items-center gap-2 flex-1 sm:justify-end">
+                  {/* Interactive Icon Picker */}
+                  <div className="relative flex items-center gap-1">
+                    <span className="text-[10px] text-zinc-400">Icon:</span>
+                    <button
+                      type="button"
+                      onClick={() => setActiveIconPickerTierId(activeIconPickerTierId === tier.id ? null : tier.id)}
+                      className="w-9 h-8 bg-zinc-900 hover:bg-zinc-800 border border-zinc-700 hover:border-zinc-500 rounded-lg flex items-center justify-center text-base transition shadow-sm"
+                      title="Klik untuk memilih icon"
+                    >
+                      {tier.icon}
+                    </button>
+                    {activeIconPickerTierId === tier.id && (
+                      <div
+                        className="absolute top-10 right-0 sm:left-0 z-50 p-2.5 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-60 animate-in fade-in zoom-in-95"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-zinc-800 text-[10px] text-zinc-400 font-bold">
+                          <span>Pilih Icon Tier:</span>
+                          <button
+                            type="button"
+                            onClick={() => setActiveIconPickerTierId(null)}
+                            className="text-zinc-500 hover:text-white"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-5 gap-1.5 max-h-36 overflow-y-auto p-1">
+                          {['🔰', '🛡️', '💎', '👑', '⚡', '🏆', '⭐', '🔥', '🎯', '🥇', '🌟', '🎖️', '🏅', '🚀', '🦁', '💪', '✨', '📦', '🚜', '⚙️'].map((ic) => (
+                            <button
+                              key={ic}
+                              type="button"
+                              onClick={() => {
+                                handleTierChange(tier.id, 'icon', ic);
+                                setActiveIconPickerTierId(null);
+                              }}
+                              className={`w-9 h-9 rounded-lg text-lg flex items-center justify-center transition ${
+                                tier.icon === ic ? 'bg-indigo-500/20 ring-1 ring-indigo-500 scale-105' : 'bg-zinc-800 hover:bg-zinc-700'
+                              }`}
+                            >
+                              {ic}
+                            </button>
+                          ))}
+                        </div>
+                        <div className="mt-2 pt-2 border-t border-zinc-800 flex items-center gap-1.5">
+                          <span className="text-[10px] text-zinc-500">Custom:</span>
+                          <input
+                            type="text"
+                            value={tier.icon}
+                            onChange={(e) => handleTierChange(tier.id, 'icon', e.target.value)}
+                            placeholder="Emoji..."
+                            className="flex-1 bg-zinc-950 border border-zinc-800 rounded px-2 py-0.5 text-xs text-white focus:outline-none focus:border-indigo-500"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-zinc-400">Nama:</span>
+                    <input
+                      type="text"
+                      value={tier.name}
+                      onChange={(e) => handleTierChange(tier.id, 'name', e.target.value)}
+                      className="w-36 sm:w-44 bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-xs text-white focus:outline-none focus:border-indigo-500"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-zinc-400">Min:</span>
+                    <input
+                      type="number"
+                      min={0}
+                      value={tier.minPoints}
+                      onChange={(e) => handleTierChange(tier.id, 'minPoints', Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-20 bg-zinc-900 border border-zinc-800 rounded-lg px-2 py-1 text-xs font-mono text-amber-400 focus:outline-none"
+                    />
+                    <span className="text-[10px] text-zinc-500">PTS</span>
+                  </div>
+
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-zinc-400">Warna:</span>
+                    <input
+                      type="color"
+                      value={tier.badgeColor}
+                      onChange={(e) => handleTierChange(tier.id, 'badgeColor', e.target.value)}
+                      className="w-7 h-7 rounded border border-zinc-800 bg-zinc-900 cursor-pointer p-0.5"
+                    />
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveTier(tier.id)}
+                    className="p-1 text-zinc-500 hover:text-rose-400 transition"
+                    title={`Hapus tier ${tier.name}`}
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Form Tambah Tier Baru */}
+          <div className="p-3 bg-zinc-900/40 rounded-xl border border-dashed border-zinc-800 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold text-zinc-400 shrink-0">Tambah Tier Baru:</span>
+
+            {/* Icon Picker for New Tier */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowNewTierIconPicker(!showNewTierIconPicker)}
+                className="w-10 h-8 bg-zinc-950 hover:bg-zinc-900 border border-zinc-700 hover:border-zinc-500 rounded-lg flex items-center justify-center text-lg transition shadow-sm"
+                title="Pilih Icon Tier Baru"
+              >
+                {newTierIcon}
+              </button>
+              {showNewTierIconPicker && (
+                <div
+                  className="absolute bottom-11 left-0 z-50 p-2.5 bg-zinc-900 border border-zinc-700 rounded-xl shadow-2xl w-60 animate-in fade-in zoom-in-95"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between pb-1.5 mb-1.5 border-b border-zinc-800 text-[10px] text-zinc-400 font-bold">
+                    <span>Pilih Icon Tier Baru:</span>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewTierIconPicker(false)}
+                      className="text-zinc-500 hover:text-white"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-5 gap-1.5 max-h-36 overflow-y-auto p-1">
+                    {['🔰', '🛡️', '💎', '👑', '⚡', '🏆', '⭐', '🔥', '🎯', '🥇', '🌟', '🎖️', '🏅', '🚀', '🦁', '💪', '✨', '📦', '🚜', '⚙️'].map((ic) => (
+                      <button
+                        key={ic}
+                        type="button"
+                        onClick={() => {
+                          setNewTierIcon(ic);
+                          setShowNewTierIconPicker(false);
+                        }}
+                        className={`w-9 h-9 rounded-lg text-lg flex items-center justify-center transition ${
+                          newTierIcon === ic ? 'bg-indigo-500/20 ring-1 ring-indigo-500 scale-105' : 'bg-zinc-800 hover:bg-zinc-700'
+                        }`}
+                      >
+                        {ic}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <input
+              type="text"
+              value={newTierName}
+              onChange={(e) => setNewTierName(e.target.value)}
+              placeholder="Nama tier baru..."
+              className="flex-1 min-w-[140px] bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
+            />
+            <div className="flex items-center gap-1">
+              <span className="text-[10px] text-zinc-400">Min:</span>
+              <input
+                type="number"
+                min={0}
+                value={newTierMinPoints}
+                onChange={(e) => setNewTierMinPoints(Math.max(0, parseInt(e.target.value) || 0))}
+                className="w-20 bg-zinc-950 border border-zinc-800 rounded-lg px-2 py-1.5 text-xs font-mono text-amber-400 focus:outline-none"
+              />
+              <span className="text-[10px] text-zinc-500">PTS</span>
+            </div>
+            <input
+              type="color"
+              value={newTierColor}
+              onChange={(e) => setNewTierColor(e.target.value)}
+              className="w-8 h-8 rounded border border-zinc-800 bg-zinc-900 cursor-pointer p-0.5 shrink-0"
+              title="Pilih warna tema tier"
+            />
+            <button
+              type="button"
+              onClick={handleAddTier}
+              className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs rounded-xl transition flex items-center gap-1 shrink-0"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Tambah Tier</span>
             </button>
           </div>
         </div>

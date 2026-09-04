@@ -19,6 +19,7 @@ import { WorkerProfile } from '../types/assessment';
 import { matrixEngine } from '../domain/CompetencyMatrixEngine';
 import { RoleEntity } from '../domain/RoleEntity';
 import { TrainingAssignmentService, TrainingAssignmentResult } from '../domain/TrainingAssignmentService';
+import { SwalService } from '../domain/SwalService';
 
 interface CompetencyGapAnalysisModalProps {
   isOpen: boolean;
@@ -119,7 +120,7 @@ export const CompetencyGapAnalysisModal: React.FC<CompetencyGapAnalysisModalProp
       setAssignmentResult(result);
       setSelectedCatForAssignment(null);
     } catch (err: any) {
-      alert(err.message || 'Gagal menugaskan training.');
+      SwalService.error('Gagal Menugaskan Training', err.message || 'Gagal menugaskan training.');
     } finally {
       setIsAssigning(false);
     }
@@ -130,7 +131,6 @@ export const CompetencyGapAnalysisModal: React.FC<CompetencyGapAnalysisModalProp
   return createPortal(
     <div
       className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-      onClick={onClose}
     >
       <div
         className="relative w-full max-w-5xl max-h-[88vh] sm:max-h-[90vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"

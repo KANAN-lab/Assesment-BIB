@@ -9,6 +9,7 @@ import {
   deleteQuizQuestion,
 } from '../lib/supabaseService';
 import { SystemConfigService } from '../domain/SystemConfigService';
+import { SwalService } from '../domain/SwalService';
 
 interface QuizFormData {
   question: string;
@@ -137,7 +138,13 @@ export const QuizManagementPanel: React.FC = () => {
   };
 
   const handleDelete = async (q: QuizQuestion) => {
-    if (!window.confirm(`Hapus soal ini?\n"${q.question.slice(0, 60)}..."`)) return;
+    const isConfirmed = await SwalService.confirm({
+      title: 'Hapus Soal Kuis?',
+      text: `Apakah Anda yakin ingin menghapus soal ini?\n"${q.question.slice(0, 60)}..."`,
+      confirmButtonText: 'Ya, Hapus Soal',
+      isDestructive: true,
+    });
+    if (!isConfirmed) return;
     setDeletingId(q.id);
     try {
       await deleteQuizQuestion(q.id);
@@ -269,11 +276,9 @@ export const QuizManagementPanel: React.FC = () => {
       {showForm && createPortal(
         <div
           className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-          onClick={() => setShowForm(false)}
         >
           <div
             className="relative w-full max-w-xl max-h-[82vh] sm:max-h-[85vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
-            onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800 shrink-0">
               <button onClick={() => setShowForm(false)} className="text-zinc-500 hover:text-white p-1">

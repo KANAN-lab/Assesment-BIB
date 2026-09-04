@@ -1,5 +1,17 @@
 export type RoleType = string;
-export type TierType = 'Novice Operational' | 'Pro Specialist' | 'Elite Logistician' | 'Legendary Champion';
+export type DefaultTierType = 'Novice Operational' | 'Pro Specialist' | 'Elite Logistician' | 'Legendary Champion';
+export type TierType = DefaultTierType | (string & {});
+
+export interface TierConfig {
+  id: string;
+  name: string;
+  minPoints: number;
+  level: number;
+  badgeColor: string;
+  badgeBg: string;
+  badgeBorder: string;
+  icon: string;
+}
 
 export interface BibScores {
   behavior: number;   // Max 100 (Weight: 35%)
@@ -130,6 +142,7 @@ export interface Announcement {
   priority: 'normal' | 'urgent' | 'info';
   createdBy?: string;
   isActive: boolean;
+  startsAt?: string;
   expiresAt?: string;
   createdAt: string;
 }

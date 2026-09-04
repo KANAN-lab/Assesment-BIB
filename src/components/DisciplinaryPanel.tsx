@@ -45,6 +45,7 @@ import {
 import { IdempotencyEngine } from '../domain/IdempotencyEngine';
 import { fetchAllSopModules } from '../lib/sopService';
 import { SopModule } from '../types/sop';
+import { SwalService } from '../domain/SwalService';
 
 interface DisciplinaryPanelProps {
   workers: WorkerProfile[];
@@ -146,19 +147,19 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
   const handleSubmitNewAction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedWorkerId) {
-      alert('Pilih pekerja logistik terlebih dahulu!');
+      SwalService.warning('Pilih Pekerja', 'Pilih pekerja logistik terlebih dahulu!');
       return;
     }
     if (!violationLevel) {
-      alert('Pilih tingkat sanksi / pembinaan terlebih dahulu!');
+      SwalService.warning('Pilih Tingkat Sanksi', 'Pilih tingkat sanksi / pembinaan terlebih dahulu!');
       return;
     }
     if (!violationCategory) {
-      alert('Pilih kategori pelanggaran terlebih dahulu!');
+      SwalService.warning('Pilih Kategori Pelanggaran', 'Pilih kategori pelanggaran terlebih dahulu!');
       return;
     }
     if (!location.trim() || !description.trim()) {
-      alert('Isi lokasi kejadian dan kronologi pelanggaran secara lengkap!');
+      SwalService.warning('Data Tidak Lengkap', 'Isi lokasi kejadian dan kronologi pelanggaran secara lengkap!');
       return;
     }
 
@@ -196,7 +197,7 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
     );
     const guard = IdempotencyEngine.guard(idemp);
     if (!guard.allowed) {
-      alert(guard.reason || 'Sanksi dengan data ini sudah diterbitkan. Harap tunggu sebelum mengirim ulang.');
+      SwalService.warning('Peringatan Idempotensi', guard.reason || 'Sanksi dengan data ini sudah diterbitkan. Harap tunggu sebelum mengirim ulang.');
       return;
     }
 
@@ -249,8 +250,14 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
     reloadData();
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Apakah Anda yakin ingin menghapus arsip sanksi ini?')) {
+  const handleDelete = async (id: string) => {
+    const isConfirmed = await SwalService.confirm({
+      title: 'Hapus Arsip Sanksi?',
+      text: 'Apakah Anda yakin ingin menghapus arsip sanksi ini? Data pelanggaran dan penalti terkait akan terhapus.',
+      confirmButtonText: 'Ya, Hapus Arsip',
+      isDestructive: true,
+    });
+    if (isConfirmed) {
       DisciplinaryService.deleteAction(id);
       reloadData();
     }
@@ -881,11 +888,9 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
       {verifyingAction && createPortal(
         <div
           className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-          onClick={() => setVerifyingAction(null)}
         >
           <div
             className="card p-6 w-full max-w-md bg-zinc-950 border-cyan-500/30 space-y-4 shadow-2xl relative"
-            onClick={(e) => e.stopPropagation()}
           >
             <div className="border-b border-zinc-800 pb-3 flex items-center justify-between">
               <div className="flex items-center gap-2">

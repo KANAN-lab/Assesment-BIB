@@ -25,6 +25,7 @@ import {
   EVENT_OPEN_OFFLINE_DRAWER
 } from '../lib/offlineQueueManager';
 import { OfflineQueueItem, QueueSyncSummary } from '../types/offlineQueue';
+import { SwalService } from '../domain/SwalService';
 
 interface OfflineQueueDrawerProps {
   isOpen?: boolean;
@@ -122,8 +123,14 @@ export const OfflineQueueDrawer: React.FC<OfflineQueueDrawerProps> = ({
     refreshData();
   };
 
-  const handleClearAll = () => {
-    if (confirm('Apakah Anda yakin ingin mengosongkan seluruh antrean offline? Data yang belum tersinkronisasi akan dihapus dari memori lokal.')) {
+  const handleClearAll = async () => {
+    const isConfirmed = await SwalService.confirm({
+      title: 'Kosongkan Antrean Offline?',
+      text: 'Apakah Anda yakin ingin mengosongkan seluruh antrean offline? Data yang belum tersinkronisasi akan dihapus dari memori lokal.',
+      confirmButtonText: 'Ya, Kosongkan Antrean',
+      isDestructive: true,
+    });
+    if (isConfirmed) {
       OfflineQueueManager.clearAll();
       refreshData();
     }
@@ -168,7 +175,6 @@ export const OfflineQueueDrawer: React.FC<OfflineQueueDrawerProps> = ({
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-sm transition-opacity"
-        onClick={handleClose}
         aria-hidden="true"
       />
 

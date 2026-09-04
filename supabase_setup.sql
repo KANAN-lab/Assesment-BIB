@@ -1816,6 +1816,23 @@ ALTER TABLE app_notifications ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all access to app_notifications" ON app_notifications;
 CREATE POLICY "Allow all access to app_notifications" ON app_notifications FOR ALL USING (true) WITH CHECK (true);
 
+-- ─── 30. Dynamic Tier Engine & Configurable Progression Migration ───
+-- Melepaskan constraint statis agar nama tier kustom dari Admin Console dapat disimpan
+ALTER TABLE workers DROP CONSTRAINT IF EXISTS workers_tier_check;
+ALTER TABLE reward_catalog DROP CONSTRAINT IF EXISTS reward_catalog_min_tier_check;
+
+-- Helper get_tier_level dinamis & case-insensitive dengan fallback aman
+CREATE OR REPLACE FUNCTION get_tier_level(p_tier TEXT)
+RETURNS INTEGER IMMUTABLE LANGUAGE sql AS $$
+  SELECT CASE LOWER(TRIM(COALESCE(p_tier, '')))
+    WHEN 'novice operational' THEN 1
+    WHEN 'pro specialist' THEN 2
+    WHEN 'elite logistician' THEN 3
+    WHEN 'legendary champion' THEN 4
+    ELSE 1
+  END;
+$$;
+
 -- ─── 30. Safety Patrol Logs (Supervisor Gemba Walk & K3 Patrol) ───────────
 CREATE TABLE IF NOT EXISTS safety_patrol_logs (
   id                TEXT PRIMARY KEY,
@@ -1860,5 +1877,6 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authentic
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON ROUTINES TO anon, authenticated, service_role;
 
-
-
+-- ─── 30. Migration: Team Announcement Starts At Window (Phase 31) ─────────────
+ALTER TABLE announcements ADD COLUMN IF NOT EXISTS starts_at TIMESTAMPTZ DEFAULT now();
+CREATE INDEX IF NOT EXISTS idx_announcements_window ON announcements(is_active, starts_at, expires_at);

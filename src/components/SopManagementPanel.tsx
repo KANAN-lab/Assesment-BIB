@@ -43,6 +43,7 @@ import { supabase } from '../lib/supabaseClient';
 import { SopSlideshowModal } from './SopSlideshowModal';
 import { uploadFileToGoogleDrive, formatGoogleDriveImageUrl } from '../lib/googleDriveService';
 import { safeLocalStorageSetItem, sanitizeDataForStorage } from '../lib/storageSanitizer';
+import { SwalService } from '../domain/SwalService';
 
 interface SopManagementPanelProps {
   currentAdminId?: string;
@@ -633,7 +634,13 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
 
   // Delete SOP module
   const handleDeleteModule = async (item: SopModule) => {
-    if (!window.confirm(`Hapus modul ${item.code} (${item.title})?`)) return;
+    const isConfirmed = await SwalService.confirm({
+      title: `Hapus Modul ${item.code}?`,
+      text: `Apakah Anda yakin ingin menghapus modul "${item.title}"? Seluruh data materi dan quiz checklist terkait akan terhapus.`,
+      confirmButtonText: 'Ya, Hapus Modul',
+      isDestructive: true,
+    });
+    if (!isConfirmed) return;
 
     try {
       await supabase.from('sop_modules').delete().eq('id', item.id);

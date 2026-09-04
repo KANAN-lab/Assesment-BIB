@@ -47,7 +47,7 @@ export const AnnouncementBanner: React.FC<AnnouncementBannerProps> = ({ announce
   if (visible.length === 0) return null;
 
   const current = visible[Math.min(index, visible.length - 1)];
-  const cfg = PRIORITY_CONFIG[current.priority];
+  const cfg = (current && PRIORITY_CONFIG[current.priority as keyof typeof PRIORITY_CONFIG]) || PRIORITY_CONFIG.normal;
 
   const dismiss = () => {
     setDismissed((prev) => new Set([...prev, current.id]));

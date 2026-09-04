@@ -36,6 +36,7 @@ import { WorkerAvatar } from './WorkerAvatar';
 import { PaginationControls } from './PaginationControls';
 import { SioAiService, ExtractedSioData } from '../lib/sioAiService';
 import { uploadFileToGoogleDrive } from '../lib/googleDriveService';
+import { SwalService } from '../domain/SwalService';
 
 interface MheLicensePanelProps {
   workers: WorkerProfile[];
@@ -241,7 +242,7 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
   const handleSaveLicense = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formWorkerId || !formLicenseType || !formLicenseNumber.trim() || !formIssuedDate || !formExpiryDate) {
-      alert('Mohon lengkapi semua data wajib: Pilih Pekerja, Jenis Sertifikasi SIO, Nomor SIO, Tanggal Terbit, dan Tanggal Kedaluwarsa.');
+      SwalService.warning('Data Wajib Belum Lengkap', 'Mohon lengkapi semua data wajib: Pilih Pekerja, Jenis Sertifikasi SIO, Nomor SIO, Tanggal Terbit, dan Tanggal Kedaluwarsa.');
       return;
     }
 
@@ -302,8 +303,14 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
     loadData();
   };
 
-  const handleDeleteLicense = (id: string, num: string) => {
-    if (window.confirm(`Hapus catatan SIO "${num}" dari sistem?`)) {
+  const handleDeleteLicense = async (id: string, num: string) => {
+    const isConfirmed = await SwalService.confirm({
+      title: 'Hapus Catatan SIO?',
+      text: `Hapus catatan SIO "${num}" dari sistem? Data kepemilikan lisensi operator ini akan dihapus permanen.`,
+      confirmButtonText: 'Ya, Hapus SIO',
+      isDestructive: true,
+    });
+    if (isConfirmed) {
       LicenseService.deleteLicense(id);
       showToast(`SIO ${num} berhasil dihapus.`);
       loadData();
@@ -598,11 +605,9 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
       {isModalOpen && createPortal(
         <div
           className="fixed inset-0 z-[9999] overflow-y-auto bg-black/85 backdrop-blur-md p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-          onClick={() => setIsModalOpen(false)}
         >
           <div
             className="relative w-full max-w-2xl card-elevated p-6 space-y-4 border border-amber-500/30 overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
           >
             <button
               onClick={() => setIsModalOpen(false)}

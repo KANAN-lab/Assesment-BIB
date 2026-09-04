@@ -97,7 +97,6 @@ export const QrBadgeScannerModal: React.FC<QrBadgeScannerModalProps> = ({
   return createPortal(
     <div
       className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-3 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-      onClick={onClose}
     >
       <div
         className="card-elevated w-full max-w-xl max-h-[90vh] flex flex-col p-5 sm:p-6 relative border border-cyan-500/30 shadow-2xl overflow-y-auto custom-scrollbar"

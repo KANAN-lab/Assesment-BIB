@@ -449,12 +449,110 @@
   - [x] Type check `npx tsc --noEmit` lulus 0 error.
   - [x] Production build `npm run build` berhasil.
 
+---
 
+## Phase 30: Dynamic Tier Engine & Configurable Progression System
 
+- [x] **1. Domain & Model Refactor (Logika Ambang Batas / Threshold)**:
+  - [x] Ubah struktur model tier di `src/domain/SystemConfigService.ts` dari sekadar `string[]` menjadi struktur objek kaya konfigurasi (`TierConfig`: `id`, `name`, `minPoints`, `level`, `badgeColor`, `badgeBg`, `icon`).
+  - [x] Refactor `WorkerEntity.calculateTier(totalPoints)` di `src/domain/WorkerEntity.ts` agar membaca konfigurasi tier dinamis dari `SystemConfigService` (menggantikan hardcode 3000, 1500, 500).
+  - [x] Refactor `RewardEntity.isTierEligible(userTier)` dan `TIER_LEVEL_MAP` di `src/domain/RewardEntity.ts` agar membaca hierarki level secara dinamis dari config.
+  - [x] Perluas `TierType` di `src/types/assessment.ts` agar mendukung fleksibilitas string dinamis atau tier kustom (`DefaultTierType | (string & {})`).
 
+- [x] **2. Database & RPC Function Update (`supabase_setup.sql`)**:
+  - [x] Longgarkan / drop `CHECK constraint` statis pada kolom `workers.tier` dan `reward_catalog.min_tier` agar tidak mengunci 4 nama statis saja.
+  - [x] Update fungsi helper `get_tier_level(p_tier TEXT)` di PostgreSQL agar case-insensitive dan memiliki fallback baseline level aman.
+  - [x] Sediakan blok migrasi SQL khusus Phase 30 di `supabase_setup.sql` yang siap dieksekusi.
 
+- [x] **3. Antarmuka Manajemen Tier Admin (`SystemConfigPanel.tsx`)**:
+  - [x] Tambahkan section / form editor "10.4 Master Tier Pekerja & Ambang Batas Poin" di `src/components/SystemConfigPanel.tsx`.
+  - [x] Beri Admin wewenang mengubah nama tier, ambang batas minimum poin (min points), urutan level, warna badge, serta icon.
+  - [x] Fitur penambahan tier baru, hapus tier, dan tombol reset ke 4 default tier.
 
+- [x] **4. Refactor Presentasi UI & Styling Dinamis**:
+  - [x] Dinamisasi mapping warna chart di `src/components/AdminAnalytics.tsx` (`SystemConfigService.getTierByName`).
+  - [x] Dinamisasi notifikasi naik level di `src/components/TierUpToast.tsx` (`SystemConfigService.getTierByName`).
+  - [x] Dinamisasi filter & styling badge reward di `src/components/RewardMarketplace.tsx` dan `src/components/admin/AdminRewardCatalogPanel.tsx`.
+  - [x] Implementasi helper styling terpusat `SystemConfigService.getTierBadgeStyle` untuk header worker (`App.tsx`) dan tabel karyawan admin (`AdminStaffPanel.tsx`).
+- [x] **5. Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` lulus 0 error.
+  - [x] Production build `npm run build` berhasil.
 
+---
 
+## Phase 31: Resilient Team Announcement Engine & Live Cross-Component Sync
 
+- [x] **1. Resilient Offline Storage & Event Dispatch (`src/lib/supabaseService.ts`)**:
+  - [x] Implementasi local cache (`komar_announcements_cache`) dengan auto-fallback jika jaringan database lambat/offline atau tabel remote belum ada.
+  - [x] Penanganan foreign key aman pada `created_by` (auto-fallback ke `null` jika ID admin non-standar/UUID tidak terdaftar) agar insert pengumuman tidak pernah gagal constraint violation.
+  - [x] Emit event realtime `gappy_announcement_updated` pada aksi `create`, `toggle`, dan `delete` pengumuman.
+- [x] **2. Realtime Listener & Global Broadcast Presentation (`src/App.tsx`)**:
+  - [x] Pasang listener `gappy_announcement_updated` & `storage` di root `App.tsx` agar state banner langsung ter-update seketika tanpa perlu reload/re-login.
+  - [x] Pindahkan rendering `<AnnouncementBanner />` ke container utama `<main>` agar banner pengumuman aktif terlihat di semua view (Pekerja, Supervisor, dan Admin Console).
+- [x] **3. Live Preview & Admin Console UX (`src/components/admin/AdminAnnouncementPanel.tsx` & `AdminConsole.tsx`)**:
+  - [x] Tambahkan seksi **Pratinjau Siaran Langsung (Live Preview)** di atas form Admin Announcement agar admin dapat melihat tampilan banner visual secara langsung sebelum dan sesudah disiarkan.
+  - [x] Rancang ulang form dengan kontrol jadwal tayang yang user-friendly: opsi Waktu Mulai (*Langsung Tayang* vs *Jadwalkan*) & Waktu Selesai (*Seterusnya* vs *Batas Berakhir*).
+  - [x] Tampilkan indikator status tayang komprehensif pada tabel arsip (*Sedang Tayang*, *Terjadwal*, *Kedaluwarsa*, *Nonaktif*).
+  - [x] Hubungkan prop `workers={workers}` ke `<AdminNotificationPanel />` di `AdminConsole.tsx` agar fitur kirim notifikasi pekerja khusus berfungsi maksimal.
+- [x] **4. Defensive UI Rendering & Start Window Support (`src/components/AnnouncementBanner.tsx` & `src/types/assessment.ts`)**:
+  - [x] Perluas interface `Announcement` dengan `startsAt?: string;` dan filter aktif yang mempertimbangkan waktu mulai & batas berakhir.
+  - [x] Tambahkan fallback safe check pada prioritas pengumuman agar terhindar dari runtime crash jika nilai priority undefined.
+  - [x] Tambahkan blok migrasi SQL kolom `starts_at` di `supabase_setup.sql`.
+- [x] **5. Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` lulus 0 error.
+  - [x] Production build `npm run build` berhasil.
+
+---
+
+## Phase 32: Enterprise OOP Confirmation System (SwalService) & Persistent Modal Backdrop Architecture
+
+- [x] **1. Arsitektur Dialog Konfirmasi OOP Terpusat (`src/domain/SwalService.ts`)**:
+  - [x] Installasi package `sweetalert2` (v11.26.25).
+  - [x] Rancang class OOP `SwalService` berbasis metode statis (`SwalService.confirm()`, `SwalService.alert()`, `SwalService.success()`, `SwalService.warning()`, `SwalService.error()`).
+  - [x] Terapkan styling visual Dark Mode terintegrasi (zinc-950 `#09090b`, border zinc-800, text zinc-100, custom button rose-600 & amber-600) selaras dengan tema sistem Gappy.
+  - [x] Konfigurasi proteksi modal SweetAlert2: `allowOutsideClick: false` untuk menjamin dialog konfirmasi tidak tertutup secara tidak sengaja.
+- [x] **2. Migrasi 100% Dialog Browser Native (`confirm` & `alert`) ke `SwalService`**:
+  - [x] Migrasi `AdminNotificationPanel.tsx` (Validasi penerima & konfirmasi hapus seluruh notifikasi).
+  - [x] Migrasi `Audit5sPanel.tsx` (Validasi input form audit/zona, idempotensi, & konfirmasi hapus zona gudang).
+  - [x] Migrasi `BadgeManagementPanel.tsx` (Konfirmasi hapus badge worker).
+  - [x] Migrasi `AdminRewardCatalogPanel.tsx` (Konfirmasi serah terima voucher & konfirmasi hapus item reward).
+  - [x] Migrasi `DisciplinaryPanel.tsx` (Validasi input sanksi, proteksi idempotensi, & konfirmasi hapus arsip sanksi).
+  - [x] Migrasi `MheLicensePanel.tsx` (Validasi input form SIO & konfirmasi hapus catatan SIO).
+  - [x] Migrasi `OfflineQueueDrawer.tsx` (Konfirmasi pengosongan antrean sinkronisasi offline).
+  - [x] Migrasi `PpeManagementPanel.tsx` (Validasi serah terima APD, master APD, tiket kerusakan, & konfirmasi hapus master APD).
+  - [x] Migrasi `QuizManagementPanel.tsx` (Konfirmasi hapus soal kuis).
+  - [x] Migrasi `RewardMarketplace.tsx` (Konfirmasi reset kuota bulanan, serah terima voucher, ekspor CSV, & hapus reward).
+  - [x] Migrasi `SopManagementPanel.tsx` (Konfirmasi hapus modul SOP).
+  - [x] Migrasi `SystemConfigPanel.tsx` (Konfirmasi reset konfigurasi tier & reset konfigurasi default sistem).
+  - [x] Migrasi `CompetencyGapAnalysisModal.tsx` (Handling error penugasan training gap).
+- [x] **3. Persistent Modal Backdrop (Anti-Outside Click Closure)**:
+  - [x] Audit komprehensif seluruh modal di codebase untuk mematikan penutupan saat area backdrop diklik (backdrop statis).
+  - [x] Hapus `onClick={onClose}` / `onClick={() => setOpen(false)}` dari elemen backdrop pada 16 modal dialog utama:
+    1. `IncidentReportModal.tsx`
+    2. `KaizenSubmissionModal.tsx`
+    3. `CompetencyGapAnalysisModal.tsx`
+    4. `OnboardingModal.tsx`
+    5. `CompetencyAuditModal.tsx`
+    6. `ChecklistDetailModal.tsx`
+    7. `PreShiftChecklistModal.tsx`
+    8. `ProfilePictureModal.tsx`
+    9. `QrBadgeScannerModal.tsx`
+    10. `SafetyPatrolModal.tsx`
+    11. `SupervisorIncidentValidationModal.tsx`
+    12. `WorkerCompetencyModal.tsx`
+    13. `WorkerDigitalIdModal.tsx`
+    14. `WorkerHistoryCenterModal.tsx`
+    15. `WorkerIncidentHistory.tsx`
+    16. `WorkerKaizenHistoryModal.tsx`
+  - [x] Hapus juga penutupan backdrop luar pada modal form tambahan:
+    - `BadgeManagementPanel.tsx` (Modal form tambah/edit badge)
+    - `DisciplinaryPanel.tsx` (Modal verifikasi retraining SOP)
+    - `MheLicensePanel.tsx` (Modal tambah/perpanjang SIO MHE)
+    - `OfflineQueueDrawer.tsx` (Backdrop drawer sinkronisasi offline)
+    - `PpeManagementPanel.tsx` (Modal 1: Serah Terima, Modal 2: Master APD, Modal 3: Lapor Rusak, Modal 4: Review Penggantian)
+    - `QuizManagementPanel.tsx` (Modal form tambah/edit soal kuis)
+    - `RewardMarketplace.tsx` (Modal 1: Klaim Reward, Modal 2: Tambah/Edit Item, Modal 3: Tambah Stok Reward)
+- [x] **4. Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` lulus 0 error.
+  - [x] Production build `npm run build` berhasil.
 

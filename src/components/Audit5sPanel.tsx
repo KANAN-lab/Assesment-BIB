@@ -42,6 +42,7 @@ import {
   RATING_META,
 } from '../lib/audit5sService';
 import { IdempotencyEngine } from '../domain/IdempotencyEngine';
+import { SwalService } from '../domain/SwalService';
 
 interface Audit5sPanelProps {
   workers: WorkerProfile[];
@@ -128,7 +129,7 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
   const handleSubmitAudit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedZoneId) {
-      alert('Pilih wilayah / zona gudang yang diaudit terlebih dahulu!');
+      SwalService.warning('Pilih Zona Gudang', 'Pilih wilayah / zona gudang yang diaudit terlebih dahulu!');
       return;
     }
 
@@ -178,7 +179,7 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
     );
     const guard = IdempotencyEngine.guard(idemp);
     if (!guard.allowed) {
-      alert(guard.reason || 'Data audit ini sudah dikirim. Harap tunggu sebelum mengirim ulang.');
+      SwalService.warning('Peringatan Idempotensi', guard.reason || 'Data audit ini sudah dikirim. Harap tunggu sebelum mengirim ulang.');
       return;
     }
 
@@ -215,7 +216,7 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
   const handleAddZone = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newZoneName.trim() || !newZoneType || !newZoneDivision) {
-      alert('Isi nama zona, tipe wilayah, dan divisi secara lengkap!');
+      SwalService.warning('Data Belum Lengkap', 'Isi nama zona, tipe wilayah, dan divisi secara lengkap!');
       return;
     }
 
@@ -237,8 +238,14 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
     setNewZoneNotes('');
   };
 
-  const handleDeleteZone = (zoneId: string) => {
-    if (confirm('Apakah Anda yakin ingin menghapus zona gudang ini?')) {
+  const handleDeleteZone = async (zoneId: string) => {
+    const isConfirmed = await SwalService.confirm({
+      title: 'Hapus Zona Gudang?',
+      text: 'Apakah Anda yakin ingin menghapus zona gudang ini? Data riwayat audit di zona ini mungkin terpengaruh.',
+      confirmButtonText: 'Ya, Hapus Zona',
+      isDestructive: true,
+    });
+    if (isConfirmed) {
       Audit5sService.deleteZone(zoneId);
       reloadData();
     }

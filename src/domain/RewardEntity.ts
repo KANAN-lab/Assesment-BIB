@@ -1,4 +1,5 @@
 import type { RewardItem, TierType } from '../types/assessment';
+import { SystemConfigService } from './SystemConfigService';
 
 export const TIER_LEVEL_MAP: Record<string, number> = {
   'Novice Operational': 1,
@@ -133,8 +134,8 @@ export class RewardEntity implements RewardItem {
   public isTierEligible(userTier?: string): boolean {
     if (!this.minTier || this.minTier === 'Novice Operational') return true;
     if (!userTier) return false;
-    const userLevel = TIER_LEVEL_MAP[userTier] || 1;
-    const minLevel = TIER_LEVEL_MAP[this.minTier] || 1;
+    const userLevel = SystemConfigService.getTierLevel(userTier);
+    const minLevel = SystemConfigService.getTierLevel(this.minTier);
     return userLevel >= minLevel;
   }
 

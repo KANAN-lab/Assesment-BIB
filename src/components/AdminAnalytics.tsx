@@ -5,6 +5,7 @@ import {
 } from 'recharts';
 import { TrendingUp, Users, Award, BookOpen, ShieldCheck, Trophy } from 'lucide-react';
 import type { WorkerProfile, DivisionStat } from '../types/assessment';
+import { SystemConfigService } from '../domain/SystemConfigService';
 import { computeDivisionStats } from '../lib/supabaseService';
 import { RoleEntity } from '../domain/RoleEntity';
 
@@ -155,9 +156,12 @@ export const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ workers }) => {
                   label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
                   labelLine={false}
                 >
-                  {tierData.map((entry, i) => (
-                    <Cell key={i} fill={TIER_COLORS[entry.name] ?? '#6b7280'} />
-                  ))}
+                  {tierData.map((entry, i) => {
+                    const dynamicColor = SystemConfigService.getTierByName(entry.name)?.badgeColor;
+                    return (
+                      <Cell key={i} fill={dynamicColor || TIER_COLORS[entry.name] || '#6b7280'} />
+                    );
+                  })}
                 </Pie>
                 <Legend
                   formatter={(value) => <span style={{ fontSize: 10, color: '#a1a1aa' }}>{value}</span>}
