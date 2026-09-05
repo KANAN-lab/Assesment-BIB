@@ -251,11 +251,11 @@ export const AdminIsoCompliancePanel: React.FC<AdminIsoCompliancePanelProps> = (
 
   // Dynamic Metrics
   const activeSioCount = useMemo(() => {
-    return LicenseService.getLicenses().filter((l) => l.status === 'valid').length;
+    return LicenseService.getAllLicenses().filter((l) => l.status === 'valid').length;
   }, []);
 
   const ppeItemsCount = useMemo(() => {
-    return PpeService.getInventory().length;
+    return PpeService.getAllMasterItems().length;
   }, []);
 
   const resolvedIncidentsCount = useMemo(() => {
