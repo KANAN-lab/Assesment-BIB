@@ -21,6 +21,7 @@ const AdminRewardCatalogPanel = React.lazy(() => import('./admin/AdminRewardCata
 const AdminIncidentPanel = React.lazy(() => import('./admin/AdminIncidentPanel').then(m => ({ default: m.AdminIncidentPanel })));
 const AdminAnnouncementPanel = React.lazy(() => import('./admin/AdminAnnouncementPanel').then(m => ({ default: m.AdminAnnouncementPanel })));
 const AdminAiQuizPanel = React.lazy(() => import('./admin/AdminAiQuizPanel').then(m => ({ default: m.AdminAiQuizPanel })));
+const AdminManagementPanel = React.lazy(() => import('./admin/AdminManagementPanel').then(m => ({ default: m.AdminManagementPanel })));
 
 // Existing Module Panels
 const AdminAnalytics = React.lazy(() => import('./AdminAnalytics').then(m => ({ default: m.AdminAnalytics })));
@@ -42,6 +43,7 @@ const AdminRewardManagerSection = AdminRewardCatalogPanel;
 
 type AdminTab =
   | 'workers'
+  | 'admins'
   | 'approvals'
   | 'divisions'
   | 'roles'
@@ -74,6 +76,7 @@ interface AdminConsoleProps {
   onUpdateReward?: (rewardId: string, updates: Partial<Omit<RewardItem, 'id'>>) => Promise<void> | void;
   onRestockReward?: (rewardId: string, addStock: number) => Promise<void> | void;
   onDeleteReward?: (rewardId: string) => Promise<void> | void;
+  onWorkersUpdated?: () => void;
 }
 
 export const AdminConsole: React.FC<AdminConsoleProps> = ({
@@ -81,6 +84,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
   currentAdminId,
   onApproveWorker,
   onRejectWorker,
+  onWorkersUpdated,
   rewardCatalog = [],
   onCreateReward,
   onUpdateReward,
@@ -96,6 +100,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
 
   const competencyItems: CompetencyItem[] = matrixData.competencyMatrix;
   const pendingSupervisors = useMemo(() => workers.filter((w) => w.status === 'pending_approval'), [workers]);
+  const adminWorkers = useMemo(() => workers.filter((w) => RoleEntity.resolveSystemRole(w.role) === 'admin'), [workers]);
 
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
@@ -137,6 +142,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
       groupLabel: 'SDM & AKSES PEKERJA',
       tabs: [
         { key: 'workers', label: 'Operational Employee', icon: Users, badge: workers.length },
+        { key: 'admins', label: 'User Administrator', icon: ShieldCheck, badge: adminWorkers.length },
         { key: 'disciplinary', label: 'Konseling & Sanksi K3', icon: ShieldAlert },
         { key: 'licenses', label: 'Pelacak SIO & Lisensi MHE', icon: Truck },
         { key: 'ppe', label: 'Inventaris & Distribusi APD', icon: HardHat },
@@ -304,6 +310,16 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
             roles={roles}
             currentAdminId={currentAdminId}
             showToast={showToast}
+            onWorkersUpdated={onWorkersUpdated}
+          />
+        )}
+
+        {activeTab === 'admins' && (
+          <AdminManagementPanel
+            workers={workers}
+            currentAdminId={currentAdminId}
+            showToast={showToast}
+            onWorkersUpdated={onWorkersUpdated}
           />
         )}
 

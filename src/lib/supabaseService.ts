@@ -751,6 +751,13 @@ export async function signInWithNikOrEmail(identifier: string, password: string)
       );
     }
 
+    if (profileCandidate.status === 'inactive') {
+      await logLoginAttempt(cleanInput, false);
+      throw new Error(
+        `Akun (${profileCandidate.name}) saat ini dinonaktifkan oleh Administrator. Silakan hubungi IT / Helpdesk.`
+      );
+    }
+
     const targetEmail = workerRecord.email || null;
 
     // 1. Coba login via Supabase Auth resmi (hanya jika ada email nyata)
@@ -2215,3 +2222,248 @@ export function exportIncidentsCSV(incidents: IncidentReport[]): void {
   link.click();
   URL.revokeObjectURL(url);
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// Administrator Management Services (RBAC)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface CreateAdminPayload {
+  employeeId: string;
+  name: string;
+  email: string;
+  password: string;
+  requirePasswordChange?: boolean;
+}
+
+export async function createAdministrator(
+  payload: CreateAdminPayload,
+  creatorAdminId: string = 'SYS-ADMIN'
+): Promise<WorkerProfile> {
+  const cleanEmpId = payload.employeeId.trim();
+  const cleanName = payload.name.trim();
+  const cleanEmail = payload.email.trim().toLowerCase();
+  const password = payload.password;
+  const requireChange = payload.requirePasswordChange !== false;
+
+  if (!cleanEmpId) throw new Error('NIK / Employee ID wajib diisi.');
+  if (!cleanName) throw new Error('Nama Lengkap wajib diisi.');
+  if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+    throw new Error('Alamat email valid wajib diisi.');
+  }
+  if (!password || password.length < 6) {
+    throw new Error('Password awal minimal 6 karakter.');
+  }
+
+  // 1. Cek duplikasi NIK di tabel workers
+  const { data: existingByNik } = await supabase
+    .from('workers')
+    .select('id, name, employee_id')
+    .eq('employee_id', cleanEmpId)
+    .maybeSingle();
+
+  if (existingByNik) {
+    throw new Error(`NIK "${cleanEmpId}" (${existingByNik.name}) sudah terdaftar di sistem.`);
+  }
+
+  // 2. Cek duplikasi Email di tabel workers
+  const { data: existingByEmail } = await supabase
+    .from('workers')
+    .select('id, name, email')
+    .eq('email', cleanEmail)
+    .maybeSingle();
+
+  if (existingByEmail) {
+    throw new Error(`Email "${cleanEmail}" sudah digunakan oleh user lain (${existingByEmail.name}).`);
+  }
+
+  // 3. Daftarkan di Supabase Auth resmi (opsional/best-effort)
+  let authUser: { id: string } | null = null;
+  try {
+    const { data: authData, error: authErr } = await supabase.auth.signUp({
+      email: cleanEmail,
+      password: password,
+    });
+    if (authErr) {
+      console.warn('[createAdministrator] Supabase Auth signUp notice:', authErr.message);
+    } else if (authData?.user) {
+      authUser = authData.user;
+    }
+  } catch (authEx) {
+    console.warn('[createAdministrator] Auth exception ignored for local DB insert:', authEx);
+  }
+
+  const workerId = `w-admin-${cleanEmpId.replace(/\s+/g, '') || Date.now().toString().slice(-4)}`;
+  const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=7C3AED&color=fff&bold=true`;
+
+  const insertPayload: Record<string, any> = {
+    id: workerId,
+    user_id: authUser?.id ? authUser.id : null,
+    email: cleanEmail,
+    name: cleanName,
+    employee_id: cleanEmpId,
+    password: password,
+    must_change_password: requireChange,
+    role: 'System Administrator',
+    division: 'SYSTEM',
+    avatar: avatarUrl,
+    streak_days: 1,
+    total_points: 0,
+    tier: 'Novice Operational',
+    bib_behavior: 100,
+    bib_integrity: 100,
+    bib_benchmark: 100,
+    bib_total_score: 100,
+    daily_quiz_completed: true,
+    pre_shift_checklist_done: true,
+    status: 'active',
+  };
+
+  let { error: insertErr } = await supabase.from('workers').insert(insertPayload);
+
+  // Fallback jika user_id melanggar FK constraint
+  if (insertErr && (insertErr.message?.includes('user_id') || insertErr.code === '23503')) {
+    delete insertPayload.user_id;
+    const retry = await supabase.from('workers').insert(insertPayload);
+    insertErr = retry.error;
+  }
+
+  if (insertErr) {
+    throw new Error(`Gagal menyimpan akun administrator ke database: ${insertErr.message}`);
+  }
+
+  // Audit log
+  logActivity(
+    creatorAdminId,
+    'System Administrator',
+    'admin_created',
+    `Administrator baru didaftarkan: ${cleanName} (${cleanEmpId}) oleh ${creatorAdminId}`
+  ).catch(() => {});
+
+  return rowToWorkerProfile(insertPayload as WorkerRow);
+}
+
+export async function resetAdminPassword(
+  adminWorkerId: string,
+  newTempPassword: string,
+  actionByAdminId: string
+): Promise<void> {
+  if (!newTempPassword || newTempPassword.length < 6) {
+    throw new Error('Password sementara minimal 6 karakter.');
+  }
+
+  const { data: targetWorker, error: fetchErr } = await supabase
+    .from('workers')
+    .select('id, name, employee_id, email, role')
+    .eq('id', adminWorkerId)
+    .single();
+
+  if (fetchErr || !targetWorker) {
+    throw new Error('Data administrator tidak ditemukan.');
+  }
+
+  const { error: updateErr } = await supabase
+    .from('workers')
+    .update({
+      password: newTempPassword,
+      must_change_password: true,
+    })
+    .eq('id', adminWorkerId);
+
+  if (updateErr) {
+    throw new Error(`Gagal mereset password: ${updateErr.message}`);
+  }
+
+  // Audit log
+  logActivity(
+    actionByAdminId,
+    'System Administrator',
+    'password_reset',
+    `Password administrator ${targetWorker.name} (${targetWorker.employee_id}) di-reset oleh ${actionByAdminId}`
+  ).catch(() => {});
+}
+
+export async function toggleAdminStatus(
+  adminWorkerId: string,
+  newStatus: 'active' | 'inactive',
+  actionByAdminId: string
+): Promise<void> {
+  const { data: targetWorker, error: fetchErr } = await supabase
+    .from('workers')
+    .select('id, name, employee_id, role, status')
+    .eq('id', adminWorkerId)
+    .single();
+
+  if (fetchErr || !targetWorker) {
+    throw new Error('Data administrator tidak ditemukan.');
+  }
+
+  // Proteksi Superadmin bawaan
+  if (targetWorker.employee_id === 'SYS-ADMIN' || targetWorker.id === 'w-sysadmin') {
+    throw new Error('Akun Super Administrator bawaan (SYS-ADMIN) tidak dapat dinonaktifkan.');
+  }
+
+  // Proteksi Self-Deactivation
+  if (targetWorker.id === actionByAdminId || targetWorker.employee_id === actionByAdminId) {
+    throw new Error('Anda tidak dapat menonaktifkan akun Anda sendiri.');
+  }
+
+  const { error: updateErr } = await supabase
+    .from('workers')
+    .update({ status: newStatus })
+    .eq('id', adminWorkerId);
+
+  if (updateErr) {
+    throw new Error(`Gagal memperbarui status administrator: ${updateErr.message}`);
+  }
+
+  // Audit log
+  logActivity(
+    actionByAdminId,
+    'System Administrator',
+    'admin_status_toggled',
+    `Status akun ${targetWorker.name} (${targetWorker.employee_id}) diubah menjadi "${newStatus}" oleh ${actionByAdminId}`
+  ).catch(() => {});
+}
+
+export async function promoteWorkerToAdmin(
+  workerId: string,
+  actionByAdminId: string,
+  reason: string = 'Promosi Internal ke Administrator'
+): Promise<WorkerProfile> {
+  const { data: targetWorker, error: fetchErr } = await supabase
+    .from('workers')
+    .select('*')
+    .eq('id', workerId)
+    .single();
+
+  if (fetchErr || !targetWorker) {
+    throw new Error('Data pegawai tidak ditemukan.');
+  }
+
+  const { data: updated, error: updateErr } = await supabase
+    .from('workers')
+    .update({
+      role: 'System Administrator',
+      division: 'SYSTEM',
+      status: 'active',
+      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(targetWorker.name)}&background=7C3AED&color=fff&bold=true`,
+    })
+    .eq('id', workerId)
+    .select('*')
+    .single();
+
+  if (updateErr) {
+    throw new Error(`Gagal mempromosikan user menjadi administrator: ${updateErr.message}`);
+  }
+
+  // Audit log
+  logActivity(
+    actionByAdminId,
+    'System Administrator',
+    'role_mutated',
+    `User ${targetWorker.name} (${targetWorker.employee_id}) dipromosikan menjadi System Administrator (${reason}) oleh ${actionByAdminId}`
+  ).catch(() => {});
+
+  return rowToWorkerProfile(updated as WorkerRow);
+}
+

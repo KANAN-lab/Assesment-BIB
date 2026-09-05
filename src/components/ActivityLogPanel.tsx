@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, LogIn, LogOut, Key, Shield, BookOpen, CheckCircle2, ShieldAlert, User, RefreshCw, Award, ArrowRightLeft, BookMarked } from 'lucide-react';
+import { Activity, LogIn, LogOut, Key, Shield, BookOpen, CheckCircle2, ShieldAlert, User, RefreshCw, Award, ArrowRightLeft, BookMarked, ShieldCheck, UserCheck } from 'lucide-react';
 import type { ActivityLog, ActivityAction } from '../types/assessment';
 
 interface ActivityLogPanelProps {
@@ -24,6 +24,8 @@ const ACTION_CONFIG: Record<ActivityAction, { icon: React.ReactNode; label: stri
   kaizen_submitted:     { icon: <Activity className="w-3.5 h-3.5" />,    label: 'Submit Kaizen',    color: 'text-amber-400 bg-amber-500/10' },
   kaizen_approved:      { icon: <CheckCircle2 className="w-3.5 h-3.5" />,label: 'Kaizen Disetujui', color: 'text-emerald-400 bg-emerald-500/10' },
   role_mutated:         { icon: <ArrowRightLeft className="w-3.5 h-3.5" />, label: 'Mutasi Role',      color: 'text-cyan-400 bg-cyan-500/10' },
+  admin_created:        { icon: <ShieldCheck className="w-3.5 h-3.5" />, label: 'Admin Baru',       color: 'text-purple-400 bg-purple-500/10' },
+  admin_status_toggled: { icon: <UserCheck className="w-3.5 h-3.5" />,   label: 'Status Admin',     color: 'text-rose-400 bg-rose-500/10' },
 };
 
 function formatTimeAgo(iso: string): string {

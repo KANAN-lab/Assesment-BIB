@@ -212,7 +212,9 @@ export type ActivityAction =
   | 'sop_completed'
   | 'kaizen_submitted'
   | 'kaizen_approved'
-  | 'role_mutated';
+  | 'role_mutated'
+  | 'admin_created'
+  | 'admin_status_toggled';
 
 export interface WorkerRoleMutation {
   id: string;

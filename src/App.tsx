@@ -1146,6 +1146,7 @@ export const App: React.FC = () => {
                 currentAdminId={currentWorker?.id}
                 onApproveWorker={handleApproveWorker}
                 onRejectWorker={handleRejectWorker}
+                onWorkersUpdated={() => currentWorker && loadDataForWorker(currentWorker.id)}
                 rewardCatalog={rewardCatalog}
                 onCreateReward={handleCreateReward}
                 onUpdateReward={handleUpdateReward}
