@@ -3,7 +3,7 @@ import {
   Settings, UserCheck, TableProperties, ShieldAlert, Award,
   CheckCircle2, Building2, UserPlus, Zap, Megaphone,
   BarChart2, ShoppingBag, History, Sparkles, HelpCircle,
-  BookOpen, Bell, Truck, HardHat, FileText, ShieldCheck, Users
+  BookOpen, Bell, Truck, HardHat, FileText, ShieldCheck, Users, FileCheck
 } from 'lucide-react';
 import { WorkerProfile, CompetencyItem, RewardItem, ActivityLog } from '../types/assessment';
 import { DivisionEntity } from '../domain/DivisionEntity';
@@ -22,6 +22,7 @@ const AdminIncidentPanel = React.lazy(() => import('./admin/AdminIncidentPanel')
 const AdminAnnouncementPanel = React.lazy(() => import('./admin/AdminAnnouncementPanel').then(m => ({ default: m.AdminAnnouncementPanel })));
 const AdminAiQuizPanel = React.lazy(() => import('./admin/AdminAiQuizPanel').then(m => ({ default: m.AdminAiQuizPanel })));
 const AdminManagementPanel = React.lazy(() => import('./admin/AdminManagementPanel').then(m => ({ default: m.AdminManagementPanel })));
+const AdminIsoCompliancePanel = React.lazy(() => import('./admin/AdminIsoCompliancePanel').then(m => ({ default: m.AdminIsoCompliancePanel })));
 
 // Existing Module Panels
 const AdminAnalytics = React.lazy(() => import('./AdminAnalytics').then(m => ({ default: m.AdminAnalytics })));
@@ -63,6 +64,7 @@ type AdminTab =
   | 'licenses'
   | 'ppe'
   | 'reports'
+  | 'iso-compliance'
   | 'disciplinary'
   | 'audit-5s';
 
@@ -154,6 +156,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
       groupLabel: 'PERFORMANSI & REWARD',
       tabs: [
         { key: 'reports', label: 'Laporan Audit Eksekutif', icon: FileText },
+        { key: 'iso-compliance', label: 'Kepatuhan ISO & SMK3', icon: FileCheck, badge: 4 },
         { key: 'audit-5s', label: 'Audit Standar 5R / 5S', icon: CheckCircle2 },
         { key: 'rewards', label: 'Katalog Reward', icon: ShoppingBag, badge: rewardCatalog.length },
         { key: 'badges', label: 'Manajemen Badge', icon: Award },
@@ -357,6 +360,14 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
         )}
 
         {activeTab === 'reports' && <ExecutiveReportPanel workers={workers} />}
+        {activeTab === 'iso-compliance' && (
+          <AdminIsoCompliancePanel
+            workers={workers}
+            currentAdminId={currentAdminId}
+            showToast={showToast}
+            onNavigateTab={(tabKey) => setActiveTab(tabKey as AdminTab)}
+          />
+        )}
         {activeTab === 'audit-5s' && <Audit5sPanel workers={workers} />}
         {activeTab === 'badges' && <BadgeManagementPanel />}
         {activeTab === 'kaizen' && (
