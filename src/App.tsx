@@ -25,6 +25,7 @@ import { PerformanceSummaryCard } from './components/PerformanceSummaryCard';
 const WorkerCompetencyModal = React.lazy(() => import('./components/WorkerCompetencyModal').then(m => ({ default: m.WorkerCompetencyModal })));
 import { WorkerIncidentHistory } from './components/WorkerIncidentHistory';
 import { KudoWall } from './components/KudoWall';
+import { IsoComplianceBanner } from './components/IsoComplianceBanner';
 const KudoModal = React.lazy(() => import('./components/KudoModal').then(m => ({ default: m.KudoModal })));
 const ShiftHandoverModal = React.lazy(() => import('./components/ShiftHandoverModal').then(m => ({ default: m.ShiftHandoverModal })));
 const AcknowledgeHandoverModal = React.lazy(() => import('./components/AcknowledgeHandoverModal').then(m => ({ default: m.AcknowledgeHandoverModal })));
@@ -1113,8 +1114,11 @@ export const App: React.FC = () => {
               <BadgeShowcase workerBadges={workerBadges} allBadges={allBadges} />
             )}
 
-            {/* Kudo Wall / Tembok Apresiasi (Paling Bawah) */}
+            {/* Kudo Wall / Tembok Apresiasi */}
             <KudoWall />
+
+            {/* Standar & Kepatuhan ISO & Regulasi K3 (Paling Bawah) */}
+            <IsoComplianceBanner />
 
           </div>
         ) : activeView === 'supervisor' ? (
