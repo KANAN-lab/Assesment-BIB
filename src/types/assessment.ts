@@ -37,7 +37,7 @@ export interface WorkerProfile {
   preShiftChecklistDone: boolean;
   lastActivityDate?: string;
   mustChangePassword?: boolean;
-  status?: 'active' | 'pending_approval' | 'rejected';
+  status?: 'active' | 'inactive' | 'pending_approval' | 'rejected';
   accountType?: 'worker' | 'supervisor' | 'admin';
   competencyAuditScores?: Record<string, number>;
 }

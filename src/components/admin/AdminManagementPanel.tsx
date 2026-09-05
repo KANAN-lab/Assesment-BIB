@@ -497,8 +497,8 @@ export const AdminManagementPanel: React.FC<AdminManagementPanelProps> = ({
         <CustomDataTable
           data={filteredAdmins}
           columns={adminColumns}
-          keyField="id"
-          pageSize={10}
+          getRowId={(item) => item.id}
+          pageSizeOptions={[10, 25, 50]}
           emptyMessage="Tidak ada data Administrator yang sesuai pencarian."
         />
       </div>

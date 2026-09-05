@@ -39,6 +39,13 @@ const INCIDENT_TYPES: { value: IncidentReport['incidentType']; label: string }[]
   { value: 'other',             label: 'Lainnya' },
 ];
 
+const SEVERITY_OPTIONS: { value: IncidentReport['severity']; label: string; color: string }[] = [
+  { value: 'low',      label: 'Rendah',   color: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300' },
+  { value: 'medium',   label: 'Sedang',   color: 'border-amber-500/50 bg-amber-500/10 text-amber-300' },
+  { value: 'high',     label: 'Tinggi',   color: 'border-orange-500/50 bg-orange-500/10 text-orange-300' },
+  { value: 'critical', label: 'Kritis',   color: 'border-rose-500/50 bg-rose-500/10 text-rose-300' },
+];
+
 export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
   workerId, workerName, onClose, onSuccess,
 }) => {
