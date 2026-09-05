@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ShieldAlert, Loader2, AlertCircle, CheckCircle2, Clock, Search } from 'lucide-react';
 import { IncidentReport } from '../types/assessment';
 import { fetchIncidentReports } from '../lib/supabaseService';
@@ -39,6 +40,7 @@ export const WorkerIncidentHistory: React.FC<WorkerIncidentHistoryProps> = ({
   const [incidents, setIncidents] = useState<IncidentReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchIncidentReports(workerId)
@@ -57,19 +59,34 @@ export const WorkerIncidentHistory: React.FC<WorkerIncidentHistoryProps> = ({
     );
   });
 
-  React.useEffect(() => {
+  useEffect(() => {
     document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, []);
+    const timer = setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 50);
 
-  return (
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      clearTimeout(timer);
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+      onClick={onClose}
     >
       <div
-        className="relative w-full max-w-3xl max-h-[82vh] sm:max-h-[85vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        className="relative w-full max-w-3xl max-h-[88vh] sm:max-h-[90vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-scale-up"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-zinc-800">
@@ -90,6 +107,7 @@ export const WorkerIncidentHistory: React.FC<WorkerIncidentHistoryProps> = ({
           <div className="relative">
             <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-2.5" />
             <input
+              ref={searchInputRef}
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -174,6 +192,7 @@ export const WorkerIncidentHistory: React.FC<WorkerIncidentHistoryProps> = ({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

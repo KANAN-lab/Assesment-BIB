@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   ShieldAlert, Plus, Search, Filter, AlertTriangle, CheckCircle2,
   Clock, Download, Camera, User, FileText, X, ArrowRight, Loader2,
@@ -46,6 +47,35 @@ export const SafetyPatrolKanban: React.FC<SafetyPatrolKanbanProps> = ({
   const [resolvingRecord, setResolvingRecord] = useState<SafetyPatrolRecord | null>(null);
   const [resolutionInput, setResolutionInput] = useState('');
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+
+  const previewCloseBtnRef = useRef<HTMLButtonElement>(null);
+  const resolveTextareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (previewPhoto || resolvingRecord) {
+      document.body.style.overflow = 'hidden';
+      const timer = setTimeout(() => {
+        if (previewPhoto) previewCloseBtnRef.current?.focus();
+        else if (resolvingRecord) resolveTextareaRef.current?.focus();
+      }, 50);
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          setPreviewPhoto(null);
+          setResolvingRecord(null);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+        clearTimeout(timer);
+        document.body.style.overflow = 'unset';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+  }, [previewPhoto, resolvingRecord]);
 
   const loadRecords = async () => {
     setLoading(true);
@@ -451,100 +481,106 @@ export const SafetyPatrolKanban: React.FC<SafetyPatrolKanbanProps> = ({
       )}
 
       {/* Modal Foto Full Lightbox */}
-      {previewPhoto && (
-        <div
-          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/95 backdrop-blur-xl p-4 flex items-center justify-center min-h-screen animate-fade-in"
-          onClick={() => setPreviewPhoto(null)}
-        >
-          <div className="relative max-w-3xl max-h-[85vh] m-auto space-y-3 text-center" onClick={(e) => e.stopPropagation()}>
-            <img
-              src={previewPhoto}
-              alt="Foto Bukti Gemba Walk"
-              className="max-h-[75vh] max-w-full object-contain rounded-2xl shadow-2xl border border-zinc-800 mx-auto"
-            />
-            <button
-              type="button"
-              onClick={() => setPreviewPhoto(null)}
-              className="px-5 py-2 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs rounded-xl transition"
-            >
-              Tutup Pratinjau
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Resolusi & Catatan Tindakan Perbaikan */}
-      {resolvingRecord && (
-        <div
-          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
-          onClick={() => setResolvingRecord(null)}
-        >
+      {previewPhoto &&
+        createPortal(
           <div
-            className="relative w-full max-w-md m-auto card-elevated p-6 space-y-4 border border-emerald-500/40"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-[9999] overflow-y-auto bg-black/95 backdrop-blur-xl p-4 flex items-center justify-center min-h-screen animate-fade-in"
+            onClick={() => setPreviewPhoto(null)}
           >
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <div className="flex items-center gap-2.5">
-                <CheckCircle2 className="w-5 h-5 text-emerald-400" />
-                <h3 className="text-sm font-bold text-white">Verifikasi Selesai (Resolve Temuan)</h3>
-              </div>
+            <div className="relative max-w-3xl max-h-[88vh] m-auto space-y-3 text-center animate-scale-up" onClick={(e) => e.stopPropagation()}>
+              <img
+                src={previewPhoto}
+                alt="Foto Bukti Gemba Walk"
+                className="max-h-[75vh] max-w-full object-contain rounded-2xl shadow-2xl border border-zinc-800 mx-auto"
+              />
               <button
+                ref={previewCloseBtnRef}
                 type="button"
-                onClick={() => setResolvingRecord(null)}
-                className="text-zinc-400 hover:text-white"
+                onClick={() => setPreviewPhoto(null)}
+                className="px-5 py-2 bg-orange-600 hover:bg-orange-500 text-white font-bold text-xs rounded-xl transition focus:outline-none focus:ring-2 focus:ring-orange-400"
               >
-                <X className="w-5 h-5" />
+                Tutup Pratinjau
               </button>
             </div>
+          </div>,
+          document.body
+        )}
 
-            <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 text-xs space-y-1">
-              <div className="font-bold text-white">{resolvingRecord.zoneName}</div>
-              <p className="text-zinc-400 text-[11px] line-clamp-2">{resolvingRecord.description}</p>
-            </div>
-
-            <form onSubmit={handleConfirmResolve} className="space-y-3">
-              <div>
-                <label className="block text-xs font-bold text-zinc-300 mb-1">
-                  Catatan Tindakan Korektif / Bukti Perbaikan *
-                </label>
-                <textarea
-                  rows={3}
-                  value={resolutionInput}
-                  onChange={(e) => setResolutionInput(e.target.value)}
-                  placeholder="Contoh: Oli telah dibersihkan dan dipasang absorbent pad; seal hidrolik forklift telah diganti..."
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 resize-none"
-                  required
-                />
-              </div>
-
-              <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 flex items-start gap-2">
-                <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-                <span>
-                  Bila temuan ini memiliki PIC pekerja yang ditugaskan, menyelesaikan temuan tepat waktu akan mengganjar <strong>+25 Poin Integritas</strong> secara otomatis.
-                </span>
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+      {/* Modal Resolusi & Catatan Tindakan Perbaikan */}
+      {resolvingRecord &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+            onClick={() => setResolvingRecord(null)}
+          >
+            <div
+              className="relative w-full max-w-md max-h-[88vh] sm:max-h-[90vh] m-auto card-elevated p-6 space-y-4 border border-emerald-500/40 animate-scale-up overflow-y-auto custom-scrollbar"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+                  <h3 className="text-sm font-bold text-white">Verifikasi Selesai (Resolve Temuan)</h3>
+                </div>
                 <button
                   type="button"
                   onClick={() => setResolvingRecord(null)}
-                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold rounded-xl transition"
+                  className="text-zinc-400 hover:text-white p-1 rounded-lg transition"
                 >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isUpdatingStatus}
-                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition flex items-center gap-2"
-                >
-                  {isUpdatingStatus ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
-                  <span>Tandai Selesai & Validasi</span>
+                  <X className="w-5 h-5" />
                 </button>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+
+              <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-800 text-xs space-y-1">
+                <div className="font-bold text-white">{resolvingRecord.zoneName}</div>
+                <p className="text-zinc-400 text-[11px] line-clamp-2">{resolvingRecord.description}</p>
+              </div>
+
+              <form onSubmit={handleConfirmResolve} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-300 mb-1">
+                    Catatan Tindakan Korektif / Bukti Perbaikan *
+                  </label>
+                  <textarea
+                    ref={resolveTextareaRef}
+                    rows={3}
+                    value={resolutionInput}
+                    onChange={(e) => setResolutionInput(e.target.value)}
+                    placeholder="Contoh: Oli telah dibersihkan dan dipasang absorbent pad; seal hidrolik forklift telah diganti..."
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-emerald-500 resize-none"
+                    required
+                  />
+                </div>
+
+                <div className="p-3 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-xs text-emerald-300 flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>
+                    Bila temuan ini memiliki PIC pekerja yang ditugaskan, menyelesaikan temuan tepat waktu akan mengganjar <strong>+25 Poin Integritas</strong> secara otomatis.
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-800">
+                  <button
+                    type="button"
+                    onClick={() => setResolvingRecord(null)}
+                    className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold rounded-xl transition"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isUpdatingStatus}
+                    className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  >
+                    {isUpdatingStatus ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                    <span>Tandai Selesai & Validasi</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 };

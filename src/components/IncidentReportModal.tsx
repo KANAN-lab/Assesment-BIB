@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useIdempotentSubmit } from '../hooks/useIdempotentSubmit';
 import {
   AlertTriangle,
@@ -38,16 +39,10 @@ const INCIDENT_TYPES: { value: IncidentReport['incidentType']; label: string }[]
   { value: 'other',             label: 'Lainnya' },
 ];
 
-const SEVERITY_OPTIONS: { value: IncidentReport['severity']; label: string; color: string }[] = [
-  { value: 'low',      label: 'Rendah',   color: 'border-emerald-500/50 bg-emerald-500/10 text-emerald-300' },
-  { value: 'medium',   label: 'Sedang',   color: 'border-amber-500/50 bg-amber-500/10 text-amber-300' },
-  { value: 'high',     label: 'Tinggi',   color: 'border-orange-500/50 bg-orange-500/10 text-orange-300' },
-  { value: 'critical', label: 'Kritis',   color: 'border-rose-500/50 bg-rose-500/10 text-rose-300' },
-];
-
 export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
   workerId, workerName, onClose, onSuccess,
 }) => {
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
   const [incidentType, setIncidentType] = useState<IncidentReport['incidentType'] | ''>('');
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
@@ -63,7 +58,6 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
   const [done, setDone] = useState(false);
   const [gdriveFileUrl, setGdriveFileUrl] = useState<string | null>(null);
 
-  // Photo & Compression state
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const [compressing, setCompressing] = useState(false);
@@ -172,19 +166,33 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
     });
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, []);
+    const timer = setTimeout(() => {
+      closeBtnRef.current?.focus();
+    }, 50);
 
-  return (
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      clearTimeout(timer);
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+      onClick={onClose}
     >
       <div
-        className="relative w-full max-w-5xl max-h-[82vh] sm:max-h-[85vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden border-orange-500/30"
+        className="relative w-full max-w-5xl max-h-[88vh] sm:max-h-[90vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden border-orange-500/30 animate-scale-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -202,7 +210,12 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="text-zinc-400 hover:text-white p-2 rounded-xl hover:bg-zinc-800 transition">
+          <button
+            ref={closeBtnRef}
+            onClick={onClose}
+            className="text-zinc-400 hover:text-white p-2 rounded-xl hover:bg-zinc-800 transition focus:outline-none focus:ring-2 focus:ring-orange-400"
+            aria-label="Tutup modal"
+          >
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -465,6 +478,7 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
           </form>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

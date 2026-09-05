@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabaseClient';
 import { KudoService } from '../lib/kudoService';
 import { KudoCategory } from '../types/kudos';
@@ -14,6 +15,7 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
   const [workers, setWorkers] = useState<{ id: string; name: string; avatar: string }[]>([]);
   const [loadingWorkers, setLoadingWorkers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const searchInputRef = useRef<HTMLInputElement>(null);
   
   const [selectedReceiverId, setSelectedReceiverId] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<KudoCategory | ''>('');
@@ -32,10 +34,30 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
 
   useEffect(() => {
     if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      const timer = setTimeout(() => {
+        searchInputRef.current?.focus();
+      }, 50);
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onClose();
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+
       fetchWorkers();
       resetForm();
+
+      return () => {
+        clearTimeout(timer);
+        document.body.style.overflow = 'unset';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = 'unset';
     }
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
   const fetchWorkers = async () => {
     setLoadingWorkers(true);
@@ -99,10 +121,14 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
 
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm">
+  return createPortal(
+    <div 
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+      onClick={onClose}
+    >
       <div 
-        className="w-full sm:max-w-md bg-zinc-900 sm:rounded-2xl rounded-t-2xl border-t sm:border border-zinc-800 flex flex-col max-h-[90vh] overflow-hidden"
+        className="relative w-full sm:max-w-md max-h-[88vh] sm:max-h-[90vh] m-auto bg-zinc-900 rounded-2xl border border-zinc-800 flex flex-col overflow-hidden shadow-2xl animate-scale-up"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-zinc-800 shrink-0">
@@ -166,6 +192,7 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
                     <div className="relative">
                       <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input 
+                        ref={searchInputRef}
                         type="text" 
                         placeholder="Cari nama pekerja..." 
                         value={searchQuery}
@@ -273,6 +300,7 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

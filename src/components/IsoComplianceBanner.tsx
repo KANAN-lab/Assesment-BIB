@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { ShieldCheck, BookOpen, Lock, FileCheck, Award, Info, X, CheckCircle2 } from 'lucide-react';
 
 interface IsoStandardCard {
@@ -83,6 +84,32 @@ const ISO_CARDS: IsoStandardCard[] = [
 
 export const IsoComplianceBanner: React.FC = () => {
   const [selectedCard, setSelectedCard] = useState<IsoStandardCard | null>(null);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
+  const modalContainerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (selectedCard) {
+      document.body.style.overflow = 'hidden';
+      const timer = setTimeout(() => {
+        closeBtnRef.current?.focus();
+      }, 50);
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          setSelectedCard(null);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+        clearTimeout(timer);
+        document.body.style.overflow = 'unset';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+  }, [selectedCard]);
 
   return (
     <div className="space-y-3 pt-2">
@@ -151,59 +178,77 @@ export const IsoComplianceBanner: React.FC = () => {
         })}
       </div>
 
-      {/* Modal Detail Pop-up */}
-      {selectedCard && (
-        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/80 backdrop-blur-sm p-4 flex items-center justify-center animate-fade-in">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl max-w-md w-full p-5 space-y-4 shadow-2xl relative animate-scale-up text-xs">
-            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
-              <div className="flex items-center gap-2.5">
-                <div className="w-8 h-8 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0">
-                  <selectedCard.icon className={`w-4 h-4 ${selectedCard.accentColor}`} />
-                </div>
-                <div>
-                  <h4 className="font-bold text-white text-sm">{selectedCard.code}</h4>
-                  <p className="text-[11px] text-zinc-400">{selectedCard.name}</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelectedCard(null)}
-                className="text-zinc-500 hover:text-white p-1 rounded-lg transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <p className="text-zinc-300 leading-relaxed text-[11px]">
-              {selectedCard.description}
-            </p>
-
-            <div className="space-y-2 pt-1">
-              <span className="text-zinc-400 font-semibold text-[11px] block">
-                Implementasi Operasional di Gudang:
-              </span>
-              <div className="space-y-1.5">
-                {selectedCard.operationalDetails.map((detail, idx) => (
-                  <div key={idx} className="flex items-start gap-2 text-[11px] text-zinc-300">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
-                    <span>{detail}</span>
+      {/* Modal Detail Pop-up with createPortal */}
+      {selectedCard &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+            onClick={() => setSelectedCard(null)}
+          >
+            <div
+              ref={modalContainerRef}
+              tabIndex={-1}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="modal-iso-title"
+              className="relative w-full max-w-md max-h-[88vh] sm:max-h-[90vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl p-5 space-y-4 shadow-2xl overflow-y-auto custom-scrollbar animate-scale-up text-xs focus:outline-none"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0">
+                    <selectedCard.icon className={`w-4 h-4 ${selectedCard.accentColor}`} />
                   </div>
-                ))}
+                  <div>
+                    <h4 id="modal-iso-title" className="font-bold text-white text-sm">
+                      {selectedCard.code}
+                    </h4>
+                    <p className="text-[11px] text-zinc-400">{selectedCard.name}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  ref={closeBtnRef}
+                  onClick={() => setSelectedCard(null)}
+                  className="text-zinc-400 hover:text-white p-1 rounded-lg transition hover:bg-zinc-800 focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                  aria-label="Tutup dialog"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <p className="text-zinc-300 leading-relaxed text-[11px]">
+                {selectedCard.description}
+              </p>
+
+              <div className="space-y-2 pt-1">
+                <span className="text-zinc-400 font-semibold text-[11px] block">
+                  Implementasi Operasional di Gudang:
+                </span>
+                <div className="space-y-1.5">
+                  {selectedCard.operationalDetails.map((detail, idx) => (
+                    <div key={idx} className="flex items-start gap-2 text-[11px] text-zinc-300">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0 mt-0.5" />
+                      <span>{detail}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="pt-3 border-t border-zinc-800 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCard(null)}
+                  className="px-4 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold transition focus:outline-none focus:ring-2 focus:ring-purple-500/50"
+                >
+                  Tutup
+                </button>
               </div>
             </div>
-
-            <div className="pt-3 border-t border-zinc-800 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setSelectedCard(null)}
-                className="px-4 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold transition"
-              >
-                Tutup
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 };
+

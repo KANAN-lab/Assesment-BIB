@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import {
   X,
   CheckCircle2,
@@ -36,6 +37,7 @@ export const DailyQuestModal: React.FC<DailyQuestModalProps> = ({
   onClose,
   onCompleteQuiz,
 }) => {
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
   const [activeQuizzes, setActiveQuizzes] = useState<QuizQuestion[]>(initialQuizzes || []);
   const [loadingAI, setLoadingAI] = useState<boolean>(!initialQuizzes || initialQuizzes.length === 0);
   const [isAiGenerated, setIsAiGenerated] = useState<boolean>(false);
@@ -220,19 +222,40 @@ export const DailyQuestModal: React.FC<DailyQuestModalProps> = ({
     timerBarColor = 'bg-amber-500';
   }
 
-  React.useEffect(() => {
+  useEffect(() => {
     document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, []);
+    const timer = setTimeout(() => {
+      closeBtnRef.current?.focus();
+    }, 50);
 
-  return (
-    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in">
-      <div className="card-elevated w-full max-w-xl p-6 relative max-h-[82vh] sm:max-h-[85vh] m-auto flex flex-col justify-between overflow-y-auto custom-scrollbar shadow-2xl">
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleAttemptClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      clearTimeout(timer);
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isStarted, isFinished, isAntiCheatViolated]);
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+      onClick={handleAttemptClose}
+    >
+      <div
+        className="card-elevated w-full max-w-xl p-6 relative max-h-[88vh] sm:max-h-[90vh] m-auto flex flex-col justify-between overflow-y-auto custom-scrollbar shadow-2xl animate-scale-up"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
+          ref={closeBtnRef}
           onClick={handleAttemptClose}
-          className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition z-10"
+          className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition z-10 focus:outline-none focus:ring-2 focus:ring-emerald-400"
+          aria-label="Tutup kuis"
         >
           <X className="w-5 h-5" />
         </button>
@@ -431,6 +454,7 @@ export const DailyQuestModal: React.FC<DailyQuestModalProps> = ({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

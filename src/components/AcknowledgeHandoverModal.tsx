@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, CheckCircle2, Loader2, Info } from 'lucide-react';
 import { ShiftHandoverEntity } from '../types/handover';
 import { HandoverManager } from '../lib/handoverService';
@@ -13,6 +14,18 @@ export function AcknowledgeHandoverModal({ handovers, currentWorkerId, onAllAckn
   const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const ackBtnRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    const timer = setTimeout(() => {
+      ackBtnRef.current?.focus();
+    }, 50);
+    return () => {
+      document.body.style.overflow = 'unset';
+      clearTimeout(timer);
+    };
+  }, [currentIndex]);
 
   if (handovers.length === 0) return null;
 
@@ -36,9 +49,12 @@ export function AcknowledgeHandoverModal({ handovers, currentWorkerId, onAllAckn
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md">
-      <div className="bg-zinc-950 w-full max-w-md rounded-3xl border border-rose-500/30 shadow-[0_0_50px_-12px_rgba(225,29,72,0.3)] overflow-hidden">
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in">
+      <div 
+        className="bg-zinc-950 w-full max-w-md max-h-[88vh] sm:max-h-[90vh] m-auto rounded-3xl border border-rose-500/30 shadow-[0_0_50px_-12px_rgba(225,29,72,0.3)] overflow-y-auto custom-scrollbar"
+        onClick={(e) => e.stopPropagation()}
+      >
         
         {/* Header - Warning Theme */}
         <div className="bg-rose-950/40 p-5 border-b border-rose-900/50 flex flex-col items-center text-center">
@@ -112,9 +128,10 @@ export function AcknowledgeHandoverModal({ handovers, currentWorkerId, onAllAckn
         {/* Footer */}
         <div className="p-5 border-t border-zinc-800 bg-zinc-900/50">
           <button
+            ref={ackBtnRef}
             onClick={handleAcknowledge}
             disabled={loading}
-            className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl transition disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 rounded-xl transition disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-emerald-400"
           >
             {loading ? (
               <Loader2 className="w-5 h-5 animate-spin" />
@@ -126,6 +143,7 @@ export function AcknowledgeHandoverModal({ handovers, currentWorkerId, onAllAckn
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

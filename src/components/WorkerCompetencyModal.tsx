@@ -1,4 +1,5 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, BookOpen, ChevronRight, BarChart3, CheckCircle2, ShieldCheck } from 'lucide-react';
 import { WorkerProfile } from '../types/assessment';
 import { matrixEngine } from '../domain/CompetencyMatrixEngine';
@@ -15,6 +16,7 @@ export const WorkerCompetencyModal: React.FC<WorkerCompetencyModalProps> = ({
   onClose,
 }) => {
   const roleKey = useMemo(() => matrixEngine.resolveRoleColumnKey(worker.role), [worker.role]);
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
 
   const categorySummaries = useMemo(() => {
     return matrixEngine.calculateCategorySummaries(
@@ -51,19 +53,34 @@ export const WorkerCompetencyModal: React.FC<WorkerCompetencyModalProps> = ({
       ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
       : 'bg-rose-500/10 text-rose-400 border-rose-500/20';
 
-  React.useEffect(() => {
+  useEffect(() => {
     document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, []);
+    const timer = setTimeout(() => {
+      closeBtnRef.current?.focus();
+    }, 50);
 
-  return (
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      clearTimeout(timer);
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+      onClick={onClose}
     >
       <div
-        className="relative w-full max-w-4xl max-h-[82vh] sm:max-h-[85vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        className="relative w-full max-w-4xl max-h-[88vh] sm:max-h-[90vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-scale-up"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0">
@@ -93,7 +110,12 @@ export const WorkerCompetencyModal: React.FC<WorkerCompetencyModalProps> = ({
                 {getLabel(overallPct)}
               </div>
             </div>
-            <button onClick={onClose} className="text-zinc-500 hover:text-white transition p-1">
+            <button
+              ref={closeBtnRef}
+              onClick={onClose}
+              className="text-zinc-500 hover:text-white transition p-1 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-400"
+              aria-label="Tutup modal"
+            >
               <X className="w-5 h-5" />
             </button>
           </div>
@@ -211,6 +233,7 @@ export const WorkerCompetencyModal: React.FC<WorkerCompetencyModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

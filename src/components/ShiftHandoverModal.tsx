@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useIdempotentSubmit } from '../hooks/useIdempotentSubmit';
 import { X, Save, AlertTriangle, User, Loader2, Package, SearchCheck, CheckSquare, Settings2, Trash2, ShieldAlert, Sparkles, HelpCircle } from 'lucide-react';
 import { HandoverManager } from '../lib/handoverService';
@@ -18,6 +19,7 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId }: ShiftHa
   const [conditionStatus, setConditionStatus] = useState<ConditionStatus>('Aman');
   const [notes, setNotes] = useState('');
   const [nextSupervisorId, setNextSupervisorId] = useState<string>('');
+  const notesRef = useRef<HTMLTextAreaElement>(null);
   
   const [workers, setWorkers] = useState<WorkerProfile[]>([]);
   const { submit: idempSubmit, isSubmitting: loading, idempotencyError, clearIdempotencyError } = useIdempotentSubmit({
@@ -29,6 +31,18 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId }: ShiftHa
 
   useEffect(() => {
     if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      const timer = setTimeout(() => {
+        notesRef.current?.focus();
+      }, 50);
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onClose();
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+
       fetchAllWorkers().then(data => {
         // Exclude current worker from the list
         setWorkers(data.filter(w => w.id !== currentWorkerId));
@@ -43,8 +57,16 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId }: ShiftHa
       setNotes('');
       setNextSupervisorId('');
       setError(null);
+
+      return () => {
+        clearTimeout(timer);
+        document.body.style.overflow = 'unset';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = 'unset';
     }
-  }, [isOpen, currentWorkerId]);
+  }, [isOpen, currentWorkerId, onClose]);
 
   if (!isOpen) return null;
 
@@ -83,10 +105,13 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId }: ShiftHa
     });
   };
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm transition-opacity">
+  return createPortal(
+    <div 
+      className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+      onClick={onClose}
+    >
       <div 
-        className="bg-zinc-950 w-full sm:max-w-lg rounded-t-3xl sm:rounded-3xl border-t sm:border border-zinc-800 shadow-2xl flex flex-col max-h-[90vh] overflow-hidden"
+        className="bg-zinc-950 w-full sm:max-w-lg max-h-[88vh] sm:max-h-[90vh] m-auto rounded-3xl border border-zinc-800 shadow-2xl flex flex-col overflow-hidden animate-scale-up"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -220,6 +245,7 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId }: ShiftHa
             <div className="space-y-1.5">
               <label className="text-xs font-bold text-zinc-400">Catatan Serah Terima / Tugas Tertunda</label>
               <textarea
+                ref={notesRef}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Tuliskan catatan penting, masalah peralatan, atau tugas yang belum selesai untuk shift selanjutnya..."
@@ -244,6 +270,7 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId }: ShiftHa
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

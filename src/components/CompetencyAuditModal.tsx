@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { WorkerProfile, CompetencyItem, ScoringRule } from '../types/assessment';
 import { matrixEngine } from '../domain/CompetencyMatrixEngine';
 import { SystemConfigService } from '../domain/SystemConfigService';
@@ -24,6 +25,7 @@ export const CompetencyAuditModal: React.FC<CompetencyAuditModalProps> = ({
 }) => {
   const competencyItems: CompetencyItem[] = matrixEngine.getItems();
   const scoringRules: ScoringRule[] = matrixEngine.getRules();
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
 
   // Local scores state
   const [scores, setScores] = useState<Record<string, number>>(initialScores || {});
@@ -59,17 +61,12 @@ export const CompetencyAuditModal: React.FC<CompetencyAuditModalProps> = ({
       const maxForRole = item.maxScores[roleColumnKey] ?? 0;
       if (maxForRole > 0) {
         maxSum += maxForRole;
-        const currentVal = scores[item.id] ?? 0;
-        auditedSum += Math.min(currentVal, maxForRole);
+        auditedSum += scores[item.id] ?? 0;
       }
     }
 
-    const pct = maxSum > 0 ? (auditedSum / maxSum) * 100 : 0;
-    return {
-      totalAuditedScore: auditedSum,
-      totalMaxPossibleScore: maxSum,
-      percentage: parseFloat(pct.toFixed(1)),
-    };
+    const pct = maxSum > 0 ? Math.round((auditedSum / maxSum) * 100) : 0;
+    return { totalAuditedScore: auditedSum, totalMaxPossibleScore: maxSum, percentage: pct };
   }, [competencyItems, roleColumnKey, scores]);
 
   // Handle score change with strict max value validation rule
@@ -91,6 +88,7 @@ export const CompetencyAuditModal: React.FC<CompetencyAuditModalProps> = ({
     setScores((prev) => ({ ...prev, [itemId]: numVal }));
   };
 
+  // Handle Save
   const handleSave = () => {
     setSaving(true);
     const behaviorVal = Math.min(100, Math.max(60, Math.round(percentage)));
@@ -103,19 +101,33 @@ export const CompetencyAuditModal: React.FC<CompetencyAuditModalProps> = ({
     }, 300);
   };
 
-  React.useEffect(() => {
+  useEffect(() => {
     document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, []);
+    const timer = setTimeout(() => {
+      closeBtnRef.current?.focus();
+    }, 50);
 
-  return (
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      clearTimeout(timer);
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+      onClick={onClose}
     >
       <div
-        className="relative w-full max-w-5xl max-h-[82vh] sm:max-h-[85vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden"
+        className="relative w-full max-w-5xl max-h-[88vh] sm:max-h-[90vh] m-auto bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-scale-up"
         onClick={(e) => e.stopPropagation()}
       >
 
@@ -150,8 +162,10 @@ export const CompetencyAuditModal: React.FC<CompetencyAuditModalProps> = ({
             </button>
 
             <button
+              ref={closeBtnRef}
               onClick={onClose}
-              className="p-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white transition"
+              className="p-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-white transition focus:outline-none focus:ring-2 focus:ring-emerald-400"
+              aria-label="Tutup modal"
             >
               <X className="w-4 h-4" />
             </button>
@@ -368,6 +382,7 @@ export const CompetencyAuditModal: React.FC<CompetencyAuditModalProps> = ({
         </div>
 
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
