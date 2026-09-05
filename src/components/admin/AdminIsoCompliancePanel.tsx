@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Award, ShieldCheck, FileCheck, CheckCircle2, AlertTriangle,
   Download, Printer, Search, ArrowRight, ExternalLink,
@@ -10,6 +10,7 @@ import { WorkerProfile, IncidentReport } from '../../types/assessment';
 import { LicenseService } from '../../lib/licenseService';
 import { PpeService } from '../../lib/ppeService';
 import { SystemConfigService } from '../../domain/SystemConfigService';
+import { MheLicenseEntity } from '../../types/license';
 
 export interface IsoClauseMapping {
   id: string;
@@ -249,14 +250,45 @@ export const AdminIsoCompliancePanel: React.FC<AdminIsoCompliancePanelProps> = (
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [isExporting, setIsExporting] = useState<boolean>(false);
 
-  // Dynamic Metrics
-  const activeSioCount = useMemo(() => {
-    return LicenseService.getAllLicenses().filter((l) => l.status === 'valid').length;
+  // Live Sync State for MHE Licenses & PPE
+  const [licenses, setLicenses] = useState<MheLicenseEntity[]>(() => LicenseService.getAllLicenses());
+  const [ppeCount, setPpeCount] = useState<number>(() => {
+    const stats = PpeService.getStats();
+    return stats.totalItems > 0 ? stats.totalItems : stats.totalDistributedActive;
+  });
+
+  useEffect(() => {
+    // 1. Initial local load
+    setLicenses(LicenseService.getAllLicenses());
+
+    // 2. Fetch from Supabase in background
+    LicenseService.fetchLicensesFromSupabase().then((remote) => {
+      if (remote && remote.length > 0) {
+        setLicenses(remote);
+      }
+    });
+
+    // 3. Event listeners for live updates
+    const handleLicUpdate = () => {
+      setLicenses(LicenseService.getAllLicenses());
+    };
+    const handlePpeUpdate = () => {
+      const stats = PpeService.getStats();
+      setPpeCount(stats.totalItems > 0 ? stats.totalItems : stats.totalDistributedActive);
+    };
+
+    window.addEventListener('gappy_licenses_updated', handleLicUpdate);
+    window.addEventListener('gappy_ppe_updated', handlePpeUpdate);
+    return () => {
+      window.removeEventListener('gappy_licenses_updated', handleLicUpdate);
+      window.removeEventListener('gappy_ppe_updated', handlePpeUpdate);
+    };
   }, []);
 
-  const ppeItemsCount = useMemo(() => {
-    return PpeService.getAllMasterItems().length;
-  }, []);
+  // Dynamic Metrics: SIO is valid if status is 'active' or 'expiring_soon'
+  const activeSioCount = useMemo(() => {
+    return licenses.filter((l) => l.status === 'active' || l.status === 'expiring_soon').length;
+  }, [licenses]);
 
   const resolvedIncidentsCount = useMemo(() => {
     return incidents.filter((i) => i.status === 'resolved' || i.status === 'closed').length;
@@ -352,7 +384,7 @@ export const AdminIsoCompliancePanel: React.FC<AdminIsoCompliancePanelProps> = (
       doc.setTextColor(51, 65, 85);
       doc.text(`• Indeks Kesiapan Audit Keseluruhan: ${complianceStats.readinessIndex}% (Sangat Siap / Audit Ready)`, 18, 60);
       doc.text(`• Total Klausul Dipetakan: ${complianceStats.total} Klausul Kunci across 4 Standar Internasional & Nasional`, 18, 64);
-      doc.text(`• Personel Terdaftar: ${workers.length} Orang | SIO Valid: ${activeSioCount} Unit | APD Tercatat: ${ppeItemsCount} Item`, 18, 68);
+      doc.text(`• Personel Terdaftar: ${workers.length} Orang | SIO Valid: ${activeSioCount} Unit | APD Tercatat: ${ppeCount} Item`, 18, 68);
 
       // Table of Clauses
       const tableData = ISO_CLAUSE_CATALOG.map((item, idx) => [
@@ -446,6 +478,24 @@ export const AdminIsoCompliancePanel: React.FC<AdminIsoCompliancePanelProps> = (
               <p className="text-xs text-zinc-400 mt-1 max-w-2xl leading-relaxed">
                 Pemetaan digital keselarasan seluruh modul operasional BIB terhadap standar internasional <strong>ISO 45001</strong> (K3), <strong>ISO 9001</strong> (Mutu), <strong>ISO/IEC 27001</strong> (Keamanan Data), serta mandat nasional <strong>SMK3 PP No. 50/2012</strong>.
               </p>
+
+              {/* Live Evidence Badges */}
+              <div className="flex items-center gap-3 mt-3 pt-2.5 border-t border-zinc-800/80 text-[11px] text-zinc-400 flex-wrap">
+                <span className="flex items-center gap-1.5">
+                  <Truck className="w-3.5 h-3.5 text-cyan-400" />
+                  <span>SIO Aktif: <strong className="text-white font-mono">{activeSioCount} Unit</strong></span>
+                </span>
+                <span className="text-zinc-600">·</span>
+                <span className="flex items-center gap-1.5">
+                  <HardHat className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Item APD: <strong className="text-white font-mono">{ppeCount} Item</strong></span>
+                </span>
+                <span className="text-zinc-600">·</span>
+                <span className="flex items-center gap-1.5">
+                  <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Personel K3: <strong className="text-white font-mono">{workers.length} Orang</strong></span>
+                </span>
+              </div>
             </div>
           </div>
 
