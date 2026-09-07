@@ -224,6 +224,47 @@ export class OfflineQueueManager {
         const { flushOfflineSopCompletions } = await import('./sopService');
         await flushOfflineSopCompletions();
         success = true;
+      } else if (item.type === 'safety_patrol') {
+        const { supabase } = await import('./supabaseClient');
+        const p = item.payload;
+        const insertPayload: Record<string, any> = {
+          id: p.id,
+          supervisor_id: p.supervisorId,
+          supervisor_name: p.supervisorName,
+          patrol_date: p.patrolDate,
+          zone_id: p.zoneId,
+          zone_name: p.zoneName,
+          finding_type: p.findingType,
+          severity: p.severity,
+          description: p.description,
+          photo_url: p.photoUrl,
+          assigned_pic_id: p.assignedPicId,
+          assigned_pic_name: p.assignedPicName,
+          status: p.status,
+          due_date: p.dueDate,
+          resolution_notes: p.resolutionNotes,
+          points_awarded: p.pointsAwarded ?? false,
+          idempotency_key: item.idempotencyKey || `idemp-patrol-${p.id}`,
+        };
+
+        let { error } = await supabase.from('safety_patrol_logs').insert(insertPayload);
+        if (error) {
+          if (error.code === '23505') {
+            // Already inserted on server
+            success = true;
+          } else if (error.message?.includes('idempotency_key') || error.message?.includes('column')) {
+            delete insertPayload.idempotency_key;
+            const retry = await supabase.from('safety_patrol_logs').insert(insertPayload);
+            if (retry.error && retry.error.code !== '23505') {
+              throw retry.error;
+            }
+            success = true;
+          } else {
+            throw error;
+          }
+        } else {
+          success = true;
+        }
       } else {
         // Fallback simulate success for recorded items if offline
         await new Promise((r) => setTimeout(r, 600));

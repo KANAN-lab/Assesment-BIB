@@ -187,6 +187,9 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
 
   useEffect(() => {
     loadData();
+    // Sinkronisasi data cloud Supabase secara asynchronous
+    PpeService.fetchDistributionsFromSupabase().then(() => loadData()).catch(() => {});
+    PpeService.fetchDamageReportsFromSupabase().then(() => loadData()).catch(() => {});
     PpeService.checkAndDispatchPpeAlerts();
 
     const handleUpdate = () => loadData();

@@ -6,8 +6,11 @@ import {
   PpeStats,
   PpeDistributionStatus,
   PpeDamageAction,
+  PpeItemCondition,
+  PpeDamageReason,
 } from '../types/ppe';
 import { NotificationEngine } from '../domain/NotificationEngine';
+import { supabase } from './supabaseClient';
 
 export class PpeService {
   private static MASTER_STORAGE_KEY = 'gappy_ppe_master_v2';
@@ -205,6 +208,36 @@ export class PpeService {
     const updated = [newRecord, ...distList];
     this.saveAllDistributions(updated);
 
+    // Simpan ke tabel ppe_distributions Supabase jika online
+    supabase
+      .from('ppe_distributions')
+      .insert({
+        id: newRecord.id,
+        worker_id: newRecord.workerId,
+        worker_name: newRecord.workerName,
+        worker_division: newRecord.division || 'Logistics Operations',
+        ppe_item_id: newRecord.ppeItemId,
+        ppe_item_name: newRecord.ppeName,
+        serial_or_batch_number: newRecord.serialOrBatchNumber || null,
+        distribution_date: newRecord.distributionDate,
+        expected_replacement_date: newRecord.expectedReplacementDate,
+        status: 'active',
+        condition_notes: newRecord.notes || (newRecord.size ? `Ukuran: ${newRecord.size}` : null),
+      })
+      .then(({ error }) => {
+        if (error) console.info('[PpeService] Supabase ppe_distributions sync info:', error.message);
+      }, () => {});
+
+    // Catat ke activity_log audit trail
+    try {
+      supabase.from('activity_log').insert({
+        worker_id: data.workerId,
+        worker_name: data.workerName,
+        action: 'ppe_distributed',
+        detail: `Distribusi APD: ${data.quantity}x ${masterItem.name} (${masterItem.category}, Ukuran: ${data.size || 'All Size'}) oleh ${data.handoverOfficer}`,
+      }).then(() => {}, () => {});
+    } catch {}
+
     // Notification to Worker
     if (data.workerId) {
       NotificationEngine.addNotification({
@@ -284,6 +317,43 @@ export class PpeService {
     const updated = [newReport, ...damageReports];
     this.saveAllDamageReports(updated);
 
+    // Simpan laporan kerusakan ke tabel ppe_damage_reports Supabase jika online
+    supabase
+      .from('ppe_damage_reports')
+      .insert({
+        id: newReport.id,
+        distribution_id: newReport.distributionId,
+        worker_id: newReport.workerId,
+        damage_type: newReport.damageReason,
+        incident_description: newReport.damageDescription,
+        photo_url: newReport.photoEvidenceUrl || null,
+        status: 'reported',
+      })
+      .then(({ error }) => {
+        if (error) console.info('[PpeService] Supabase ppe_damage_reports sync info:', error.message);
+      }, () => {});
+
+    // Perbarui status record distribusi terkait di Supabase
+    supabase
+      .from('ppe_distributions')
+      .update({
+        status: 'damaged_lost',
+        condition_notes: `Laporan kerusakan (${data.damageReason}): ${data.damageDescription?.slice(0, 80) || ''}`,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', dist.id)
+      .then(() => {}, () => {});
+
+    // Catat ke activity_log audit trail
+    try {
+      supabase.from('activity_log').insert({
+        worker_id: dist.workerId,
+        worker_name: dist.workerName,
+        action: 'ppe_damaged',
+        detail: `Laporan kerusakan APD: ${dist.ppeName} (${data.damageReason}) - ${data.damageDescription?.slice(0, 60) || ''}`,
+      }).then(() => {}, () => {});
+    } catch {}
+
     // Notify Supervisor of damage report
     NotificationEngine.addNotification({
       recipientId: 'supervisor',
@@ -342,6 +412,24 @@ export class PpeService {
     }
 
     this.saveAllDamageReports(damageReports);
+
+    // Sync review status ke ppe_damage_reports di Supabase
+    const dbStatus =
+      data.action === 'replacement_issued' ? 'replaced' :
+      data.action === 'repaired' ? 'verified' :
+      data.action === 'rejected' ? 'rejected' : 'reported';
+
+    supabase
+      .from('ppe_damage_reports')
+      .update({
+        status: dbStatus,
+        reviewed_by: data.reviewedBy || null,
+      })
+      .eq('id', report.id)
+      .then(({ error }) => {
+        if (error) console.info('[PpeService] Supabase ppe_damage_reports review sync info:', error.message);
+      }, () => {});
+
     return report;
   }
 
@@ -458,5 +546,156 @@ export class PpeService {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  }
+
+  /**
+   * Mengambil data distribusi APD dari Supabase cloud, menggabungkan dengan cache lokal, dan memperbarui cache
+   */
+  public static async fetchDistributionsFromSupabase(): Promise<PpeDistributionEntity[]> {
+    try {
+      const { data, error } = await supabase
+        .from('ppe_distributions')
+        .select('*')
+        .order('distribution_date', { ascending: false });
+
+      if (error) {
+        console.warn('[PpeService] Gagal fetch distributions dari Supabase:', error.message);
+        return this.getAllDistributions();
+      }
+
+      if (data && Array.isArray(data)) {
+        const remoteList: PpeDistributionEntity[] = data.map((row: any) => {
+          const expectedReplacementDate = row.expected_replacement_date || new Date().toISOString().split('T')[0];
+          const daysRemaining = this.calculateDaysRemaining(expectedReplacementDate);
+          let status: PpeDistributionStatus = row.status === 'damaged_lost' ? 'damaged' : (row.status || 'active');
+          if (status === 'active' || status === 'expiring_soon') {
+            if (daysRemaining < 0) status = 'expired_replaced';
+            else if (daysRemaining <= 14) status = 'expiring_soon';
+            else status = 'active';
+          }
+
+          return {
+            id: row.id,
+            workerId: row.worker_id || '',
+            workerName: row.worker_name || 'Pekerja Lapangan',
+            employeeId: row.worker_id || '',
+            division: row.worker_division || 'Logistics Operations',
+            ppeItemId: row.ppe_item_id || '',
+            ppeName: row.ppe_item_name || 'APD',
+            category: 'Pelindung Diri',
+            serialOrBatchNumber: row.serial_or_batch_number || undefined,
+            quantity: 1,
+            distributionDate: row.distribution_date || new Date().toISOString().split('T')[0],
+            expectedReplacementDate,
+            status,
+            condition: (row.status === 'damaged_lost' ? 'damaged' : 'good') as PpeItemCondition,
+            handoverOfficer: 'Petugas Gudang / HSE',
+            notes: row.condition_notes || undefined,
+            daysRemaining,
+            createdAt: row.created_at || new Date().toISOString(),
+            updatedAt: row.updated_at || new Date().toISOString(),
+          };
+        });
+
+        const localList = this.getAllDistributions();
+        const mergedRemote = remoteList.map((rem) => {
+          const match = localList.find((l) => l.id === rem.id);
+          if (match) {
+            return {
+              ...rem,
+              employeeId: match.employeeId || rem.employeeId,
+              size: match.size || rem.size,
+              quantity: match.quantity || rem.quantity,
+              category: match.category || rem.category,
+              handoverOfficer: match.handoverOfficer || rem.handoverOfficer,
+            };
+          }
+          return rem;
+        });
+
+        const remoteIds = new Set(mergedRemote.map((r) => r.id));
+        const merged = [...mergedRemote, ...localList.filter((l) => !remoteIds.has(l.id))];
+
+        this.saveAllDistributions(merged);
+        return merged;
+      }
+    } catch (err) {
+      console.warn('[PpeService] Exception fetch distributions:', err);
+    }
+    return this.getAllDistributions();
+  }
+
+  /**
+   * Mengambil data laporan kerusakan APD dari Supabase cloud, menggabungkan dengan cache lokal, dan memperbarui cache
+   */
+  public static async fetchDamageReportsFromSupabase(): Promise<PpeDamageReportEntity[]> {
+    try {
+      const { data, error } = await supabase
+        .from('ppe_damage_reports')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.warn('[PpeService] Gagal fetch damage reports dari Supabase:', error.message);
+        return this.getAllDamageReports();
+      }
+
+      if (data && Array.isArray(data)) {
+        const remoteList: PpeDamageReportEntity[] = data.map((row: any) => {
+          let status: PpeDamageAction = 'pending_review';
+          if (row.status === 'replaced') status = 'replacement_issued';
+          else if (row.status === 'verified') status = 'repaired';
+          else if (row.status === 'rejected') status = 'rejected';
+
+          return {
+            id: row.id,
+            distributionId: row.distribution_id || '',
+            workerId: row.worker_id || '',
+            workerName: 'Pekerja Lapangan',
+            employeeId: row.worker_id || '',
+            division: 'Logistics Operations',
+            ppeItemId: '',
+            ppeName: 'APD',
+            category: 'Pelindung Diri',
+            damageReason: (row.damage_type || 'worn_out') as PpeDamageReason,
+            reportDate: row.created_at ? row.created_at.slice(0, 10) : new Date().toISOString().slice(0, 10),
+            damageDescription: row.incident_description || '',
+            photoEvidenceUrl: row.photo_url || undefined,
+            status,
+            reviewedBy: row.reviewed_by || undefined,
+            reviewDate: row.status !== 'reported' ? (row.created_at ? row.created_at.slice(0, 10) : undefined) : undefined,
+            createdAt: row.created_at || new Date().toISOString(),
+            updatedAt: row.created_at || new Date().toISOString(),
+          };
+        });
+
+        const localReports = this.getAllDamageReports();
+        const mergedRemote = remoteList.map((rem) => {
+          const match = localReports.find((l) => l.id === rem.id);
+          if (match) {
+            return {
+              ...rem,
+              workerName: match.workerName || rem.workerName,
+              ppeName: match.ppeName || rem.ppeName,
+              ppeItemId: match.ppeItemId || rem.ppeItemId,
+              category: match.category || rem.category,
+              division: match.division || rem.division,
+              reviewNotes: match.reviewNotes,
+              replacementDistributionId: match.replacementDistributionId,
+            };
+          }
+          return rem;
+        });
+
+        const remoteIds = new Set(mergedRemote.map((m) => m.id));
+        const finalReports = [...mergedRemote, ...localReports.filter((l) => !remoteIds.has(l.id))];
+
+        this.saveAllDamageReports(finalReports);
+        return finalReports;
+      }
+    } catch (err) {
+      console.warn('[PpeService] Exception fetch damage reports:', err);
+    }
+    return this.getAllDamageReports();
   }
 }

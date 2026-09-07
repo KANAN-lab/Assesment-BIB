@@ -241,32 +241,54 @@ export function WorkerHistoryCenterModal({
           if (actLogs) {
             actLogs.forEach((l: any) => {
               const act = String(l.action || '');
-              if (act.includes('quiz') || act.includes('checklist') || act.includes('sio') || act.includes('refund')) {
+              if (act.includes('quiz') || act.includes('checklist') || act.includes('sio') || act.includes('refund') || act.includes('expired') || act.includes('audit_5s')) {
                 let pts = 0;
                 let title = 'Aktivitas Kepatuhan Operasional';
                 let category = 'Kepatuhan Operasional';
                 let badge = 'Daily Ops';
                 let badgeCls = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30';
 
+                const plusMatch = String(l.detail || '').match(/\+(\d+)\s*PTS/i);
+                const minusMatch = String(l.detail || '').match(/-(\d+)\s*PTS/i);
+
                 if (act.includes('quiz')) {
-                  pts = 10;
+                  pts = plusMatch ? parseInt(plusMatch[1], 10) : 50;
                   title = 'Kuis Keselamatan K3 Harian';
+                  badge = 'Kuis K3';
+                  badgeCls = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/30';
                 } else if (act.includes('checklist')) {
-                  pts = 15;
+                  pts = plusMatch ? parseInt(plusMatch[1], 10) : 30;
                   title = 'Pre-Shift Inspection Checklist';
-                } else if (act.includes('sio')) {
-                  pts = 100;
-                  title = 'Reward Unggah Sertifikasi SIO Mandiri';
-                } else if (act.includes('refund')) {
-                  const match = String(l.detail || '').match(/\+(\d+)\s*PTS/i);
-                  pts = match ? parseInt(match[1], 10) : 100;
-                  title = 'Pemulihan Poin (Sanksi K3 Dibatalkan)';
-                  category = 'Pemulihan Disiplin K3';
-                  badge = 'Poin Dipulihkan';
+                  badge = 'Checklist K3';
                   badgeCls = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+                } else if (act.includes('audit_5s')) {
+                  pts = plusMatch ? parseInt(plusMatch[1], 10) : 100;
+                  title = 'Insentif PIC Wilayah Audit 5S/5R';
+                  category = 'Audit 5S/5R';
+                  badge = 'Insentif 5S';
+                  badgeCls = 'bg-amber-500/10 text-amber-400 border-amber-500/30';
+                } else if (act.includes('sio')) {
+                  pts = plusMatch ? parseInt(plusMatch[1], 10) : 100;
+                  title = 'Reward Unggah Sertifikasi SIO Mandiri';
+                  category = 'Lisensi & Sertifikasi';
+                  badge = 'SIO / MHE';
+                  badgeCls = 'bg-blue-500/10 text-blue-400 border-blue-500/30';
+                } else if (act.includes('refund')) {
+                  pts = plusMatch ? parseInt(plusMatch[1], 10) : 25;
+                  const isSafetyPatrol = String(l.detail || '').toLowerCase().includes('safety patrol');
+                  title = isSafetyPatrol ? 'Reward Temuan Gemba Walk Safety Patrol' : 'Pemulihan Poin (Sanksi K3 Dibatalkan)';
+                  category = isSafetyPatrol ? 'Safety Patrol K3' : 'Pemulihan Disiplin K3';
+                  badge = isSafetyPatrol ? 'Safety Patrol' : 'Poin Dipulihkan';
+                  badgeCls = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+                } else if (act.includes('expired')) {
+                  pts = minusMatch ? -parseInt(minusMatch[1], 10) : -25;
+                  title = 'Kedaluwarsa Poin Berkala (Liabilitas Stok)';
+                  category = 'Siklus Poin Bulanan';
+                  badge = 'Poin Hangus';
+                  badgeCls = 'bg-rose-500/10 text-rose-400 border-rose-500/30';
                 }
 
-                if (pts > 0) {
+                if (pts !== 0) {
                   entries.push({
                     id: `act_${l.id}`,
                     date: l.created_at,

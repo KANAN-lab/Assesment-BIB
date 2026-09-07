@@ -41,6 +41,7 @@ import {
 import { SwalService } from '../domain/SwalService';
 import { PaginationControls } from './PaginationControls';
 import { WorkerProfile } from '../types/assessment';
+import { supabase } from '../lib/supabaseClient';
 
 interface AdminNotificationPanelProps {
   workers?: WorkerProfile[];
@@ -118,6 +119,15 @@ export const AdminNotificationPanel: React.FC<AdminNotificationPanelProps> = ({ 
           targetDivision: targetWorker?.division || '',
         },
       });
+
+      try {
+        supabase.from('activity_log').insert({
+          worker_id: targetWorker?.id || selectedWorkerId,
+          worker_name: targetWorker?.name || 'Pekerja Khusus',
+          action: 'notification_broadcast',
+          detail: `Notifikasi Admin Khusus ke ${targetWorker?.name || selectedWorkerId}: "${title.trim()}" [${notifType.toUpperCase()}]`,
+        }).then(() => {}, () => {});
+      } catch {}
     } else {
       NotificationEngine.broadcast(
         title.trim(),

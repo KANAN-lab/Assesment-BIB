@@ -189,11 +189,62 @@ export class SafetyPatrolService {
       // Bila ada poin yang dihadiahkan, tambah poin pekerja di Supabase
       if (pointsAwarded && target?.assignedPicId) {
         const awardPoints = SystemConfigService.getConfig().safetyPatrolResolvedPoints ?? 25;
-        await supabase.rpc('rpc_award_integrity_points', {
-          p_worker_id: target.assignedPicId,
-          p_points: awardPoints,
-          p_reason: `Penyelesaian Temuan Safety Patrol Gemba Walk: ${target.zoneName}`,
-        });
+        const awardReason = `Penyelesaian Temuan Safety Patrol Gemba Walk: ${target.zoneName}`;
+        let rpcSuccess = false;
+
+        try {
+          const { error: rpcErr } = await supabase.rpc('rpc_award_integrity_points', {
+            p_worker_id: target.assignedPicId,
+            p_points: awardPoints,
+            p_reason: awardReason,
+          });
+          if (!rpcErr) {
+            rpcSuccess = true;
+          }
+        } catch {
+          rpcSuccess = false;
+        }
+
+        // Fallback langsung jika RPC database belum aktif
+        if (!rpcSuccess) {
+          const { data: w } = await supabase
+            .from('workers')
+            .select('id, name, total_points')
+            .or(`id.eq.${target.assignedPicId},employee_id.eq.${target.assignedPicId}`)
+            .maybeSingle();
+
+          if (w) {
+            const newPoints = (w.total_points || 0) + awardPoints;
+            await supabase
+              .from('workers')
+              .update({
+                total_points: newPoints,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', w.id);
+
+            try {
+              await supabase.from('activity_log').insert({
+                worker_id: w.id,
+                worker_name: w.name,
+                action: 'audit_5s_completed',
+                detail: `${awardReason}: +${awardPoints} PTS`,
+              });
+            } catch {
+              // ignore audit log failure
+            }
+          }
+        }
+
+        // Dispatch realtime event ke React memory agar UI langsung tersinkron
+        window.dispatchEvent(
+          new CustomEvent('gappy_points_awarded', {
+            detail: {
+              workerId: target.assignedPicId,
+              pointsEarned: awardPoints,
+            },
+          })
+        );
       }
     } catch (e) {
       console.warn('Gagal update patrol di Supabase:', e);

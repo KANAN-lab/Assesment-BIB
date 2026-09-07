@@ -5,6 +5,7 @@
 
 import { supabase } from './supabaseClient';
 import { redisCache } from './redisCacheService';
+import { SystemConfigService } from '../domain/SystemConfigService';
 
 export interface AtomicRedemptionResult {
   success: boolean;
@@ -38,6 +39,19 @@ export class AtomicTransactionManager {
       if (!rpcError && rpcData) {
         redisCache.invalidatePattern('worker:*');
         redisCache.invalidatePattern('reward:*');
+
+        const pointsSpent = Number(rpcData.points_spent || 0);
+        if (typeof window !== 'undefined' && pointsSpent > 0) {
+          window.dispatchEvent(
+            new CustomEvent('gappy_points_awarded', {
+              detail: {
+                workerId,
+                pointsEarned: -pointsSpent,
+              },
+            })
+          );
+        }
+
         return {
           success: true,
           id: rpcData.id,
@@ -88,12 +102,37 @@ export class AtomicTransactionManager {
       throw new Error('Data reward tidak ditemukan.');
     }
 
+    // Tier validation
+    const minTier = reward.min_tier || 'Novice Operational';
+    const workerTierRank = SystemConfigService.getTierLevel(worker.tier);
+    const minTierRank = SystemConfigService.getTierLevel(minTier);
+
+    if (workerTierRank < minTierRank) {
+      throw new Error(`Reward ini membutuhkan tier minimal "${minTier}". Tier Anda saat ini adalah "${worker.tier}".`);
+    }
+
     if (reward.available_stock <= 0) {
       throw new Error(`Kuota bulanan reward "${reward.title}" telah habis! Silakan tunggu reset kuota bulan depan.`);
     }
 
     if (worker.total_points < reward.points_required) {
       throw new Error(`Poin Anda (${worker.total_points} PTS) tidak mencukupi untuk menukar ${reward.title} (${reward.points_required} PTS).`);
+    }
+
+    // Monthly claim limit validation per worker
+    const maxClaims = Number(reward.max_claims_per_month) || 1;
+    const nowObj = new Date();
+    const startOfMonth = new Date(nowObj.getFullYear(), nowObj.getMonth(), 1).toISOString();
+
+    const { count: monthlyClaimsCount, error: countErr } = await supabase
+      .from('redemption_history')
+      .select('*', { count: 'exact', head: true })
+      .eq('worker_id', workerId)
+      .eq('item_title', reward.title)
+      .gte('created_at', startOfMonth);
+
+    if (!countErr && (monthlyClaimsCount ?? 0) >= maxClaims) {
+      throw new Error(`Anda telah mencapai batas maksimal klaim (${maxClaims}x per bulan) untuk item "${reward.title}".`);
     }
 
     // Generate unique redemption voucher code
@@ -142,6 +181,17 @@ export class AtomicTransactionManager {
     // Invalidate Cache
     redisCache.invalidatePattern('worker:*');
     redisCache.invalidatePattern('reward:*');
+
+    if (typeof window !== 'undefined' && reward.points_required > 0) {
+      window.dispatchEvent(
+        new CustomEvent('gappy_points_awarded', {
+          detail: {
+            workerId,
+            pointsEarned: -reward.points_required,
+          },
+        })
+      );
+    }
 
     return {
       success: true,

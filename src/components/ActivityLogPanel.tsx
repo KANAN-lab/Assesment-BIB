@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, LogIn, LogOut, Key, Shield, BookOpen, CheckCircle2, ShieldAlert, User, RefreshCw, Award, ArrowRightLeft, BookMarked, ShieldCheck, UserCheck, RotateCcw, XCircle } from 'lucide-react';
+import { Activity, LogIn, LogOut, Key, Shield, BookOpen, CheckCircle2, ShieldAlert, User, RefreshCw, Award, ArrowRightLeft, BookMarked, ShieldCheck, UserCheck, RotateCcw, XCircle, Hourglass, AlertOctagon, AlertTriangle, Radio } from 'lucide-react';
 import type { ActivityLog, ActivityAction } from '../types/assessment';
 
 interface ActivityLogPanelProps {
@@ -9,25 +9,33 @@ interface ActivityLogPanelProps {
 }
 
 const ACTION_CONFIG: Record<ActivityAction, { icon: React.ReactNode; label: string; color: string }> = {
-  login:                { icon: <LogIn className="w-3.5 h-3.5" />,       label: 'Login',            color: 'text-emerald-400 bg-emerald-500/10' },
-  logout:               { icon: <LogOut className="w-3.5 h-3.5" />,      label: 'Logout',           color: 'text-zinc-400 bg-zinc-700/30' },
-  password_reset:       { icon: <Key className="w-3.5 h-3.5" />,         label: 'Reset Password',   color: 'text-amber-400 bg-amber-500/10' },
-  profile_update:       { icon: <User className="w-3.5 h-3.5" />,        label: 'Update Profil',    color: 'text-sky-400 bg-sky-500/10' },
-  badge_awarded:        { icon: <Shield className="w-3.5 h-3.5" />,      label: 'Badge Diraih',     color: 'text-violet-400 bg-violet-500/10' },
-  quiz_completed:       { icon: <BookOpen className="w-3.5 h-3.5" />,    label: 'Kuis Selesai',     color: 'text-cyan-400 bg-cyan-500/10' },
-  checklist_completed:  { icon: <CheckCircle2 className="w-3.5 h-3.5" />,label: 'Checklist Selesai',color: 'text-green-400 bg-green-500/10' },
-  incident_reported:    { icon: <ShieldAlert className="w-3.5 h-3.5" />, label: 'Laporan Insiden',  color: 'text-orange-400 bg-orange-500/10' },
-  kudo_sent:            { icon: <Award className="w-3.5 h-3.5" />,       label: 'Kirim Kudo',       color: 'text-sky-400 bg-sky-500/10' },
-  kudo_received:        { icon: <Award className="w-3.5 h-3.5" />,       label: 'Terima Kudo',      color: 'text-amber-400 bg-amber-500/10' },
-  shift_handover:       { icon: <ArrowRightLeft className="w-3.5 h-3.5" />, label: 'Handover Shift', color: 'text-indigo-400 bg-indigo-500/10' },
-  sop_completed:        { icon: <BookMarked className="w-3.5 h-3.5" />,  label: 'SOP Selesai',      color: 'text-purple-400 bg-purple-500/10' },
-  kaizen_submitted:     { icon: <Activity className="w-3.5 h-3.5" />,    label: 'Submit Kaizen',    color: 'text-amber-400 bg-amber-500/10' },
-  kaizen_approved:      { icon: <CheckCircle2 className="w-3.5 h-3.5" />,label: 'Kaizen Disetujui', color: 'text-emerald-400 bg-emerald-500/10' },
-  role_mutated:         { icon: <ArrowRightLeft className="w-3.5 h-3.5" />, label: 'Mutasi Role',      color: 'text-cyan-400 bg-cyan-500/10' },
-  admin_created:        { icon: <ShieldCheck className="w-3.5 h-3.5" />, label: 'Admin Baru',       color: 'text-purple-400 bg-purple-500/10' },
-  admin_status_toggled: { icon: <UserCheck className="w-3.5 h-3.5" />,   label: 'Status Admin',     color: 'text-rose-400 bg-rose-500/10' },
-  points_refunded:      { icon: <RotateCcw className="w-3.5 h-3.5" />,   label: 'Pemulihan Poin',   color: 'text-emerald-400 bg-emerald-500/10' },
-  redemption_rejected:  { icon: <XCircle className="w-3.5 h-3.5" />,     label: 'Reward Dibatalkan',color: 'text-rose-400 bg-rose-500/10' },
+  login:                             { icon: <LogIn className="w-3.5 h-3.5" />,       label: 'Login',              color: 'text-emerald-400 bg-emerald-500/10' },
+  logout:                            { icon: <LogOut className="w-3.5 h-3.5" />,      label: 'Logout',             color: 'text-zinc-400 bg-zinc-700/30' },
+  password_reset:                    { icon: <Key className="w-3.5 h-3.5" />,         label: 'Reset Password',     color: 'text-amber-400 bg-amber-500/10' },
+  profile_update:                    { icon: <User className="w-3.5 h-3.5" />,        label: 'Update Profil',      color: 'text-sky-400 bg-sky-500/10' },
+  badge_awarded:                     { icon: <Shield className="w-3.5 h-3.5" />,      label: 'Badge Diraih',       color: 'text-violet-400 bg-violet-500/10' },
+  quiz_completed:                    { icon: <BookOpen className="w-3.5 h-3.5" />,    label: 'Kuis Selesai',       color: 'text-cyan-400 bg-cyan-500/10' },
+  checklist_completed:               { icon: <CheckCircle2 className="w-3.5 h-3.5" />,label: 'Checklist Selesai',  color: 'text-green-400 bg-green-500/10' },
+  incident_reported:                 { icon: <ShieldAlert className="w-3.5 h-3.5" />, label: 'Laporan Insiden',    color: 'text-orange-400 bg-orange-500/10' },
+  kudo_sent:                         { icon: <Award className="w-3.5 h-3.5" />,       label: 'Kirim Kudo',         color: 'text-sky-400 bg-sky-500/10' },
+  kudo_received:                     { icon: <Award className="w-3.5 h-3.5" />,       label: 'Terima Kudo',        color: 'text-amber-400 bg-amber-500/10' },
+  shift_handover:                    { icon: <ArrowRightLeft className="w-3.5 h-3.5" />, label: 'Handover Shift',  color: 'text-indigo-400 bg-indigo-500/10' },
+  sop_completed:                     { icon: <BookMarked className="w-3.5 h-3.5" />,  label: 'SOP Selesai',        color: 'text-purple-400 bg-purple-500/10' },
+  kaizen_submitted:                  { icon: <Activity className="w-3.5 h-3.5" />,    label: 'Submit Kaizen',      color: 'text-amber-400 bg-amber-500/10' },
+  kaizen_approved:                   { icon: <CheckCircle2 className="w-3.5 h-3.5" />,label: 'Kaizen Disetujui',   color: 'text-emerald-400 bg-emerald-500/10' },
+  disciplinary_issued:               { icon: <AlertOctagon className="w-3.5 h-3.5" />,label: 'Sanksi K3',          color: 'text-rose-400 bg-rose-500/10' },
+  disciplinary_retraining_completed: { icon: <CheckCircle2 className="w-3.5 h-3.5" />,label: 'Retraining Selesai',color: 'text-emerald-400 bg-emerald-500/10' },
+  audit_5s_completed:                { icon: <Award className="w-3.5 h-3.5" />,       label: 'Audit 5S/5R',        color: 'text-amber-400 bg-amber-500/10' },
+  sio_registered:                    { icon: <ShieldCheck className="w-3.5 h-3.5" />, label: 'Registrasi SIO',     color: 'text-blue-400 bg-blue-500/10' },
+  ppe_distributed:                   { icon: <Shield className="w-3.5 h-3.5" />,      label: 'Distribusi APD',     color: 'text-cyan-400 bg-cyan-500/10' },
+  ppe_damaged:                       { icon: <AlertTriangle className="w-3.5 h-3.5" />,label: 'Kerusakan APD',    color: 'text-orange-400 bg-orange-500/10' },
+  notification_broadcast:            { icon: <Radio className="w-3.5 h-3.5" />,      label: 'Siaran Notifikasi',  color: 'text-purple-400 bg-purple-500/10' },
+  role_mutated:                      { icon: <ArrowRightLeft className="w-3.5 h-3.5" />, label: 'Mutasi Role',    color: 'text-cyan-400 bg-cyan-500/10' },
+  admin_created:                     { icon: <ShieldCheck className="w-3.5 h-3.5" />, label: 'Admin Baru',         color: 'text-purple-400 bg-purple-500/10' },
+  admin_status_toggled:              { icon: <UserCheck className="w-3.5 h-3.5" />,   label: 'Status Admin',       color: 'text-rose-400 bg-rose-500/10' },
+  points_refunded:                   { icon: <RotateCcw className="w-3.5 h-3.5" />,   label: 'Pemulihan Poin',     color: 'text-emerald-400 bg-emerald-500/10' },
+  points_expired:                    { icon: <Hourglass className="w-3.5 h-3.5" />,   label: 'Poin Hangus',        color: 'text-amber-400 bg-amber-500/10' },
+  redemption_rejected:               { icon: <XCircle className="w-3.5 h-3.5" />,     label: 'Reward Dibatalkan',  color: 'text-rose-400 bg-rose-500/10' },
 };
 
 function formatTimeAgo(iso: string): string {

@@ -14,6 +14,7 @@ import { Audit5sEngine } from '../domain/Audit5sEngine';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { safeLocalStorageSetItem } from './storageSanitizer';
+import { supabase } from './supabaseClient';
 
 const ZONES_STORAGE_KEY = 'gappy_5s_zones_v2';
 const RECORDS_STORAGE_KEY = 'gappy_5s_audit_records_v2';
@@ -189,8 +190,59 @@ export class Audit5sService {
       badgeRating: rating,
     });
 
-    // Notify PIC Worker if assigned
+    // Award points & notify PIC Worker if assigned
     if (zone.picWorkerId) {
+      if (points > 0) {
+        const picId = zone.picWorkerId;
+        (async () => {
+          try {
+            const { error: rpcErr } = await supabase.rpc('increment_worker_points', {
+              p_worker_id: picId,
+              p_points: points,
+            });
+
+            if (rpcErr) {
+              const { data: w } = await supabase
+                .from('workers')
+                .select('id, total_points')
+                .or(`id.eq.${picId},employee_id.eq.${picId}`)
+                .maybeSingle();
+
+              if (w) {
+                await supabase
+                  .from('workers')
+                  .update({
+                    total_points: (w.total_points || 0) + points,
+                    updated_at: new Date().toISOString(),
+                  })
+                  .eq('id', w.id);
+              }
+            }
+
+            try {
+              await supabase.from('activity_log').insert({
+                worker_id: picId,
+                action: 'audit_5s_completed',
+                detail: `Insentif Audit 5R Wilayah ${zone.name} (Predikat ${rating}, Skor ${totalScore}%): +${points} PTS`,
+              });
+            } catch {}
+
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(
+                new CustomEvent('gappy_points_awarded', {
+                  detail: {
+                    workerId: picId,
+                    pointsEarned: points,
+                  },
+                })
+              );
+            }
+          } catch (err) {
+            console.warn('[Audit5sService] Gagal memberikan poin reward 5S ke PIC:', err);
+          }
+        })();
+      }
+
       NotificationEngine.addNotification({
         recipientId: zone.picWorkerId,
         recipientRole: 'worker',

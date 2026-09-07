@@ -205,14 +205,14 @@ BEGIN
 END;
 $$;
 
--- ─── Helper: Get Tier Numeric Level ───────────────────────────
+-- ─── Helper: Get Tier Numeric Level (Case-Insensitive & Resilient) ──────
 CREATE OR REPLACE FUNCTION get_tier_level(p_tier TEXT)
 RETURNS INTEGER IMMUTABLE LANGUAGE sql AS $$
-  SELECT CASE p_tier
-    WHEN 'Novice Operational' THEN 1
-    WHEN 'Pro Specialist' THEN 2
-    WHEN 'Elite Logistician' THEN 3
-    WHEN 'Legendary Champion' THEN 4
+  SELECT CASE LOWER(TRIM(COALESCE(p_tier, '')))
+    WHEN 'novice operational' THEN 1
+    WHEN 'pro specialist' THEN 2
+    WHEN 'elite logistician' THEN 3
+    WHEN 'legendary champion' THEN 4
     ELSE 1
   END;
 $$;
@@ -1084,7 +1084,7 @@ BEGIN
   WHERE id = p_worker_id;
 
   INSERT INTO activity_log (worker_id, action, detail)
-  VALUES (p_worker_id, 'checklist_completed', 'Menyelesaikan modul SOP: ' || v_sop_code || ' — ' || v_sop_title || ' (+ ' || v_points || ' PTS)');
+  VALUES (p_worker_id, 'sop_completed', 'Menyelesaikan modul SOP: ' || v_sop_code || ' — ' || v_sop_title || ' (+ ' || v_points || ' PTS)');
 
   RETURN jsonb_build_object(
     'success', true,
@@ -1128,82 +1128,9 @@ DROP POLICY IF EXISTS "Allow update for shift_handovers" ON shift_handovers;
 CREATE POLICY "Allow update for shift_handovers" ON shift_handovers FOR UPDATE TO public USING (true) WITH CHECK (true);
 
 -- ─── 20. Phase 9: Peer-to-Peer Recognition (Kudos) ─────────────────────────
+-- Catatan: Tabel worker_kudos, indeks performa, constraint kategori multibahasa,
+-- dan RPC rpc_send_kudo atomik dengan proteksi Anti-Fraud terpadu didefinisikan di Section 34.
 
-CREATE TABLE IF NOT EXISTS worker_kudos (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  sender_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
-  receiver_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
-  category TEXT NOT NULL CHECK (category IN ('Kerja Aman', 'Bantuan Hebat', 'Team Player', 'Inisiatif', 'Kerja Keras', 'Teamwork', 'Safety First')),
-  message TEXT NOT NULL,
-  points_awarded INTEGER NOT NULL DEFAULT 10,
-  created_at TIMESTAMPTZ DEFAULT now()
-);
-
--- Ensure category check constraint matches all frontend types
-ALTER TABLE worker_kudos DROP CONSTRAINT IF EXISTS worker_kudos_category_check;
-ALTER TABLE worker_kudos ADD CONSTRAINT worker_kudos_category_check CHECK (
-  category IN ('Kerja Aman', 'Bantuan Hebat', 'Team Player', 'Inisiatif', 'Kerja Keras', 'Teamwork', 'Safety First')
-);
-
-ALTER TABLE worker_kudos ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Allow read all for worker_kudos" ON worker_kudos;
-CREATE POLICY "Allow read all for worker_kudos" ON worker_kudos FOR SELECT TO public USING (true);
-DROP POLICY IF EXISTS "Allow insert for worker_kudos" ON worker_kudos;
-CREATE POLICY "Allow insert for worker_kudos" ON worker_kudos FOR INSERT TO public WITH CHECK (true);
-
--- Update activity_log constraint safely
-ALTER TABLE activity_log DROP CONSTRAINT IF EXISTS activity_log_action_check;
-ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
-  action IN (
-    'login', 'logout', 'password_reset', 'profile_update', 'badge_awarded',
-    'quiz_completed', 'checklist_completed', 'incident_reported',
-    'kudo_sent', 'kudo_received', 'shift_handover', 'sop_completed',
-    'kaizen_submitted', 'kaizen_approved', 'disciplinary_issued',
-    'disciplinary_retraining_completed', 'audit_5s_completed',
-    'sio_registered', 'ppe_distributed', 'ppe_damaged',
-    'notification_broadcast'
-  )
-);
-
--- Drop previous overloaded signatures if existing
-DROP FUNCTION IF EXISTS rpc_send_kudo(TEXT, TEXT, TEXT, TEXT, INTEGER);
-DROP FUNCTION IF EXISTS rpc_send_kudo(TEXT, TEXT, TEXT, TEXT);
-
--- RPC for sending Kudos atomically with default points and JSONB return
-CREATE OR REPLACE FUNCTION rpc_send_kudo(
-  p_sender_id TEXT,
-  p_receiver_id TEXT,
-  p_category TEXT,
-  p_message TEXT DEFAULT '',
-  p_points INTEGER DEFAULT 10
-) RETURNS JSONB AS $$
-DECLARE
-  v_effective_points INTEGER := COALESCE(p_points, 10);
-BEGIN
-  -- 1. Insert kudo record
-  INSERT INTO worker_kudos (sender_id, receiver_id, category, message, points_awarded)
-  VALUES (p_sender_id, p_receiver_id, p_category, p_message, v_effective_points);
-
-  -- 2. Add points to receiver
-  UPDATE workers
-  SET total_points = total_points + v_effective_points,
-      updated_at = now()
-  WHERE id = p_receiver_id;
-
-  -- 3. Log activity for receiver (kudo_received)
-  INSERT INTO activity_log (worker_id, action, detail)
-  VALUES (p_receiver_id, 'kudo_received', 'Menerima Kudo (' || p_category || ') dari Rekan (+' || v_effective_points || ' PTS)');
-
-  -- 4. Log activity for sender (kudo_sent, 0 points)
-  INSERT INTO activity_log (worker_id, action, detail)
-  VALUES (p_sender_id, 'kudo_sent', 'Memberikan Kudo ke Rekan');
-
-  RETURN jsonb_build_object(
-    'success', true,
-    'message', 'Kudo apresiasi berhasil dikirim ke rekan kerja!'
-  );
-END;
-$$ LANGUAGE plpgsql;
 
 -- ─── 21. Phase 11: Kaizen / Suggestion Box (Kotak Saran Inovasi) ────────────
 
@@ -1814,7 +1741,8 @@ ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
     'kaizen_submitted', 'kaizen_approved', 'disciplinary_issued',
     'disciplinary_retraining_completed', 'audit_5s_completed',
     'sio_registered', 'ppe_distributed', 'ppe_damaged',
-    'notification_broadcast', 'role_mutated'
+    'notification_broadcast', 'role_mutated',
+    'admin_created', 'admin_status_toggled', 'points_refunded', 'points_expired', 'redemption_rejected'
   )
 );
 
@@ -1844,17 +1772,8 @@ CREATE POLICY "Allow all access to app_notifications" ON app_notifications FOR A
 ALTER TABLE workers DROP CONSTRAINT IF EXISTS workers_tier_check;
 ALTER TABLE reward_catalog DROP CONSTRAINT IF EXISTS reward_catalog_min_tier_check;
 
--- Helper get_tier_level dinamis & case-insensitive dengan fallback aman
-CREATE OR REPLACE FUNCTION get_tier_level(p_tier TEXT)
-RETURNS INTEGER IMMUTABLE LANGUAGE sql AS $$
-  SELECT CASE LOWER(TRIM(COALESCE(p_tier, '')))
-    WHEN 'novice operational' THEN 1
-    WHEN 'pro specialist' THEN 2
-    WHEN 'elite logistician' THEN 3
-    WHEN 'legendary champion' THEN 4
-    ELSE 1
-  END;
-$$;
+-- Note: Helper get_tier_level dinamis & case-insensitive didefinisikan secara terpadu di Helper Functions Section 0.
+
 
 -- ─── 30. Safety Patrol Logs (Supervisor Gemba Walk & K3 Patrol) ───────────
 CREATE TABLE IF NOT EXISTS safety_patrol_logs (
@@ -1960,37 +1879,11 @@ CREATE INDEX IF NOT EXISTS idx_shift_handovers_date ON shift_handovers(shift_dat
 CREATE INDEX IF NOT EXISTS idx_worker_kudos_receiver_date ON worker_kudos(receiver_id, created_at DESC);
 
 -- ─── 32. Authentication Security, Rate Limiting & Activity Audit Tables (Phase 34) ───
-
--- Table: login_attempts (Untuk proteksi brute-force rate limiting: maks 5x gagal per 15 menit)
-CREATE TABLE IF NOT EXISTS login_attempts (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  identifier TEXT NOT NULL,
-  success BOOLEAN NOT NULL,
-  attempted_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+-- Catatan: Tabel login_attempts didefinisikan di Section 12 dan activity_log di Section 13.
+-- Bagian ini memastikan indeks performa, RLS, dan perizinan sinkron.
 
 CREATE INDEX IF NOT EXISTS idx_login_attempts_rate_limit ON login_attempts(identifier, success, attempted_at DESC);
 CREATE INDEX IF NOT EXISTS idx_login_attempts_cleanup ON login_attempts(attempted_at DESC);
-
-ALTER TABLE login_attempts ENABLE ROW LEVEL SECURITY;
-
-DO $$ BEGIN
-  DROP POLICY IF EXISTS "allow_anon_insert_login_attempts" ON login_attempts;
-  DROP POLICY IF EXISTS "allow_anon_select_login_attempts" ON login_attempts;
-END $$;
-
-CREATE POLICY "allow_anon_insert_login_attempts" ON login_attempts FOR INSERT TO public WITH CHECK (true);
-CREATE POLICY "allow_anon_select_login_attempts" ON login_attempts FOR SELECT TO public USING (true);
-
--- Table: activity_log (Audit trail login, registrasi, pergantian status & operasional)
-CREATE TABLE IF NOT EXISTS activity_log (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
-  worker_id TEXT REFERENCES workers(id) ON DELETE SET NULL,
-  worker_name TEXT,
-  action TEXT NOT NULL,
-  detail TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
 
 CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_log_worker ON activity_log(worker_id, created_at DESC);
@@ -2005,3 +1898,200 @@ CREATE POLICY "allow_anon_all_activity_log" ON activity_log FOR ALL TO public US
 
 GRANT ALL ON TABLE login_attempts TO anon, authenticated, service_role;
 GRANT ALL ON TABLE activity_log TO anon, authenticated, service_role;
+
+-- ─── 33. Universal Activity Log Constraints Synchronization ───
+ALTER TABLE activity_log DROP CONSTRAINT IF EXISTS activity_log_action_check;
+ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
+  action IN (
+    'login', 'logout', 'password_reset', 'profile_update', 'badge_awarded',
+    'quiz_completed', 'checklist_completed', 'incident_reported',
+    'kudo_sent', 'kudo_received', 'shift_handover', 'sop_completed',
+    'kaizen_submitted', 'kaizen_approved', 'disciplinary_issued',
+    'disciplinary_retraining_completed', 'audit_5s_completed',
+    'sio_registered', 'ppe_distributed', 'ppe_damaged',
+    'notification_broadcast', 'role_mutated',
+    'admin_created', 'admin_status_toggled', 'points_refunded', 'points_expired', 'redemption_rejected'
+  )
+);
+
+-- ─── 34. Peer-to-Peer Recognition (Anti-Fraud Worker Kudos & Unified RPC) ───
+
+CREATE TABLE IF NOT EXISTS worker_kudos (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  sender_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  receiver_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  category TEXT NOT NULL,
+  message TEXT NOT NULL DEFAULT '',
+  points_awarded INTEGER NOT NULL DEFAULT 25,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Sinkronkan constraint kategori agar 100% cocok dengan frontend ('Kerja Aman', 'Bantuan Hebat', 'Team Player', 'Inisiatif')
+ALTER TABLE worker_kudos DROP CONSTRAINT IF EXISTS worker_kudos_category_check;
+ALTER TABLE worker_kudos ADD CONSTRAINT worker_kudos_category_check CHECK (
+  category IN (
+    'Kerja Aman', 'Bantuan Hebat', 'Team Player', 'Inisiatif',
+    'Kerja Keras', 'Teamwork', 'Safety First',
+    'safety_hero', 'team_player', 'quick_learner', 'problem_solver', 'excellence', 'great_effort'
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_worker_kudos_sender_date ON worker_kudos(sender_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_worker_kudos_receiver_date ON worker_kudos(receiver_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_worker_kudos_pair ON worker_kudos(sender_id, receiver_id, created_at DESC);
+
+ALTER TABLE worker_kudos ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "allow_all_worker_kudos" ON worker_kudos;
+END $$;
+
+CREATE POLICY "allow_all_worker_kudos" ON worker_kudos FOR ALL TO public USING (true) WITH CHECK (true);
+GRANT ALL ON TABLE worker_kudos TO anon, authenticated, service_role;
+
+-- Drop overload signatures sebelumnya jika ada
+DROP FUNCTION IF EXISTS rpc_send_kudo(TEXT, TEXT, TEXT, TEXT, INTEGER);
+DROP FUNCTION IF EXISTS rpc_send_kudo(TEXT, TEXT, TEXT, TEXT);
+
+-- RPC Atomik Terpadu: rpc_send_kudo dengan Anti-Fraud (Anti-Self, Kuota Mingguan Maks 3, Anti-Pingpong 7 Hari)
+CREATE OR REPLACE FUNCTION rpc_send_kudo(
+  p_sender_id TEXT,
+  p_receiver_id TEXT,
+  p_category TEXT,
+  p_message TEXT DEFAULT '',
+  p_points INTEGER DEFAULT 25
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_sender_weekly_count INTEGER;
+  v_pair_recent_count INTEGER;
+  v_sender_name TEXT;
+  v_receiver_name TEXT;
+  v_kudo_id TEXT;
+  v_sender_bonus INTEGER := 10;
+BEGIN
+  -- 1. Anti-Self: Tidak boleh mengirim kudo ke diri sendiri
+  IF p_sender_id = p_receiver_id THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'message', 'Anti-Fraud: Anda tidak dapat mengirimkan kudo apresiasi kepada diri sendiri.'
+    );
+  END IF;
+
+  -- Pastikan sender dan receiver terdaftar
+  SELECT name INTO v_sender_name FROM workers WHERE id = p_sender_id;
+  IF v_sender_name IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'message', 'Pengirim kudo tidak valid.');
+  END IF;
+
+  SELECT name INTO v_receiver_name FROM workers WHERE id = p_receiver_id;
+  IF v_receiver_name IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'message', 'Penerima kudo tidak ditemukan.');
+  END IF;
+
+  -- 2. Anti-Quota: Maksimal 3 kudo dalam 7 hari terakhir
+  SELECT COUNT(*) INTO v_sender_weekly_count
+  FROM worker_kudos
+  WHERE sender_id = p_sender_id
+    AND created_at >= (now() - interval '7 days');
+
+  IF v_sender_weekly_count >= 3 THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'message', 'Batas Kuota: Anda telah mencapai batas maksimal 3 kudo minggu ini. Kuota akan direset berkala.'
+    );
+  END IF;
+
+  -- 3. Anti-Pingpong: Tidak boleh mengirim kudo ke rekan yang sama dalam 7 hari terakhir
+  SELECT COUNT(*) INTO v_pair_recent_count
+  FROM worker_kudos
+  WHERE sender_id = p_sender_id
+    AND receiver_id = p_receiver_id
+    AND created_at >= (now() - interval '7 days');
+
+  IF v_pair_recent_count > 0 THEN
+    RETURN jsonb_build_object(
+      'success', false,
+      'message', 'Anti-Pingpong: Anda sudah memberikan kudo kepada rekan kerja ini dalam 7 hari terakhir.'
+    );
+  END IF;
+
+  -- 4. Atomic Insert Kudo
+  v_kudo_id := gen_random_uuid()::text;
+  INSERT INTO worker_kudos (id, sender_id, receiver_id, category, message, points_awarded, created_at)
+  VALUES (v_kudo_id, p_sender_id, p_receiver_id, p_category, p_message, p_points, now());
+
+  -- 5. Atomic Update Points:
+  -- Receiver dapat +p_points
+  UPDATE workers
+  SET total_points = total_points + p_points,
+      updated_at = now()
+  WHERE id = p_receiver_id;
+
+  -- Sender dapat apresiasi pemberi inspirasi (+10 pts)
+  UPDATE workers
+  SET total_points = total_points + v_sender_bonus,
+      updated_at = now()
+  WHERE id = p_sender_id;
+
+  -- 6. Audit Logging
+  INSERT INTO activity_log (worker_id, worker_name, action, detail, created_at)
+  VALUES
+    (p_receiver_id, v_receiver_name, 'kudo_received', 'Menerima Kudo dari ' || v_sender_name || ': +' || p_points || ' PTS (' || p_category || ')', now()),
+    (p_sender_id, v_sender_name, 'kudo_sent', 'Mengirimkan Kudo ke ' || v_receiver_name || ': +' || v_sender_bonus || ' PTS', now());
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'message', 'Kudo apresiasi berhasil dikirimkan!',
+    'kudo_id', v_kudo_id,
+    'points_awarded', p_points,
+    'sender_bonus', v_sender_bonus,
+    'remaining_quota', 3 - (v_sender_weekly_count + 1)
+  );
+END;
+$$;
+
+-- ─── 35. Safety Patrol Gemba Walk Reward RPC ──────────────────
+
+CREATE OR REPLACE FUNCTION rpc_award_integrity_points(
+  p_worker_id TEXT,
+  p_points INTEGER DEFAULT 25,
+  p_reason TEXT DEFAULT ''
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_worker_name TEXT;
+  v_new_points INTEGER;
+BEGIN
+  UPDATE workers
+  SET total_points = total_points + p_points,
+      updated_at = now()
+  WHERE id = p_worker_id OR employee_id = p_worker_id
+  RETURNING name, total_points INTO v_worker_name, v_new_points;
+
+  IF v_worker_name IS NOT NULL THEN
+    INSERT INTO activity_log (worker_id, worker_name, action, detail, created_at)
+    VALUES (
+      p_worker_id,
+      v_worker_name,
+      'points_refunded',
+      COALESCE(NULLIF(p_reason, ''), 'Reward Penyelesaian Safety Patrol Gemba Walk') || ': +' || p_points || ' PTS',
+      now()
+    );
+  END IF;
+
+  RETURN jsonb_build_object(
+    'success', true,
+    'worker_id', p_worker_id,
+    'points_awarded', p_points,
+    'new_points', v_new_points
+  );
+END;
+$$;
+

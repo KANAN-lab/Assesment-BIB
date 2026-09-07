@@ -1,6 +1,8 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X, ShieldCheck, CheckSquare, Square, AlertCircle, Award, UserCheck } from 'lucide-react';
+import { SystemConfigService } from '../domain/SystemConfigService';
+import { WorkerEntity } from '../domain/WorkerEntity';
 
 interface ChecklistDetailModalProps {
   onClose: () => void;
@@ -675,13 +677,42 @@ export const ChecklistDetailModal: React.FC<ChecklistDetailModalProps> = ({
   workerRole = 'Operator Forklift',
   workerDivision = 'WFG',
 }) => {
+  const closeBtnRef = useRef<HTMLButtonElement>(null);
   const checklistItems = useMemo(
     () => getPreShiftChecklistForRole(workerRole, workerDivision),
     [workerRole, workerDivision]
   );
 
+  const baseRewardPoints = useMemo(() => {
+    return SystemConfigService.getConfig().preShiftRewardPoints ?? 30;
+  }, []);
+
+  const totalRewardEstimate = useMemo(() => {
+    return WorkerEntity.calculateStreakBonusPoints(streakDays + 1, baseRewardPoints);
+  }, [streakDays, baseRewardPoints]);
+
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    const timer = setTimeout(() => {
+      closeBtnRef.current?.focus();
+    }, 50);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      clearTimeout(timer);
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   const toggleItem = (id: string) => {
     setCheckedIds((prev) => {
@@ -711,6 +742,7 @@ export const ChecklistDetailModal: React.FC<ChecklistDetailModalProps> = ({
   return createPortal(
     <div
       className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+      onClick={onClose}
     >
       <div
         className="relative w-full max-w-lg max-h-[82vh] sm:max-h-[85vh] m-auto card-elevated p-6 flex flex-col"
@@ -718,8 +750,10 @@ export const ChecklistDetailModal: React.FC<ChecklistDetailModalProps> = ({
       >
         {/* Close Button */}
         <button
+          ref={closeBtnRef}
           onClick={onClose}
-          className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition"
+          aria-label="Tutup inspeksi pre-shift"
+          className="absolute top-4 right-4 text-zinc-400 hover:text-white p-1 rounded-lg hover:bg-zinc-800 transition focus:outline-none focus:ring-2 focus:ring-indigo-400"
         >
           <X className="w-5 h-5" />
         </button>
@@ -816,7 +850,7 @@ export const ChecklistDetailModal: React.FC<ChecklistDetailModalProps> = ({
         <div className="pt-3 border-t border-zinc-800 flex items-center justify-between gap-3 shrink-0">
           <div className="flex items-center gap-1.5 text-xs text-amber-400 font-bold">
             <Award className="w-4 h-4" />
-            <span>+30 Poin + Streak Harian</span>
+            <span>+{totalRewardEstimate} Poin + Streak Hari ke-{streakDays + 1}</span>
           </div>
           <div className="flex gap-2">
             <button
@@ -835,7 +869,7 @@ export const ChecklistDetailModal: React.FC<ChecklistDetailModalProps> = ({
               }`}
             >
               <ShieldCheck className="w-4 h-4" />
-              Selesaikan Check (+30 Poin)
+              Selesaikan Check (+{totalRewardEstimate} Poin)
             </button>
           </div>
         </div>

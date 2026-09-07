@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { KaizenSuggestionEntity, KaizenInput, KaizenReviewInput } from '../types/kaizen';
+import { NotificationEngine } from '../domain/NotificationEngine';
 
 export class KaizenService {
   /**
@@ -69,6 +70,15 @@ export class KaizenService {
         detail: `Mengajukan ide Kaizen: "${input.title.slice(0, 30)}..."`,
       });
 
+      // Notifikasi ke Supervisor
+      NotificationEngine.addNotification({
+        recipientId: 'supervisor',
+        recipientRole: 'supervisor',
+        title: `💡 Usulan Ide Kaizen Baru: ${input.category}`,
+        message: `Usulan inovasi "${input.title.trim()}" telah diajukan oleh staf. Tinjau di Papan Kanban Kaizen.`,
+        type: 'system',
+      });
+
       return {
         success: true,
         data: this.mapToEntity(data),
@@ -130,13 +140,28 @@ export class KaizenService {
   }
 
   /**
-   * Meninjau usulan Kaizen (update status, berikan poin reward, dan feedback reviewer via atomic RPC)
+   * Meninjau usulan Kaizen (update status, berikan poin reward, dan feedback reviewer via atomic RPC / robust fallback)
    */
   static async reviewSuggestion(
     review: KaizenReviewInput
   ): Promise<{ success: boolean; error?: string }> {
     try {
-      const { error } = await supabase.rpc('rpc_approve_kaizen', {
+      // 1. Ambil data usulan sebelumnya untuk keperluan perhitungan selisih poin & notifikasi
+      const { data: suggestion } = await supabase
+        .from('kaizen_suggestions')
+        .select('id, author_id, title, reward_points, status')
+        .eq('id', review.suggestionId)
+        .maybeSingle();
+
+      const effectiveReward = (review.newStatus === 'Approved' || review.newStatus === 'Implemented')
+        ? Math.max(review.rewardPoints, 0)
+        : 0;
+      const prevReward = suggestion?.reward_points || 0;
+      const pointDiff = effectiveReward - prevReward;
+
+      // 2. Coba eksekusi Stored Procedure Atomik rpc_approve_kaizen
+      let rpcSuccess = false;
+      const { error: rpcError } = await supabase.rpc('rpc_approve_kaizen', {
         p_suggestion_id: review.suggestionId,
         p_reviewer_id: review.reviewerId,
         p_new_status: review.newStatus,
@@ -144,11 +169,87 @@ export class KaizenService {
         p_feedback: review.feedback.trim()
       });
 
-      if (error) throw error;
+      if (!rpcError) {
+        rpcSuccess = true;
+      } else {
+        console.warn('[KaizenService] RPC rpc_approve_kaizen gagal/tidak ditemukan, lanjut fallback sequential:', rpcError.message);
+      }
+
+      // 3. Fallback Client-side jika RPC tidak tersedia
+      if (!rpcSuccess) {
+        const { error: updateErr } = await supabase
+          .from('kaizen_suggestions')
+          .update({
+            status: review.newStatus,
+            reward_points: effectiveReward,
+            reviewer_id: review.reviewerId,
+            reviewer_feedback: review.feedback.trim(),
+            reviewed_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', review.suggestionId);
+
+        if (updateErr) throw updateErr;
+
+        if (pointDiff !== 0 && suggestion?.author_id) {
+          const { data: worker } = await supabase
+            .from('workers')
+            .select('id, total_points')
+            .eq('id', suggestion.author_id)
+            .maybeSingle();
+
+          if (worker) {
+            const newPoints = Math.max((worker.total_points || 0) + pointDiff, 0);
+            await supabase
+              .from('workers')
+              .update({
+                total_points: newPoints,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', suggestion.author_id);
+          }
+
+          if (pointDiff > 0) {
+            await supabase.from('activity_log').insert({
+              worker_id: suggestion.author_id,
+              action: 'kaizen_approved',
+              detail: `Poin Reward Kaizen: "${(suggestion.title || '').slice(0, 35)}..." (+${pointDiff} PTS)`,
+            });
+          }
+        }
+      }
+
+      // 4. Reaktivitas Poin Realtime di Browser
+      if (typeof window !== 'undefined' && pointDiff !== 0 && suggestion?.author_id) {
+        window.dispatchEvent(
+          new CustomEvent('gappy_points_awarded', {
+            detail: {
+              workerId: suggestion.author_id,
+              pointsEarned: pointDiff,
+            },
+          })
+        );
+      }
+
+      // 5. Notifikasi Resmi Hasil Review ke Author Kaizen
+      if (suggestion?.author_id) {
+        const isApproved = review.newStatus === 'Approved' || review.newStatus === 'Implemented';
+        const isRejected = review.newStatus === 'Rejected';
+        const statusLabel = isApproved ? 'Disetujui' : isRejected ? 'Ditolak' : review.newStatus;
+        const pointText = isApproved && effectiveReward > 0 ? ` (+${effectiveReward} PTS)` : '';
+
+        NotificationEngine.addNotification({
+          recipientId: suggestion.author_id,
+          recipientRole: 'worker',
+          type: 'reward',
+          title: `💡 Usulan Kaizen ${statusLabel}${pointText}`,
+          message: `Ide Kaizen Anda "${suggestion.title}" telah dievaluasi dengan status ${statusLabel}.${review.feedback ? ` Catatan Evaluasi: "${review.feedback.trim()}"` : ''}`,
+        });
+      }
 
       return { success: true };
     } catch (err: any) {
-      console.error('Error reviewing Kaizen suggestion via RPC:', err);
+      console.error('Error reviewing Kaizen suggestion:', err);
       return {
         success: false,
         error: err.message || 'Gagal memproses review Kaizen'

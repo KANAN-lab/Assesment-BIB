@@ -105,6 +105,7 @@ export function KaizenKanbanBoard({ currentUserId, isAdmin = false }: KaizenKanb
   const [rewardPoints, setRewardPoints] = useState<number>(100);
   const [feedback, setFeedback] = useState<string>('');
   const [reviewing, setReviewing] = useState<boolean>(false);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   const fetchSuggestions = async () => {
     setLoading(true);
@@ -200,6 +201,7 @@ export function KaizenKanbanBoard({ currentUserId, isAdmin = false }: KaizenKanb
             : 0
     );
     setFeedback(item.reviewer_feedback || '');
+    setReviewError(null);
     setReviewModalOpen(true);
   };
 
@@ -208,6 +210,7 @@ export function KaizenKanbanBoard({ currentUserId, isAdmin = false }: KaizenKanb
     if (!selectedSuggestion || !currentUserId) return;
 
     setReviewing(true);
+    setReviewError(null);
     const input: KaizenReviewInput = {
       suggestionId: selectedSuggestion.id,
       reviewerId: currentUserId,
@@ -216,8 +219,8 @@ export function KaizenKanbanBoard({ currentUserId, isAdmin = false }: KaizenKanb
       feedback: feedback
     };
 
-    const success = await KaizenService.reviewSuggestion(input);
-    if (success) {
+    const res = await KaizenService.reviewSuggestion(input);
+    if (res && res.success) {
       setSuggestions((prev) =>
         prev.map((s) =>
           s.id === selectedSuggestion.id
@@ -232,6 +235,8 @@ export function KaizenKanbanBoard({ currentUserId, isAdmin = false }: KaizenKanb
         )
       );
       setReviewModalOpen(false);
+    } else {
+      setReviewError(res?.error || 'Gagal memproses review Kaizen. Silakan coba lagi.');
     }
     setReviewing(false);
   };
@@ -839,6 +844,13 @@ export function KaizenKanbanBoard({ currentUserId, isAdmin = false }: KaizenKanb
                       Ide ini sebelumnya telah memperoleh reward <strong className="text-amber-400">+{selectedSuggestion.reward_points} PTS</strong>. Mengubah status ke <strong className="text-white">{targetStatus}</strong> akan otomatis menarik kembali (refund) poin tersebut dari saldo akun staf.
                     </p>
                   </div>
+                </div>
+              )}
+
+              {reviewError && (
+                <div className="p-3 bg-rose-500/10 border border-rose-500/30 rounded-xl text-rose-300 text-xs flex items-center gap-2">
+                  <ShieldAlert className="w-4 h-4 shrink-0 text-rose-400" />
+                  <span>{reviewError}</span>
                 </div>
               )}
 

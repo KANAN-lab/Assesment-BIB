@@ -45,6 +45,55 @@ function setCachedQuiz(quizzes: QuizQuestion[], workerId?: string, role?: string
 
 let activeSupabaseApiKey: string | null = null;
 
+/**
+ * Ekstraktor JSON tangguh dari respon model AI/LLM.
+ * Mampu mengekstrak payload JSON terlepas dari adanya teks pengantar atau penutup markdown.
+ */
+export function extractJsonFromAiResponse<T = any>(text: string): T {
+  if (!text || typeof text !== 'string') {
+    throw new Error('Respon AI kosong');
+  }
+
+  // 1. Coba cari blok ```json ... ``` atau ``` ... ``` di dalam teks
+  const codeBlockMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  if (codeBlockMatch && codeBlockMatch[1]) {
+    try {
+      return JSON.parse(codeBlockMatch[1].trim());
+    } catch {
+      // lanjut ke ekstraksi bracket jika parse codeblock gagal
+    }
+  }
+
+  // 2. Coba cari substring array JSON [...]
+  const arrayMatch = text.match(/\[\s*\{[\s\S]*\}\s*\]/);
+  if (arrayMatch) {
+    try {
+      return JSON.parse(arrayMatch[0].trim());
+    } catch {
+      // lanjut ke ekstraksi object
+    }
+  }
+
+  // 3. Coba cari substring object JSON {...}
+  const objectMatch = text.match(/\{[\s\S]*\}/);
+  if (objectMatch) {
+    try {
+      return JSON.parse(objectMatch[0].trim());
+    } catch {
+      // fallback
+    }
+  }
+
+  // 4. Bersihkan token markdown umum dan coba parse langsung
+  const clean = text
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  return JSON.parse(clean);
+}
+
 export async function resolveGeminiApiKey(): Promise<string | undefined> {
   const envKey = import.meta.env.VITE_GEMINI_API_KEY as string | undefined;
   if (envKey && envKey.trim().length > 10) {
@@ -480,13 +529,7 @@ export async function generateDailyQuiz(
       const result: any = await Promise.race([model.generateContent(promptText), timeoutPromise]);
       const text = result.response.text().trim();
 
-      const jsonText = text
-        .replace(/^```json\s*/i, '')
-        .replace(/^```\s*/i, '')
-        .replace(/\s*```$/i, '')
-        .trim();
-
-      const parsed: QuizQuestion[] = JSON.parse(jsonText);
+      const parsed: QuizQuestion[] = extractJsonFromAiResponse<QuizQuestion[]>(text);
 
       if (!Array.isArray(parsed) || parsed.length === 0) {
         continue;
@@ -632,13 +675,7 @@ export async function forceRefreshDailyQuiz(
       const result: any = await Promise.race([model.generateContent(promptText), timeoutPromise]);
       const text = result.response.text().trim();
 
-      const jsonText = text
-        .replace(/^```json\s*/i, '')
-        .replace(/^```\s*/i, '')
-        .replace(/\s*```$/i, '')
-        .trim();
-
-      const parsed: QuizQuestion[] = JSON.parse(jsonText);
+      const parsed: QuizQuestion[] = extractJsonFromAiResponse<QuizQuestion[]>(text);
 
       if (Array.isArray(parsed) && parsed.length > 0) {
         const validated = parsed.filter(
@@ -665,3 +702,166 @@ export async function forceRefreshDailyQuiz(
     `API Gappy AI tidak merespon (${lastErrorMsg.slice(0, 80)}...). Kuis harian gagal dibuat.`
   );
 }
+
+// ─── Gappy AI Incident Root Cause & CAPA Copilot (5-Why & Fishbone) ──────────
+
+export interface IncidentCapaCopilotResult {
+  fishboneCategory: 'man' | 'machine' | 'method' | 'material' | 'environment';
+  why1: string;
+  why2: string;
+  why3: string;
+  why4: string;
+  why5: string;
+  rootCause: string;
+  correctiveAction: string;
+  preventiveAction: string;
+  recommendedPic?: string;
+  source: 'ai' | 'fallback';
+}
+
+/**
+ * Menghasilkan rekomendasi investigasi 5-Why dan tindakan korektif/preventif (CAPA)
+ * berbasis AI untuk pengawas lapangan dan HSE Specialist (standar ISO 45001 / SMK3).
+ */
+export async function generateIncidentCapaCopilot(params: {
+  type: string;
+  location: string;
+  description: string;
+  severity?: string;
+  workerRole?: string;
+}): Promise<IncidentCapaCopilotResult> {
+  const { type, location, description, severity = 'medium', workerRole = 'Operator' } = params;
+
+  // Fallback domain-specific generator jika AI offline
+  const createDomainFallback = (): IncidentCapaCopilotResult => {
+    const isMhe = description.toLowerCase().includes('forklift') || description.toLowerCase().includes('reach') || description.toLowerCase().includes('pallet');
+    const isSpill = description.toLowerCase().includes('tumpah') || description.toLowerCase().includes('bocor') || description.toLowerCase().includes('oli');
+    const isFall = description.toLowerCase().includes('jatuh') || description.toLowerCase().includes('terpeleset') || description.toLowerCase().includes('tersandung');
+
+    if (isMhe) {
+      return {
+        fishboneCategory: 'machine',
+        why1: 'Armada material handling (MHE) menyenggol material/fasilitas saat bermanuver.',
+        why2: 'Jarak pandang (blindspot) operator terhalang tumpukan muatan di area lorong kerja.',
+        why3: 'Penataan stacking muatan melebihi garis batas aman visual gudang.',
+        why4: 'Belum dilakukan pemasangan cermin cembung tikungan dan garis demarkasi jalur satu arah di area tersebut.',
+        why5: 'Evaluasi berkala rute lalu lintas MHE (traffic management plan) belum diperbarui pasca restrukturisasi layout rak.',
+        rootCause: 'Kelemahan pada traffic management plan gudang dan ketiadaan cermin blindspot di persimpangan lorong rak sempit.',
+        correctiveAction: 'Pasang barikade pengaman sementara, bersihkan puing material yang tersenggol, dan lakukan inspeksi fisik MHE.',
+        preventiveAction: 'Instalasi cermin cembung 360°, tandai ulang garis demarkasi lorong rak, dan briefing ulang batas muatan stacking maksimal.',
+        source: 'fallback',
+      };
+    }
+
+    if (isSpill) {
+      return {
+        fishboneCategory: 'environment',
+        why1: 'Terdapat tumpahan cairan pelumas/oli pada permukaan lantai lintasan operasional.',
+        why2: 'Kebocoran seal hidrolik dari selang unit penanganan material saat melintas.',
+        why3: 'Pemeriksaan rutin harian (P2H) tidak mendeteksi rembesan mikro sebelum shift berjalan.',
+        why4: 'Checklist P2H belum mencantumkan verifikasi visual sambungan selang tekanan tinggi.',
+        why5: 'Siklus preventive maintenance komponen hidrolik terlewat karena pencatatan manual jam operasi unit.',
+        rootCause: 'Tidak adanya sistem peringatan otomatis siklus jam operasional hidrolik dan lembar P2H yang kurang spesifik.',
+        correctiveAction: 'Isolasi area tumpahan dengan absorbent pad/serbuk gergaji, pasang tanda awas licin, dan cuci permukaan lantai.',
+        preventiveAction: 'Revisi formulir checklist P2H dengan item cek hidrolik mandatori serta perbarui jadwal PM vendor alat berat.',
+        source: 'fallback',
+      };
+    }
+
+    if (isFall) {
+      return {
+        fishboneCategory: 'method',
+        why1: 'Personel tergelincir / tersandung saat melakukan mobilitas kerja.',
+        why2: 'Terdapat kabel/pengikat pallet yang melintang di jalur pejalan kaki.',
+        why3: 'Prinsip housekeeping 5R (Ringkas, Rapi, Resik) belum ditegakkan pada saat pergantian shift.',
+        why4: 'Tidak ada tempat penampungan sementara sampah plastik wrapping di dekat zona unboxing.',
+        why5: 'Protokol shift handover belum mengaudit kebersihan fisik lantai sebelum serah terima pekerjaan.',
+        rootCause: 'Ketiadaan sarana penampungan limbah kemasan di titik kerja dan lemahnya verifikasi 5R saat pergantian shift.',
+        correctiveAction: 'Bantu personel ke pos P3K jika ada cedera, singkirkan material penghalang dari koridor pedestrian.',
+        preventiveAction: 'Sediakan tempat sampah pilah mobile di tiap gang, dan jadwalkan audit 5R mandatori 10 menit sebelum shift berakhir.',
+        source: 'fallback',
+      };
+    }
+
+    return {
+      fishboneCategory: 'method',
+      why1: `Terjadi anomali operasional (${type}) di lokasi ${location}.`,
+      why2: 'Kondisi lingkungan kerja atau peralatan tidak berada dalam parameter standar normal.',
+      why3: 'Prosedur pemantauan berkala belum mencakup mitigasi bahaya spesifik pada kondisi tersebut.',
+      why4: 'Sosialisasi identifikasi bahaya risiko K3 (HIRADC) belum terserap merata ke lini operasional.',
+      why5: 'Belum ada sistem kontrol visual terstandarisasi untuk mendeteksi deviasi secara instan.',
+      rootCause: `Kelemahan kontrol rekayasa teknik dan kepatuhan prosedur operasional standar (SOP) di area ${location}.`,
+      correctiveAction: 'Segera lakukan isolasi bahaya, amankan personel di lokasi, dan pastikan kondisi kembali stabil.',
+      preventiveAction: 'Tinjau ulang Job Safety Analysis (JSA) area tersebut, perbarui visual hazard tag, dan berikan toolbox meeting tematik.',
+      source: 'fallback',
+    };
+  };
+
+  try {
+    const apiKey = await resolveGeminiApiKey();
+    if (!apiKey) {
+      return createDomainFallback();
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey.trim());
+    const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
+
+    const prompt = `Anda adalah Ahli K3 Senior (HSE Specialist & Lead Auditor ISO 45001 / SMK3) pada perusahaan logistik pergudangan FMCG (PT. Daya Anugrah Mulya).
+Lakukan investigasi terstruktur metode 5-Why Analysis dan Fishbone (4M+1E) untuk insiden operasional berikut:
+
+DATA INSIDEN:
+- Jenis Insiden: ${type}
+- Tingkat Keparahan: ${severity}
+- Lokasi: ${location}
+- Peran Terkait: ${workerRole}
+- Deskripsi Kejadian: "${description}"
+
+PANDUAN INVESTIGASI:
+1. Hindari menyalahkan individu (human error). Fokuslah pada akar masalah sistemik, engineering, sarana alat berat (MHE), lingkungan, atau prosedur kerja (SOP).
+2. Tentukan satu kategori Fishbone yang paling dominan: 'man' | 'machine' | 'method' | 'material' | 'environment'.
+3. Buat 5 runtutan pertanyaan-jawaban sebab-akibat (Why 1 sampai Why 5) yang logis dan mengerucut ke akar masalah sejati.
+4. Simpulkan Akar Masalah Utama (Root Cause).
+5. Buat Tindakan Perbaikan Langsung (Corrective Action) dan Tindakan Pencegahan Sistemik (Preventive Action) yang SMART dan relevan dengan dunia logistik.
+
+Berikan jawaban HANYA dalam format JSON valid tanpa format markdown lain:
+{
+  "fishboneCategory": "man" | "machine" | "method" | "material" | "environment",
+  "why1": "string penjelasan sebab tingkat 1",
+  "why2": "string penjelasan sebab tingkat 2",
+  "why3": "string penjelasan sebab tingkat 3",
+  "why4": "string penjelasan sebab tingkat 4",
+  "why5": "string akar masalah hakiki tingkat 5",
+  "rootCause": "ringkasan akar masalah utama",
+  "correctiveAction": "tindakan perbaikan jangka pendek",
+  "preventiveAction": "tindakan pencegahan jangka panjang"
+}`;
+
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('AI Copilot Timeout (8s)')), 8000)
+    );
+
+    const result: any = await Promise.race([model.generateContent(prompt), timeoutPromise]);
+    const rawText = result.response.text().trim();
+    const parsed = extractJsonFromAiResponse<any>(rawText);
+    if (parsed.why1 && parsed.why5 && parsed.rootCause && parsed.correctiveAction) {
+      return {
+        fishboneCategory: parsed.fishboneCategory || 'method',
+        why1: parsed.why1,
+        why2: parsed.why2 || '',
+        why3: parsed.why3 || '',
+        why4: parsed.why4 || '',
+        why5: parsed.why5,
+        rootCause: parsed.rootCause,
+        correctiveAction: parsed.correctiveAction,
+        preventiveAction: parsed.preventiveAction || '',
+        source: 'ai',
+      };
+    }
+
+    return createDomainFallback();
+  } catch (err) {
+    console.warn('Gappy AI Copilot fallback digunakan:', err);
+    return createDomainFallback();
+  }
+}
+

@@ -1,6 +1,7 @@
 import React from 'react';
-import { Zap, ShieldCheck, Flame, CheckCircle2, Clock } from 'lucide-react';
+import { Zap, ShieldCheck, Flame, CheckCircle2, Clock, Hourglass } from 'lucide-react';
 import { WorkerProfile } from '../types/assessment';
+import { getPointsExpiryInfo } from '../lib/supabaseService';
 
 interface DailyProgressCardProps {
   worker: WorkerProfile;
@@ -18,6 +19,8 @@ export const DailyProgressCard: React.FC<DailyProgressCardProps> = ({
   const overallPct = Math.round((completedCount / totalTasks) * 100);
 
   const streakWeekPct = Math.min(100, Math.round((worker.streakDays % 7 || (worker.streakDays > 0 ? 7 : 0)) / 7 * 100));
+
+  const expiryInfo = getPointsExpiryInfo(worker.totalPoints);
 
   const tasks = [
     {
@@ -78,6 +81,25 @@ export const DailyProgressCard: React.FC<DailyProgressCardProps> = ({
           style={{ width: `${overallPct}%` }}
         />
       </div>
+
+      {/* Early Warning Poin Hangus Bulanan */}
+      {expiryInfo.isWarningActive && (
+        <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5 text-xs">
+          <Hourglass className="w-4 h-4 text-amber-400 shrink-0 mt-0.5 animate-pulse" />
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-1.5 font-bold text-amber-300">
+              <span>Peringatan Masa Berlaku Poin</span>
+              <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                H-{expiryInfo.daysRemaining}
+              </span>
+            </div>
+            <p className="text-[11px] text-amber-200/80 leading-relaxed">
+              Estimasi <strong className="text-amber-100 font-bold">{expiryInfo.pointsExpiring} PTS</strong> akan dievaluasi pada{' '}
+              <strong className="text-white font-medium">{expiryInfo.expiryDate}</strong> untuk siklus liabilitas stok gudang. Segera tukarkan di Katalog Reward!
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Task list */}
       <div className="space-y-2.5">

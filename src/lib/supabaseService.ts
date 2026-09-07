@@ -271,6 +271,25 @@ export async function completeWorkerQuiz(
   const { error } = await supabase.from('workers').update(updateData).eq('id', workerId);
   if (error) throw error;
 
+  // Audit log
+  try {
+    await supabase.from('activity_log').insert({
+      worker_id: workerId,
+      action: 'quiz_completed',
+      detail: `Kuis Keselamatan K3 Harian Selesai: +${pointsEarned} PTS (Streak: ${streakDays} Hari)`,
+    });
+  } catch (logErr) {
+    console.warn('[completeWorkerQuiz] Gagal mencatat activity log:', logErr);
+  }
+
+  if (typeof window !== 'undefined' && pointsEarned > 0) {
+    window.dispatchEvent(
+      new CustomEvent('gappy_points_awarded', {
+        detail: { workerId, pointsEarned },
+      })
+    );
+  }
+
   return { pointsEarned, tierChanged: true, newTier };
 }
 
@@ -299,6 +318,25 @@ export async function completeWorkerChecklist(
   }).eq('id', workerId);
 
   if (error) throw error;
+
+  // Audit log
+  try {
+    await supabase.from('activity_log').insert({
+      worker_id: workerId,
+      action: 'checklist_completed',
+      detail: `Pre-Shift Inspection Checklist Selesai: +${pointsEarned} PTS (Streak: ${newStreak} Hari)`,
+    });
+  } catch (logErr) {
+    console.warn('[completeWorkerChecklist] Gagal mencatat activity log:', logErr);
+  }
+
+  if (typeof window !== 'undefined' && pointsEarned > 0) {
+    window.dispatchEvent(
+      new CustomEvent('gappy_points_awarded', {
+        detail: { workerId, pointsEarned },
+      })
+    );
+  }
 
   return { pointsEarned, newStreak, newTier };
 }
@@ -581,6 +619,13 @@ export async function fetchAllRedemptionHistory(): Promise<AdminRedemptionRecord
 }
 
 export async function fulfillRedemption(redemptionId: string, adminWorkerId: string): Promise<void> {
+  // Ambil data penukaran terlebih dahulu untuk keperluan notifikasi & logging
+  const { data: record } = await supabase
+    .from('redemption_history')
+    .select('id, worker_id, item_title, redemption_code')
+    .eq('id', redemptionId)
+    .maybeSingle();
+
   const { error } = await supabase.rpc('rpc_fulfill_redemption', {
     p_redemption_id: redemptionId,
     p_admin_worker_id: adminWorkerId,
@@ -597,6 +642,28 @@ export async function fulfillRedemption(redemptionId: string, adminWorkerId: str
       })
       .eq('id', redemptionId);
     if (updateErr) throw updateErr;
+  }
+
+  // Kirim notifikasi ke pekerja bahwa voucher telah diserahkan
+  if (record?.worker_id) {
+    NotificationEngine.addNotification({
+      recipientId: record.worker_id,
+      recipientRole: 'worker',
+      type: 'reward',
+      title: '🎁 Reward Berhasil Diserahkan',
+      message: `Voucher "${record.item_title}" (${record.redemption_code}) telah diserahkan oleh petugas. Selamat menikmati reward Anda!`,
+    });
+
+    // Catat log aktivitas ke activity_log
+    try {
+      await supabase.from('activity_log').insert({
+        worker_id: record.worker_id,
+        action: 'badge_awarded',
+        detail: `Penyerahan Voucher Reward: "${record.item_title}" (${record.redemption_code}) oleh ${adminWorkerId}`,
+      });
+    } catch (logErr) {
+      console.warn('[fulfillRedemption] Gagal mencatat activity log:', logErr);
+    }
   }
 }
 
@@ -1637,6 +1704,11 @@ function rowToIncidentReport(row: any): IncidentReport {
     gdriveFolderId: row.gdrive_folder_id ?? undefined,
     originalSizeKb: row.original_size_kb ?? undefined,
     compressedSizeKb: row.compressed_size_kb ?? undefined,
+    pointsAwarded: row.points_awarded ?? undefined,
+    rootCause: row.root_cause ?? undefined,
+    correctiveAction: row.corrective_action ?? undefined,
+    assignedPic: row.assigned_pic ?? undefined,
+    dueDate: row.due_date ?? undefined,
   };
 }
 
@@ -1793,11 +1865,11 @@ export async function fetchIncidentReports(workerId?: string): Promise<IncidentR
       report.photoUrl = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=800&auto=format&fit=crop&q=80';
     }
     if (capaCache[report.id]) {
-      report.rootCause = capaCache[report.id].rootCause;
-      report.correctiveAction = capaCache[report.id].correctiveAction;
-      report.assignedPic = capaCache[report.id].assignedPic;
-      report.dueDate = capaCache[report.id].dueDate;
-      report.history = capaCache[report.id].history;
+      report.rootCause = report.rootCause || capaCache[report.id].rootCause;
+      report.correctiveAction = report.correctiveAction || capaCache[report.id].correctiveAction;
+      report.assignedPic = report.assignedPic || capaCache[report.id].assignedPic;
+      report.dueDate = report.dueDate || capaCache[report.id].dueDate;
+      report.history = report.history || capaCache[report.id].history;
     }
     return report;
   });
@@ -1836,6 +1908,19 @@ export async function updateIncidentCapaAndStatus(
     resolved_at: ['resolved', 'closed'].includes(payload.status) ? new Date().toISOString() : null,
   };
 
+  if (payload.rootCause !== undefined) {
+    updatePayload.root_cause = payload.rootCause;
+  }
+  if (payload.correctiveAction !== undefined) {
+    updatePayload.corrective_action = payload.correctiveAction;
+  }
+  if (payload.assignedPic !== undefined) {
+    updatePayload.assigned_pic = payload.assignedPic;
+  }
+  if (payload.dueDate !== undefined) {
+    updatePayload.due_date = payload.dueDate || null;
+  }
+
   const isValidatedStatus = ['investigating', 'resolved', 'closed'].includes(payload.status);
   const alreadyAwarded = Boolean(incidentRow?.points_awarded);
 
@@ -1868,11 +1953,15 @@ export async function updateIncidentCapaAndStatus(
       console.log(`⚡ [GappyIncidentService] Memproses penambahan +${pointsToAward} PTS untuk Worker ID/NIP: ${targetWorkerId}`);
 
       // a. Coba panggil RPC increment_worker_points
+      let rpcSuccess = false;
       try {
-        await supabase.rpc('increment_worker_points', {
+        const { error: rpcErr } = await supabase.rpc('increment_worker_points', {
           p_worker_id: targetWorkerId,
           p_points: pointsToAward,
         });
+        if (!rpcErr) {
+          rpcSuccess = true;
+        }
       } catch (err: any) {
         console.warn('RPC increment_worker_points fallback:', err?.message);
       }
@@ -1898,44 +1987,51 @@ export async function updateIncidentCapaAndStatus(
 
       if (worker) {
         const currentPts = Number(worker.total_points || 0);
-        const newTotalPoints = currentPts + pointsToAward;
-        finalNewPoints = newTotalPoints;
-        const newTier = WorkerEntity.calculateTier(newTotalPoints);
+        let newTotalPoints = currentPts;
 
-        console.log(`✅ [GappyIncidentService] Worker ditemukan: ${worker.name} (NIP: ${worker.employee_id}). Poin di-update: ${currentPts} PTS ➔ ${newTotalPoints} PTS`);
+        if (!rpcSuccess) {
+          // Fallback: Jika RPC gagal, lakukan penambahan poin secara langsung
+          newTotalPoints = currentPts + pointsToAward;
+          const newTier = WorkerEntity.calculateTier(newTotalPoints);
 
-        // Eksekusi update langsung ke tabel workers
-        const { error: updErr } = await supabase
-          .from('workers')
-          .update({
-            total_points: newTotalPoints,
-            tier: newTier,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', worker.id);
+          console.log(`✅ [GappyIncidentService] Fallback manual: Worker ${worker.name}. Poin: ${currentPts} PTS ➔ ${newTotalPoints} PTS`);
 
-        if (updErr && worker.employee_id) {
-          await supabase
+          const { error: updErr } = await supabase
             .from('workers')
             .update({
               total_points: newTotalPoints,
               tier: newTier,
               updated_at: new Date().toISOString(),
             })
-            .eq('employee_id', worker.employee_id);
+            .eq('id', worker.id);
+
+          if (updErr && worker.employee_id) {
+            await supabase
+              .from('workers')
+              .update({
+                total_points: newTotalPoints,
+                tier: newTier,
+                updated_at: new Date().toISOString(),
+              })
+              .eq('employee_id', worker.employee_id);
+          }
+        } else {
+          // RPC sudah berhasil mengkreditkan poin, sinkronkan tier jika naik
+          const newTier = WorkerEntity.calculateTier(currentPts);
+          await supabase
+            .from('workers')
+            .update({
+              tier: newTier,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', worker.id);
         }
 
-        NotificationEngine.addNotification({
-          recipientId: worker.id,
-          recipientRole: 'worker',
-          title: '🛡️ Laporan Insiden K3 Disetujui! (+50 PTS)',
-          message: `Laporan insiden K3 Anda disetujui Supervisor. Anda mendapatkan +50 Poin Reward!`,
-          type: 'incident',
-        });
+        finalNewPoints = newTotalPoints;
 
         // Trigger real-time UI refresh pada React memory
         window.dispatchEvent(new CustomEvent('gappy_points_awarded', {
-          detail: { workerId: worker.id, employeeId: worker.employee_id, newTotalPoints, pointsEarned: 50 }
+          detail: { workerId: worker.id, employeeId: worker.employee_id, newTotalPoints, pointsEarned: pointsToAward }
         }));
       } else {
         console.warn(`⚠️ [GappyIncidentService] Worker dengan identifier "${targetWorkerId}" tidak ditemukan di database Supabase.`);
@@ -2804,7 +2900,7 @@ export async function refundWorkerPoints(
   try {
     let rpcSuccess = false;
     try {
-      const { error: rpcErr } = await supabase.rpc('award_worker_points', {
+      const { error: rpcErr } = await supabase.rpc('increment_worker_points', {
         p_worker_id: workerId,
         p_points: pointsToRefund,
       });
@@ -2812,7 +2908,7 @@ export async function refundWorkerPoints(
         rpcSuccess = true;
       }
     } catch (err: any) {
-      console.warn('[supabaseService] RPC award_worker_points fallback exception:', err?.message);
+      console.warn('[supabaseService] RPC increment_worker_points fallback exception:', err?.message);
     }
 
     // Lookup worker untuk verifikasi dan sinkronisasi state
@@ -2875,6 +2971,109 @@ export async function refundWorkerPoints(
     return { success: true };
   } catch (err: any) {
     console.warn('[supabaseService] Gagal memulihkan poin pekerja:', err?.message);
+    return { success: false };
+  }
+}
+
+/**
+ * Menghitung estimasi poin yang akan hangus pada akhir bulan berjalan untuk early warning (H-14).
+ * Membantu manajemen mengendalikan liabilitas stok reward di gudang.
+ */
+export function getPointsExpiryInfo(totalPoints: number): {
+  pointsExpiring: number;
+  expiryDate: string;
+  daysRemaining: number;
+  isWarningActive: boolean;
+} {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  // Hari terakhir bulan berjalan
+  const endOfMonth = new Date(year, month + 1, 0, 23, 59, 59);
+  const msRemaining = endOfMonth.getTime() - now.getTime();
+  const daysRemaining = Math.max(0, Math.ceil(msRemaining / (1000 * 3600 * 24)));
+
+  let pointsExpiring = 0;
+  if (totalPoints > 50) {
+    pointsExpiring = Math.min(totalPoints, Math.max(15, Math.round(totalPoints * 0.15)));
+  }
+
+  const expiryDate = endOfMonth.toLocaleDateString('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+
+  return {
+    pointsExpiring,
+    expiryDate,
+    daysRemaining,
+    isWarningActive: daysRemaining <= 14 && pointsExpiring > 0,
+  };
+}
+
+/**
+ * Memproses siklus hangus poin (monthly point expiration).
+ * PENTING: Tier pekerja tidak boleh terdegradasi karena masa kedaluwarsa poin.
+ */
+export async function processMonthlyPointsExpiry(
+  workerId: string,
+  expiredPoints: number,
+  reason?: string
+): Promise<{ success: boolean; newTotalPoints?: number }> {
+  try {
+    if (expiredPoints <= 0) return { success: true };
+
+    const { data: worker, error: fetchErr } = await supabase
+      .from('workers')
+      .select('id, name, employee_id, total_points, tier, bib_total_score')
+      .eq('id', workerId)
+      .maybeSingle();
+
+    if (fetchErr || !worker) {
+      return { success: false };
+    }
+
+    const currentPts = Number(worker.total_points || 0);
+    const actualDeduction = Math.min(currentPts, expiredPoints);
+    if (actualDeduction <= 0) return { success: true, newTotalPoints: currentPts };
+
+    const newTotalPoints = currentPts - actualDeduction;
+
+    // Pertahankan tier pekerja agar tidak terdegradasi
+    await supabase
+      .from('workers')
+      .update({
+        total_points: newTotalPoints,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', worker.id);
+
+    await insertScoreHistory(worker.id, Number(worker.bib_total_score || 0), newTotalPoints).catch(() => {});
+
+    const auditDetail =
+      reason ||
+      `Siklus Expired Poin Bulanan: -${actualDeduction} PTS (Evaluasi Liabilitas Stok). Tier ${worker.tier || 'Novice'} tetap dipertahankan.`;
+
+    await logActivity(worker.id, worker.name, 'points_expired', auditDetail).catch(() => {});
+
+    window.dispatchEvent(
+      new CustomEvent('gappy_points_awarded', {
+        detail: {
+          workerId: worker.id,
+          employeeId: worker.employee_id,
+          newTotalPoints,
+          pointsEarned: -actualDeduction,
+        },
+      })
+    );
+
+    console.info(
+      `[supabaseService] Poin pekerja ${worker.name} hangus berkala -${actualDeduction} PTS. Total baru: ${newTotalPoints} PTS.`
+    );
+    return { success: true, newTotalPoints };
+  } catch (err: any) {
+    console.warn('[supabaseService] Gagal memproses hangus poin:', err?.message);
     return { success: false };
   }
 }

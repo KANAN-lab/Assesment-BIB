@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { useIdempotentSubmit } from '../hooks/useIdempotentSubmit';
 import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
@@ -24,6 +24,7 @@ import type { IncidentReport } from '../types/assessment';
 import { createIncidentReport } from '../lib/supabaseService';
 import { uploadFileToGoogleDrive, GDRIVE_TARGET_FOLDER_ID, GDRIVE_FOLDER_URL } from '../lib/googleDriveService';
 import { NotificationEngine } from '../domain/NotificationEngine';
+import { SystemConfigService } from '../domain/SystemConfigService';
 
 interface IncidentReportModalProps {
   workerId: string;
@@ -52,6 +53,12 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
 }) => {
   const closeBtnRef = useRef<HTMLButtonElement>(null);
   const [incidentType, setIncidentType] = useState<IncidentReport['incidentType'] | ''>('');
+  const currentRewardPts = useMemo(() => {
+    const cfg = SystemConfigService.getConfig();
+    return incidentType === 'near_miss'
+      ? (cfg.nearMissRewardPoints ?? 75)
+      : (cfg.incidentValidRewardPoints ?? 50);
+  }, [incidentType]);
   const [location, setLocation] = useState('');
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState<IncidentReport['severity']>('low');
@@ -159,8 +166,8 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
       NotificationEngine.addNotification({
         recipientId: workerId,
         recipientRole: 'worker',
-        title: '⏳ Laporan Insiden Dikirim (+50 PTS Pending)',
-        message: `Laporan insiden di ${location.trim()} berhasil dikirim. Poin +50 PTS akan diberikan setelah verifikasi Supervisor.`,
+        title: `⏳ Laporan Insiden Dikirim (+${currentRewardPts} PTS Pending)`,
+        message: `Laporan insiden di ${location.trim()} berhasil dikirim. Poin +${currentRewardPts} PTS akan diberikan setelah verifikasi Supervisor.`,
         type: 'incident',
       });
 
@@ -430,10 +437,10 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
                   <Award className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
                   <div>
                     <strong className="block text-amber-300 font-bold text-xs mb-0.5">
-                      Poin Reward Pelaporan K3 (+50 PTS):
+                      Poin Reward Pelaporan K3 (+{currentRewardPts} PTS):
                     </strong>
                     <p className="text-amber-200/90 text-[11px] leading-relaxed">
-                      Laporan yang Anda kirim akan divalidasi Supervisor. Saat disetujui, <strong className="text-emerald-400">+50 PTS Reward</strong> langsung masuk ke dompet poin Anda.
+                      Laporan yang Anda kirim akan divalidasi Supervisor. Saat disetujui, <strong className="text-emerald-400">+{currentRewardPts} PTS Reward</strong> {incidentType === 'near_miss' ? '(Near-Miss Boost)' : ''} langsung masuk ke dompet poin Anda.
                     </p>
                   </div>
                 </div>

@@ -28,6 +28,7 @@ import { IncidentEntity } from '../domain/IncidentEntity';
 import { updateIncidentCapaAndStatus } from '../lib/supabaseService';
 import { ExecutivePDFReportGenerator } from '../lib/pdfReportService';
 import { GDRIVE_FOLDER_URL } from '../lib/googleDriveService';
+import { generateIncidentCapaCopilot } from '../lib/geminiService';
 
 import { createPortal } from 'react-dom';
 
@@ -65,6 +66,39 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
   const [why3, setWhy3] = useState('');
   const [why4, setWhy4] = useState('');
   const [why5, setWhy5] = useState('');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiFeedback, setAiFeedback] = useState<string | null>(null);
+
+  const handleRunAiCopilot = async () => {
+    setAiLoading(true);
+    setAiFeedback(null);
+    try {
+      const copilot = await generateIncidentCapaCopilot({
+        type: incident.incidentType,
+        description: incident.description,
+        location: incident.location,
+        severity: incident.severity,
+      });
+
+      setUse5Why(true);
+      setFishboneCategory(copilot.fishboneCategory);
+      setWhy1(copilot.why1);
+      setWhy2(copilot.why2);
+      setWhy3(copilot.why3);
+      setWhy4(copilot.why4);
+      setWhy5(copilot.why5);
+      setRootCause(copilot.rootCause);
+      setCorrectiveAction(copilot.correctiveAction);
+      if (copilot.recommendedPic && !assignedPic) {
+        setAssignedPic(copilot.recommendedPic);
+      }
+      setAiFeedback('✨ Rekomendasi 5-Why & CAPA berhasil disematkan oleh Gappy AI.');
+    } catch (err: any) {
+      setAiFeedback('Gagal memproses AI Copilot, silakan isi manual.');
+    } finally {
+      setAiLoading(false);
+    }
+  };
 
   const generate5WhySummary = () => {
     const categoryLabels: Record<string, string> = {
@@ -283,6 +317,44 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
                   ]}
                 />
               </div>
+
+              {/* Gappy AI Copilot Action Box */}
+              <div className="flex flex-wrap items-center justify-between gap-2 p-2.5 rounded-xl bg-gradient-to-r from-emerald-950/40 via-zinc-900 to-zinc-950 border border-emerald-500/30">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-emerald-300">Gappy AI Copilot (K3 & CAPA)</h4>
+                    <p className="text-[10px] text-zinc-400">Analisis otomatis 5-Why, Fishbone & rekomendasi tindakan pencegahan.</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled={aiLoading}
+                  onClick={handleRunAiCopilot}
+                  className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-[11px] font-bold flex items-center gap-1.5 transition shadow-sm shrink-0 cursor-pointer"
+                >
+                  {aiLoading ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>Menganalisis...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Generate Rekomendasi</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {aiFeedback && (
+                <div className="px-3 py-2 bg-emerald-500/10 border border-emerald-500/30 rounded-xl text-emerald-300 text-xs flex items-center gap-2">
+                  <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                  <span>{aiFeedback}</span>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">

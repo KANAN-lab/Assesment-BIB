@@ -326,9 +326,22 @@ export async function completeSopModule(
           timeSpentSeconds,
         });
 
+        const pointsAdded = res.points_added || 50;
+
+        if (typeof window !== 'undefined' && pointsAdded > 0) {
+          window.dispatchEvent(
+            new CustomEvent('gappy_points_awarded', {
+              detail: {
+                workerId,
+                pointsEarned: pointsAdded,
+              },
+            })
+          );
+        }
+
         return {
           success: true,
-          pointsAdded: res.points_added || 50,
+          pointsAdded,
           message: res.message || 'Selamat! Anda telah menyelesaikan modul SOP dan memperoleh +50 PTS.',
         };
       }
@@ -376,7 +389,20 @@ export async function flushOfflineSopCompletions(): Promise<number> {
         p_time_spent: 180,
         p_quiz_score: item.score,
       });
-      return !error;
+      if (!error) {
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('gappy_points_awarded', {
+              detail: {
+                workerId: item.workerId,
+                pointsEarned: item.pointsAwarded || 50,
+              },
+            })
+          );
+        }
+        return true;
+      }
+      return false;
     } catch {
       return false;
     }

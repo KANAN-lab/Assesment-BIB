@@ -208,15 +208,56 @@ export class LicenseService {
 
     // Dispatch Notification & Points to Worker
     if (data.workerId) {
-      const regReward = SystemConfigService.getConfig().sioRegisteredRewardPoints;
+      const regReward = SystemConfigService.getConfig().sioRegisteredRewardPoints ?? 50;
 
-      // Increment worker points asynchronously
-      Promise.resolve(
-        supabase.rpc('increment_worker_points', {
-          p_worker_id: data.workerId,
-          p_points: regReward,
-        })
-      ).catch((e: any) => console.warn('[LicenseService] RPC increment_worker_points fallback:', e));
+      // Award points asynchronously with fallback, audit log, and realtime event
+      (async () => {
+        try {
+          const { error: rpcErr } = await supabase.rpc('increment_worker_points', {
+            p_worker_id: data.workerId,
+            p_points: regReward,
+          });
+
+          if (rpcErr) {
+            const { data: w } = await supabase
+              .from('workers')
+              .select('id, total_points')
+              .or(`id.eq.${data.workerId},employee_id.eq.${data.workerId}`)
+              .maybeSingle();
+            if (w) {
+              await supabase
+                .from('workers')
+                .update({
+                  total_points: (w.total_points || 0) + regReward,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', w.id);
+            }
+          }
+
+          try {
+            await supabase.from('activity_log').insert({
+              worker_id: data.workerId,
+              worker_name: data.workerName,
+              action: 'sio_registered',
+              detail: `Registrasi lisensi SIO ${data.licenseType} (${data.licenseNumber}): +${regReward} PTS`,
+            });
+          } catch {}
+
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('gappy_points_awarded', {
+                detail: {
+                  workerId: data.workerId,
+                  pointsEarned: regReward,
+                },
+              })
+            );
+          }
+        } catch (e) {
+          console.warn('[LicenseService] Error awarding SIO registration points:', e);
+        }
+      })();
 
       NotificationEngine.addNotification({
         recipientId: data.workerId,
@@ -291,15 +332,56 @@ export class LicenseService {
 
     // Dispatch Renewal Notification & Points to Worker & Supervisor
     if (updatedLicense.workerId) {
-      const renewReward = SystemConfigService.getConfig().sioRenewedRewardPoints;
+      const renewReward = SystemConfigService.getConfig().sioRenewedRewardPoints ?? 25;
 
-      // Increment worker points asynchronously
-      Promise.resolve(
-        supabase.rpc('increment_worker_points', {
-          p_worker_id: updatedLicense.workerId,
-          p_points: renewReward,
-        })
-      ).catch((e: any) => console.warn('[LicenseService] RPC increment_worker_points fallback:', e));
+      // Award renewal points asynchronously with fallback, audit log, and realtime event
+      (async () => {
+        try {
+          const { error: rpcErr } = await supabase.rpc('increment_worker_points', {
+            p_worker_id: updatedLicense.workerId,
+            p_points: renewReward,
+          });
+
+          if (rpcErr) {
+            const { data: w } = await supabase
+              .from('workers')
+              .select('id, total_points')
+              .or(`id.eq.${updatedLicense.workerId},employee_id.eq.${updatedLicense.workerId}`)
+              .maybeSingle();
+            if (w) {
+              await supabase
+                .from('workers')
+                .update({
+                  total_points: (w.total_points || 0) + renewReward,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', w.id);
+            }
+          }
+
+          try {
+            await supabase.from('activity_log').insert({
+              worker_id: updatedLicense.workerId,
+              worker_name: updatedLicense.workerName,
+              action: 'sio_registered',
+              detail: `Perpanjangan lisensi SIO ${updatedLicense.licenseType} (${updatedLicense.licenseNumber}): +${renewReward} PTS`,
+            });
+          } catch {}
+
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(
+              new CustomEvent('gappy_points_awarded', {
+                detail: {
+                  workerId: updatedLicense.workerId,
+                  pointsEarned: renewReward,
+                },
+              })
+            );
+          }
+        } catch (e) {
+          console.warn('[LicenseService] Error awarding SIO renewal points:', e);
+        }
+      })();
 
       NotificationEngine.addNotification({
         recipientId: updatedLicense.workerId,

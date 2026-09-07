@@ -87,6 +87,58 @@ export class DisciplinaryService {
     return this.load();
   }
 
+  /**
+   * Mengambil data sanksi dari Supabase cloud, memperbarui cache lokal, dan mengembalikan data terbaru
+   */
+  public static async fetchActionsFromSupabase(): Promise<DisciplinaryActionEntity[]> {
+    try {
+      const { data, error } = await supabase
+        .from('disciplinary_actions')
+        .select('*')
+        .order('issued_at', { ascending: false });
+
+      if (error) {
+        console.warn('[DisciplinaryService] Gagal fetch dari Supabase, menggunakan data lokal:', error.message);
+        return this.load();
+      }
+
+      if (data && Array.isArray(data)) {
+        const remoteList: DisciplinaryActionEntity[] = data.map((row: any) => ({
+          id: row.id,
+          documentRefNumber: row.document_ref_number || row.documentRefNumber || '',
+          workerId: row.worker_id || row.workerId || '',
+          workerName: row.worker_name || row.workerName || '',
+          employeeId: row.employee_id || row.employeeId || '',
+          division: row.division || row.worker_division || '',
+          role: row.role || row.worker_role || '',
+          violationLevel: row.violation_level || row.violationLevel,
+          violationCategory: row.violation_category || row.violationCategory,
+          incidentDate: row.incident_date || row.incidentDate || '',
+          location: row.location || '',
+          description: row.description || '',
+          pointDeduction: Number(row.point_deduction ?? row.pointDeduction ?? 0),
+          mandatoryRetrainingSopId: row.mandatory_retraining_sop_id || row.mandatoryRetrainingSopId,
+          mandatoryRetrainingSopTitle: row.mandatory_retraining_sop_title || row.mandatoryRetrainingSopTitle,
+          isRetrainingCompleted: Boolean(row.is_retraining_completed ?? row.isRetrainingCompleted),
+          retrainingCompletedAt: row.retraining_completed_at || row.retrainingCompletedAt,
+          status: row.status as SanctionStatus,
+          issuedBy: row.issued_by || row.issuedBy || 'Supervisor HSE',
+          issuedAt: row.issued_at || row.issuedAt || new Date().toISOString(),
+          expiryDate: row.expiry_date || row.expiryDate,
+          resolutionNotes: row.resolution_notes || row.resolutionNotes,
+          evidencePhotoUrl: row.evidence_photo_url || row.evidencePhotoUrl,
+          actionPlan: row.action_plan || row.actionPlan,
+        }));
+
+        this.save(remoteList);
+        return remoteList;
+      }
+    } catch (err) {
+      console.warn('[DisciplinaryService] Exception fetching from Supabase:', err);
+    }
+    return this.load();
+  }
+
   public static getActionsByWorkerId(workerId: string): DisciplinaryActionEntity[] {
     return this.load().filter((a) => a.workerId === workerId || a.employeeId === workerId);
   }
@@ -179,6 +231,16 @@ export class DisciplinaryService {
         if (error) console.info('[DisciplinaryService] Supabase cloud sync info:', error.message);
       }, () => {});
 
+    // Log ke activity_log audit trail
+    try {
+      supabase.from('activity_log').insert({
+        worker_id: newAction.workerId,
+        worker_name: newAction.workerName,
+        action: 'disciplinary_issued',
+        detail: `Penerbitan ${docRef} (${VIOLATION_META[params.violationLevel]?.label || 'Sanksi K3'}): ${params.description?.slice(0, 60) || 'Pelanggaran K3'} (Penalti: -${params.pointDeduction || 0} PTS)`,
+      }).then(() => {}, () => {});
+    } catch {}
+
     // Dispatch system notification
     NotificationEngine.addNotification({
       recipientId: params.workerId,
@@ -218,6 +280,16 @@ export class DisciplinaryService {
       })
       .eq('id', actionId)
       .then(() => {}, () => {});
+
+    // Log ke activity_log audit trail
+    try {
+      supabase.from('activity_log').insert({
+        worker_id: items[idx].workerId,
+        worker_name: items[idx].workerName,
+        action: 'disciplinary_retraining_completed',
+        detail: `Penyelesaian retraining SOP pembinaan untuk ${items[idx].documentRefNumber}`,
+      }).then(() => {}, () => {});
+    } catch {}
 
     NotificationEngine.addNotification({
       recipientId: items[idx].workerId,

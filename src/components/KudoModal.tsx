@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabaseClient';
-import { KudoService } from '../lib/kudoService';
+import { KudoService, KudoQuotaInfo } from '../lib/kudoService';
 import { KudoCategory } from '../types/kudos';
-import { X, Award, Search, Loader2, CheckCircle2 } from 'lucide-react';
+import { X, Award, Search, Loader2, CheckCircle2, ShieldCheck, AlertCircle } from 'lucide-react';
 
 interface KudoModalProps {
   isOpen: boolean;
@@ -24,6 +24,10 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState(false);
+
+  // Anti-Fraud Quota State
+  const [quotaInfo, setQuotaInfo] = useState<KudoQuotaInfo | null>(null);
+  const [loadingQuota, setLoadingQuota] = useState(false);
 
   const categories: { label: KudoCategory; desc: string; icon: string; color: string }[] = [
     { label: 'Kerja Aman', desc: 'Bekerja sesuai SOP K3', icon: '🛡️', color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400 ring-emerald-500' },
@@ -47,6 +51,7 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
       window.addEventListener('keydown', handleKeyDown);
 
       fetchWorkers();
+      fetchQuota();
       resetForm();
 
       return () => {
@@ -58,6 +63,18 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
       document.body.style.overflow = 'unset';
     }
   }, [isOpen, onClose]);
+
+  const fetchQuota = async () => {
+    setLoadingQuota(true);
+    try {
+      const q = await KudoService.getWeeklyQuotaInfo(currentWorkerId);
+      setQuotaInfo(q);
+    } catch {
+      // ignore
+    } finally {
+      setLoadingQuota(false);
+    }
+  };
 
   const fetchWorkers = async () => {
     setLoadingWorkers(true);
@@ -158,6 +175,34 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
             </div>
           ) : (
             <>
+              {/* Anti-Fraud Quota Banner */}
+              <div className="p-3 bg-zinc-800/80 border border-zinc-700/80 rounded-xl space-y-2">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-bold text-zinc-300 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                    Sisa Kuota Mingguan
+                  </span>
+                  <span
+                    className={`font-black px-2 py-0.5 rounded text-[11px] ${
+                      (quotaInfo?.remainingQuota ?? 3) > 0
+                        ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                        : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                    }`}
+                  >
+                    {loadingQuota ? '...' : `${quotaInfo?.remainingQuota ?? 3} / 3 Kudo`}
+                  </span>
+                </div>
+                {quotaInfo && quotaInfo.remainingQuota <= 0 ? (
+                  <p className="text-[11px] text-rose-300 leading-relaxed bg-rose-500/10 p-2 rounded-lg border border-rose-500/20">
+                    Batas Kuota Tercapai: Anda telah menggunakan 3 kudo minggu ini. Untuk menjaga integritas sistem penghargaan, kuota akan direset otomatis secara rolling 7 hari.
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-zinc-400">
+                    Maksimal 3 kudo/minggu & anti-pingpong (1x per rekan setiap 7 hari).
+                  </p>
+                )}
+              </div>
+
               {/* Step 1: Select Worker */}
               <div className="space-y-3">
                 <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
@@ -182,7 +227,7 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
                     </div>
                     <button 
                       onClick={() => setSelectedReceiverId('')}
-                      className="text-xs text-zinc-400 hover:text-white px-2 py-1 bg-zinc-900 rounded-md"
+                      className="text-xs text-zinc-400 hover:text-white px-2 py-1 bg-zinc-900 rounded-md cursor-pointer"
                     >
                       Ganti
                     </button>
@@ -207,20 +252,35 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
                           <Loader2 className="w-5 h-5 text-emerald-400 animate-spin" />
                         </div>
                       ) : filteredWorkers.length > 0 ? (
-                        filteredWorkers.map(w => (
-                          <button
-                            key={w.id}
-                            onClick={() => setSelectedReceiverId(w.id)}
-                            className="w-full flex items-center gap-3 p-2 hover:bg-zinc-800 rounded-lg transition snap-start min-h-[44px]"
-                          >
-                            <img 
-                              src={w.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${w.id}`} 
-                              alt={w.name}
-                              className="w-8 h-8 rounded-full bg-zinc-700"
-                            />
-                            <span className="text-sm font-semibold text-zinc-200">{w.name}</span>
-                          </button>
-                        ))
+                        filteredWorkers.map(w => {
+                          const isAlreadySent = quotaInfo?.sentReceiverIds?.includes(w.id);
+                          return (
+                            <button
+                              key={w.id}
+                              disabled={isAlreadySent || (quotaInfo?.remainingQuota ?? 3) <= 0}
+                              onClick={() => setSelectedReceiverId(w.id)}
+                              className={`w-full flex items-center justify-between p-2 rounded-lg transition snap-start min-h-[44px] ${
+                                isAlreadySent || (quotaInfo?.remainingQuota ?? 3) <= 0
+                                  ? 'opacity-50 cursor-not-allowed bg-zinc-900/40'
+                                  : 'hover:bg-zinc-800 cursor-pointer'
+                              }`}
+                            >
+                              <div className="flex items-center gap-3">
+                                <img 
+                                  src={w.avatar || `https://api.dicebear.com/7.x/avataaars/svg?seed=${w.id}`} 
+                                  alt={w.name}
+                                  className="w-8 h-8 rounded-full bg-zinc-700"
+                                />
+                                <span className="text-sm font-semibold text-zinc-200">{w.name}</span>
+                              </div>
+                              {isAlreadySent && (
+                                <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20">
+                                  Sudah dikirim minggu ini
+                                </span>
+                              )}
+                            </button>
+                          );
+                        })
                       ) : (
                         <div className="text-center py-4 text-xs text-zinc-500">
                           Tidak ada pekerja ditemukan
@@ -285,14 +345,16 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
           <div className="p-4 border-t border-zinc-800 bg-zinc-900 absolute sm:relative bottom-0 left-0 right-0 z-10 shrink-0">
             <button
               onClick={handleSubmit}
-              disabled={isSubmitting || !selectedReceiverId || !selectedCategory}
-              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed text-white font-bold text-sm px-4 py-3.5 sm:py-2.5 rounded-xl transition flex items-center justify-center gap-2 min-h-[44px]"
+              disabled={isSubmitting || !selectedReceiverId || !selectedCategory || (quotaInfo?.remainingQuota ?? 3) <= 0}
+              className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed text-white font-bold text-sm px-4 py-3.5 sm:py-2.5 rounded-xl transition flex items-center justify-center gap-2 min-h-[44px] cursor-pointer"
             >
               {isSubmitting ? (
                 <>
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Mengirim...</span>
                 </>
+              ) : (quotaInfo?.remainingQuota ?? 3) <= 0 ? (
+                <span>Kuota Mingguan Habis (3/3)</span>
               ) : (
                 <span>Kirim Apresiasi (+10 PTS)</span>
               )}

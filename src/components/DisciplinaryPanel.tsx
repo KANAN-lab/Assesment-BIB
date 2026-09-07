@@ -96,6 +96,7 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
 
   useEffect(() => {
     reloadData();
+    DisciplinaryService.fetchActionsFromSupabase().then(setActions).catch(() => {});
     fetchAllSopModules().then(setSopModules).catch(() => {});
 
     const handler = () => reloadData();

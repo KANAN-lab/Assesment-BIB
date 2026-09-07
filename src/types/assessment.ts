@@ -41,6 +41,20 @@ export interface WorkerProfile {
   status?: 'active' | 'inactive' | 'pending_approval' | 'rejected';
   accountType?: SystemRole;
   competencyAuditScores?: Record<string, number>;
+  pointsExpiryWarning?: {
+    pointsExpiring: number;
+    expiryDate: string;
+    daysRemaining: number;
+  };
+}
+
+export interface PointsExpiryRecord {
+  workerId: string;
+  pointsExpired: number;
+  expiredAt: string;
+  reason: string;
+  previousPoints: number;
+  remainingPoints: number;
 }
 
 export interface ScoreHistoryEntry {
@@ -213,10 +227,18 @@ export type ActivityAction =
   | 'sop_completed'
   | 'kaizen_submitted'
   | 'kaizen_approved'
+  | 'disciplinary_issued'
+  | 'disciplinary_retraining_completed'
+  | 'audit_5s_completed'
+  | 'sio_registered'
+  | 'ppe_distributed'
+  | 'ppe_damaged'
+  | 'notification_broadcast'
   | 'role_mutated'
   | 'admin_created'
   | 'admin_status_toggled'
   | 'points_refunded'
+  | 'points_expired'
   | 'redemption_rejected';
 
 export interface WorkerRoleMutation {

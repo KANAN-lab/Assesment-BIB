@@ -299,7 +299,7 @@ export class NotificationEngine {
     type: NotificationType = 'system',
     metadata?: Record<string, any>
   ): AppNotification {
-    return this.addNotification({
+    const notif = this.addNotification({
       recipientId: recipientRole,
       recipientRole,
       title,
@@ -307,6 +307,22 @@ export class NotificationEngine {
       type,
       metadata
     });
+
+    try {
+      const targetLabel = recipientRole === 'all' ? 'Semua Pengguna' : `Role: ${recipientRole.toUpperCase()}`;
+      supabase.from('activity_log').insert({
+        worker_id: metadata?.senderId || 'SYS-ADMIN',
+        worker_name: metadata?.senderName || 'Administrator',
+        action: 'notification_broadcast',
+        detail: `Siaran Notifikasi (${targetLabel}): "${title}" [${type.toUpperCase()}]`,
+      }).then(() => {}, (err) => {
+        console.warn('[NotificationEngine] Gagal mencatat broadcast ke activity_log:', err);
+      });
+    } catch (e) {
+      console.warn('[NotificationEngine] Error inserting broadcast activity log:', e);
+    }
+
+    return notif;
   }
 
   /**

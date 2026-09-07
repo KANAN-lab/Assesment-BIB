@@ -2,9 +2,62 @@ import { supabase } from './supabaseClient';
 import { KudoEntity, KudoCategory } from '../types/kudos';
 import { SystemConfigService } from '../domain/SystemConfigService';
 
+export interface KudoQuotaInfo {
+  sentThisWeek: number;
+  maxWeeklyQuota: number;
+  remainingQuota: number;
+  sentReceiverIds: string[];
+}
+
 export class KudoService {
   /**
-   * Mengirim Kudo ke pekerja lain (maksimal 3x seminggu per pengirim)
+   * Menghitung sisa kuota mingguan (maks 3 kudo / 7 hari) dan daftar penerima recent (anti-pingpong).
+   */
+  static async getWeeklyQuotaInfo(senderId: string): Promise<KudoQuotaInfo> {
+    const maxWeeklyQuota = 3;
+    try {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 3600 * 1000).toISOString();
+
+      const { data, error } = await supabase
+        .from('worker_kudos')
+        .select('receiver_id, created_at')
+        .eq('sender_id', senderId)
+        .gte('created_at', sevenDaysAgo);
+
+      if (error || !data) {
+        return {
+          sentThisWeek: 0,
+          maxWeeklyQuota,
+          remainingQuota: maxWeeklyQuota,
+          sentReceiverIds: [],
+        };
+      }
+
+      const sentThisWeek = data.length;
+      const sentReceiverIds = data.map((d: any) => d.receiver_id);
+      const remainingQuota = Math.max(0, maxWeeklyQuota - sentThisWeek);
+
+      return {
+        sentThisWeek,
+        maxWeeklyQuota,
+        remainingQuota,
+        sentReceiverIds,
+      };
+    } catch {
+      return {
+        sentThisWeek: 0,
+        maxWeeklyQuota,
+        remainingQuota: maxWeeklyQuota,
+        sentReceiverIds: [],
+      };
+    }
+  }
+
+  /**
+   * Mengirim Kudo ke pekerja lain dengan perlindungan Anti-Fraud:
+   * 1. Anti-Self (tidak bisa kirim ke diri sendiri)
+   * 2. Anti-Quota (maks 3 kudo per 7 hari)
+   * 3. Anti-Pingpong (tidak bisa kirim ke orang yang sama dalam 7 hari)
    */
   static async sendKudo(
     senderId: string,
@@ -13,7 +66,33 @@ export class KudoService {
     message: string = ''
   ): Promise<{ success: boolean; message: string }> {
     try {
-      const rewardPoints = SystemConfigService.getConfig().kudoReceivedPoints;
+      // 1. Anti-Self Check
+      if (senderId === receiverId) {
+        return {
+          success: false,
+          message: 'Anti-Fraud: Anda tidak dapat mengirimkan kudo apresiasi kepada diri sendiri.',
+        };
+      }
+
+      // 2. Client-side Quota & Anti-Pingpong Check
+      const quota = await this.getWeeklyQuotaInfo(senderId);
+      if (quota.remainingQuota <= 0) {
+        return {
+          success: false,
+          message: 'Batas Kuota: Anda telah mencapai batas maksimal 3 kudo minggu ini.',
+        };
+      }
+
+      if (quota.sentReceiverIds.includes(receiverId)) {
+        return {
+          success: false,
+          message: 'Anti-Pingpong: Anda sudah memberikan kudo kepada rekan kerja ini dalam 7 hari terakhir.',
+        };
+      }
+
+      const rewardPoints = SystemConfigService.getConfig().kudoReceivedPoints || 25;
+
+      // Coba panggil RPC atomik
       const { data, error } = await supabase.rpc('rpc_send_kudo', {
         p_sender_id: senderId,
         p_receiver_id: receiverId,
@@ -22,17 +101,115 @@ export class KudoService {
         p_points: rewardPoints,
       });
 
-      if (error) {
-        console.error('Supabase RPC Error:', error);
-        return { success: false, message: error.message };
+      if (!error && data) {
+        const result = data as { success: boolean; message: string; sender_bonus?: number };
+        if (!result.success) {
+          return result;
+        }
+
+        // Realtime dispatch untuk penerima dan pengirim
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(
+            new CustomEvent('gappy_points_awarded', {
+              detail: { workerId: receiverId, pointsEarned: rewardPoints },
+            })
+          );
+          window.dispatchEvent(
+            new CustomEvent('gappy_points_awarded', {
+              detail: { workerId: senderId, pointsEarned: result.sender_bonus ?? 10 },
+            })
+          );
+        }
+        return result;
       }
 
-      return data as { success: boolean; message: string };
+      // Fallback aman jika RPC database belum dibuat di Postgres server
+      const { error: insertErr } = await supabase.from('worker_kudos').insert({
+        sender_id: senderId,
+        receiver_id: receiverId,
+        category,
+        message,
+        points_awarded: rewardPoints,
+      });
+
+      if (insertErr) {
+        console.warn('Fallback insert worker_kudos failed:', insertErr);
+      }
+
+      // Update points penerima (+25)
+      const { data: recWorker } = await supabase
+        .from('workers')
+        .select('total_points')
+        .eq('id', receiverId)
+        .maybeSingle();
+
+      if (recWorker) {
+        await supabase
+          .from('workers')
+          .update({
+            total_points: (recWorker.total_points || 0) + rewardPoints,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', receiverId);
+      }
+
+      // Bonus pengirim (+10)
+      const { data: sendWorker } = await supabase
+        .from('workers')
+        .select('total_points')
+        .eq('id', senderId)
+        .maybeSingle();
+
+      if (sendWorker) {
+        await supabase
+          .from('workers')
+          .update({
+            total_points: (sendWorker.total_points || 0) + 10,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', senderId);
+      }
+
+      // Catat audit trail ke activity_log
+      try {
+        await supabase.from('activity_log').insert([
+          {
+            worker_id: receiverId,
+            action: 'kudo_received',
+            detail: `Menerima Kudo (${category}): +${rewardPoints} PTS`,
+          },
+          {
+            worker_id: senderId,
+            action: 'kudo_sent',
+            detail: `Mengirimkan Kudo (${category}): +10 PTS`,
+          },
+        ]);
+      } catch (logErr) {
+        console.warn('Fallback insert activity_log failed:', logErr);
+      }
+
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('gappy_points_awarded', {
+            detail: { workerId: receiverId, pointsEarned: rewardPoints },
+          })
+        );
+        window.dispatchEvent(
+          new CustomEvent('gappy_points_awarded', {
+            detail: { workerId: senderId, pointsEarned: 10 },
+          })
+        );
+      }
+
+      return {
+        success: true,
+        message: 'Kudo apresiasi berhasil dikirimkan!',
+      };
     } catch (error: any) {
       console.error('Error sending kudo:', error);
       return {
         success: false,
-        message: error.message || 'Terjadi kesalahan saat mengirim kudo'
+        message: error.message || 'Terjadi kesalahan saat mengirim kudo',
       };
     }
   }

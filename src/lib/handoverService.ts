@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { ShiftHandoverEntity, HandoverInput } from '../types/handover';
+import { NotificationEngine } from '../domain/NotificationEngine';
 
 export class HandoverManager {
   /**
@@ -28,22 +29,20 @@ export class HandoverManager {
       .insert(insertPayload)
       .select(`
         *,
-        author:workers!author_id (name, avatar),
-        acknowledged_by_worker:workers!acknowledged_by (name)
+        author:workers!shift_handovers_author_id_fkey (name, avatar),
+        acknowledged_by_worker:workers!shift_handovers_acknowledged_by_fkey (name)
       `)
       .single();
 
-    // Fallback jika kolom idempotency_key belum ada di skema
-    if (error && (error.message.includes('idempotency_key') || error.message.includes('column'))) {
-      delete insertPayload.idempotency_key;
+    // Fallback jika PostgREST menolak embedding atau kolom idempotency_key belum termigrasi
+    if (error) {
+      if (error.message.includes('idempotency_key') || error.message.includes('column')) {
+        delete insertPayload.idempotency_key;
+      }
       const retry = await supabase
         .from('shift_handovers')
         .insert(insertPayload)
-        .select(`
-          *,
-          author:workers!author_id (name, avatar),
-          acknowledged_by_worker:workers!acknowledged_by (name)
-        `)
+        .select('*')
         .single();
       data = retry.data;
       error = retry.error;
@@ -57,7 +56,38 @@ export class HandoverManager {
       throw new Error(error.message);
     }
 
-    return this.mapToEntity(data);
+    const entity = this.mapToEntity(data);
+
+    // Audit trail logging ke activity_log
+    try {
+      supabase.from('activity_log').insert({
+        worker_id: authorId,
+        worker_name: entity.author_name || 'Supervisor Shift',
+        action: 'shift_handover',
+        detail: `Serah Terima Shift (${input.shiftType} - ${input.handoverCategory}): Status ${input.conditionStatus}. ${input.notes?.slice(0, 80) || ''}`,
+      }).then(() => {}, () => {});
+    } catch {}
+
+    // Notifikasi ke Supervisor Penerima / Pengawas Operasional
+    if (input.nextSupervisorId) {
+      NotificationEngine.addNotification({
+        recipientId: input.nextSupervisorId,
+        recipientRole: 'supervisor',
+        title: '📋 Serah Terima Shift Masuk',
+        message: `${entity.author_name || 'Pengawas'} mengajukan serah terima shift (${input.shiftType} - ${input.handoverCategory}). Status: ${input.conditionStatus}.`,
+        type: 'system',
+      });
+    } else {
+      NotificationEngine.addNotification({
+        recipientId: 'supervisor',
+        recipientRole: 'supervisor',
+        title: '📋 Serah Terima Shift Baru',
+        message: `${entity.author_name || 'Pengawas'} mengajukan serah terima shift umum (${input.shiftType} - ${input.handoverCategory}). Status: ${input.conditionStatus}.`,
+        type: 'system',
+      });
+    }
+
+    return entity;
   }
 
   /**
@@ -112,6 +142,13 @@ export class HandoverManager {
    * Acknowledge handover log (baca dan mengerti)
    */
   static async acknowledgeHandover(handoverId: string, workerId: string): Promise<void> {
+    // Ambil data serah terima untuk notifikasi & audit trail
+    const { data: currentHandover } = await supabase
+      .from('shift_handovers')
+      .select('author_id, shift_type, handover_category')
+      .eq('id', handoverId)
+      .maybeSingle();
+
     const { error } = await supabase
       .from('shift_handovers')
       .update({
@@ -123,6 +160,26 @@ export class HandoverManager {
     if (error) {
       console.error('Error acknowledging handover:', error);
       throw new Error(error.message);
+    }
+
+    // Catat ke activity_log audit trail
+    try {
+      supabase.from('activity_log').insert({
+        worker_id: workerId,
+        action: 'shift_handover',
+        detail: `Konfirmasi Serah Terima Shift (${currentHandover?.shift_type || 'Shift'} - ${currentHandover?.handover_category || 'Operasional'})`,
+      }).then(() => {}, () => {});
+    } catch {}
+
+    // Notifikasi konfirmasi ke pembuat log handover (author)
+    if (currentHandover?.author_id && currentHandover.author_id !== workerId) {
+      NotificationEngine.addNotification({
+        recipientId: currentHandover.author_id,
+        recipientRole: 'worker',
+        title: '✅ Serah Terima Dikonfirmasi',
+        message: `Log serah terima shift (${currentHandover.shift_type} - ${currentHandover.handover_category}) Anda telah dikonfirmasi dan diterima oleh pengawas berikutnya.`,
+        type: 'system',
+      });
     }
   }
 

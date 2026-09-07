@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import imageCompression from 'browser-image-compression';
-import { resolveGeminiApiKey, resolveCandidateModels } from './geminiService';
+import { resolveGeminiApiKey, resolveCandidateModels, extractJsonFromAiResponse } from './geminiService';
 import { LicenseType } from '../types/license';
 import { WorkerProfile } from '../types/assessment';
 
@@ -276,24 +276,11 @@ Format Output JSON WAJIB (tanpa markdown tambahan):
       );
     }
 
-    // Clean markdown codeblocks
-    const cleanJsonText = responseText
-      .replace(/^```json\s*/i, '')
-      .replace(/^```\s*/i, '')
-      .replace(/\s*```$/i, '')
-      .trim();
-
     let parsed: any;
     try {
-      parsed = JSON.parse(cleanJsonText);
+      parsed = extractJsonFromAiResponse<any>(responseText);
     } catch {
-      // Regex extraction fallback
-      const match = cleanJsonText.match(/\{[\s\S]*\}/);
-      if (match) {
-        parsed = JSON.parse(match[0]);
-      } else {
-        throw new Error('Gagal memproses struktur JSON hasil ekstraksi AI Vision.');
-      }
+      throw new Error('Gagal memproses struktur JSON hasil ekstraksi AI Vision.');
     }
 
     // Standardize license type fallback
