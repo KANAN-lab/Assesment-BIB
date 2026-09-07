@@ -182,7 +182,7 @@ BEGIN
     streak_days = streak_days + 1,
     total_points = total_points + p_points,
     updated_at = now()
-  WHERE id = p_worker_id;
+  WHERE id = p_worker_id OR employee_id = p_worker_id;
 END;
 $$;
 
@@ -192,7 +192,7 @@ BEGIN
   UPDATE workers SET
     total_points = GREATEST(0, total_points - p_points),
     updated_at = now()
-  WHERE id = p_worker_id;
+  WHERE id = p_worker_id OR employee_id = p_worker_id;
 END;
 $$;
 
@@ -1865,6 +1865,45 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_safety_patrol_logs_idempotency_key ON safe
 ALTER TABLE safety_patrol_logs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all access to safety_patrol_logs" ON safety_patrol_logs;
 CREATE POLICY "Allow all access to safety_patrol_logs" ON safety_patrol_logs FOR ALL USING (true) WITH CHECK (true);
+
+-- ─── 28.1 Disciplinary Actions Table (Konseling & Sanksi K3) ─────────────────
+CREATE TABLE IF NOT EXISTS disciplinary_actions (
+  id                          TEXT PRIMARY KEY,
+  document_ref_number         TEXT NOT NULL,
+  worker_id                   TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  worker_name                 TEXT NOT NULL,
+  employee_id                 TEXT NOT NULL,
+  division                    TEXT NOT NULL,
+  role                        TEXT NOT NULL,
+  violation_level             TEXT NOT NULL CHECK (violation_level IN ('coaching_verbal', 'written_warning_1', 'written_warning_2', 'written_warning_3', 'suspension', 'remedial_evaluation')),
+  violation_category          TEXT NOT NULL CHECK (violation_category IN ('ppe_violation', 'mhe_reckless', 'sop_breach', 'unauthorized_area', 'hazard_negligence', 'cellphone_in_staging', 'late_absent', 'other')),
+  incident_date               DATE NOT NULL,
+  location                    TEXT NOT NULL,
+  description                 TEXT NOT NULL,
+  point_deduction             INTEGER NOT NULL DEFAULT 0,
+  mandatory_retraining_sop_id TEXT,
+  mandatory_retraining_sop_title TEXT,
+  is_retraining_completed     BOOLEAN NOT NULL DEFAULT false,
+  retraining_completed_at     TIMESTAMPTZ,
+  status                      TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'in_retraining', 'resolved', 'appealed')),
+  issued_by                   TEXT NOT NULL DEFAULT 'Supervisor HSE',
+  issued_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expiry_date                 DATE,
+  resolution_notes            TEXT,
+  evidence_photo_url          TEXT,
+  action_plan                 TEXT,
+  idempotency_key             TEXT,
+  created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_disciplinary_idempotency_key ON disciplinary_actions(idempotency_key) WHERE idempotency_key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_disciplinary_worker_id ON disciplinary_actions(worker_id);
+CREATE INDEX IF NOT EXISTS idx_disciplinary_status ON disciplinary_actions(status);
+
+ALTER TABLE disciplinary_actions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow all access to disciplinary_actions" ON disciplinary_actions;
+CREATE POLICY "Allow all access to disciplinary_actions" ON disciplinary_actions FOR ALL USING (true) WITH CHECK (true);
 
 -- ─── 29. Schema & Table Privileges for PostgREST Roles ─────────
 -- Required by Supabase PostgREST so anon and authenticated can access public tables

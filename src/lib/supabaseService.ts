@@ -2467,3 +2467,89 @@ export async function promoteWorkerToAdmin(
   return rowToWorkerProfile(updated as WorkerRow);
 }
 
+/**
+ * Memotong poin pekerja secara atomic via RPC deduct_worker_points
+ * dengan fallback query worker sequential dan direct update jika RPC belum termigrasi.
+ * Mentrigger event gappy_points_awarded agar UI React langsung berkurang realtime.
+ */
+export async function deductWorkerPoints(
+  workerId: string,
+  pointsToDeduct: number,
+  reason?: string
+): Promise<{ success: boolean; newTotalPoints?: number }> {
+  if (!workerId || pointsToDeduct <= 0) {
+    return { success: false };
+  }
+
+  try {
+    let rpcSuccess = false;
+    try {
+      const { error: rpcErr } = await supabase.rpc('deduct_worker_points', {
+        p_worker_id: workerId,
+        p_points: pointsToDeduct,
+      });
+      if (!rpcErr) {
+        rpcSuccess = true;
+      } else {
+        console.warn('[supabaseService] RPC deduct_worker_points error, fallback to direct update:', rpcErr.message);
+      }
+    } catch (err: any) {
+      console.warn('[supabaseService] RPC deduct_worker_points fallback exception:', err?.message);
+    }
+
+    // Lookup worker untuk verifikasi dan sinkronisasi state
+    let worker: WorkerRow | null = null;
+    const res1 = await supabase.from('workers').select('*').eq('id', workerId).maybeSingle();
+    worker = res1.data as WorkerRow | null;
+
+    if (!worker) {
+      const res2 = await supabase.from('workers').select('*').eq('employee_id', workerId).maybeSingle();
+      worker = res2.data as WorkerRow | null;
+    }
+
+    if (!worker) {
+      const res3 = await supabase.from('workers').select('*').eq('name', workerId).maybeSingle();
+      worker = res3.data as WorkerRow | null;
+    }
+
+    if (worker) {
+      const currentPts = Number(worker.total_points || 0);
+      const newTotalPoints = rpcSuccess ? currentPts : Math.max(0, currentPts - pointsToDeduct);
+      const newTier = WorkerEntity.calculateTier(newTotalPoints);
+
+      // Eksekusi update langsung ke tabel workers jika RPC fallback atau untuk sync tier
+      await supabase
+        .from('workers')
+        .update({
+          total_points: newTotalPoints,
+          tier: newTier,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', worker.id);
+
+      // Snapshot riwayat tren skor
+      await insertScoreHistory(worker.id, Number(worker.bib_total_score || 0), newTotalPoints).catch(() => {});
+
+      // Dispatch event realtime ke React memory
+      window.dispatchEvent(
+        new CustomEvent('gappy_points_awarded', {
+          detail: {
+            workerId: worker.id,
+            employeeId: worker.employee_id,
+            newTotalPoints,
+            pointsEarned: -pointsToDeduct,
+          },
+        })
+      );
+
+      console.info(`[supabaseService] Poin pekerja ${worker.name} (${worker.employee_id}) dipotong -${pointsToDeduct} PTS. Sisa: ${newTotalPoints} PTS.`);
+      return { success: true, newTotalPoints };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.warn('[supabaseService] Gagal memotong poin pekerja:', err?.message);
+    return { success: false };
+  }
+}
+

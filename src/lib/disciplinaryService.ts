@@ -7,6 +7,8 @@ import { DisciplinaryMatrixEngine } from '../domain/DisciplinaryMatrixEngine';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { safeLocalStorageSetItem } from './storageSanitizer';
+import { supabase } from './supabaseClient';
+import { deductWorkerPoints } from './supabaseService';
 
 const STORAGE_KEY = 'gappy_disciplinary_actions_v2';
 const EVENT_UPDATED = 'gappy_disciplinary_updated';
@@ -86,7 +88,7 @@ export class DisciplinaryService {
   }
 
   public static getActionsByWorkerId(workerId: string): DisciplinaryActionEntity[] {
-    return this.load().filter((a) => a.workerId === workerId);
+    return this.load().filter((a) => a.workerId === workerId || a.employeeId === workerId);
   }
 
   public static getStats(): DisciplinaryStats {
@@ -138,6 +140,45 @@ export class DisciplinaryService {
     items.unshift(newAction);
     this.save(items);
 
+    // Otomatis kurangi poin pekerja via RPC Supabase jika ada penalti poin
+    if (params.pointDeduction && params.pointDeduction > 0) {
+      deductWorkerPoints(params.workerId, params.pointDeduction, docRef).catch((err) => {
+        console.warn('[DisciplinaryService] Gagal memotong poin sanksi:', err);
+      });
+    }
+
+    // Simpan ke Supabase cloud jika online
+    supabase
+      .from('disciplinary_actions')
+      .insert({
+        id: newAction.id,
+        document_ref_number: newAction.documentRefNumber,
+        worker_id: newAction.workerId,
+        worker_name: newAction.workerName,
+        employee_id: newAction.employeeId,
+        division: newAction.division,
+        role: newAction.role,
+        violation_level: newAction.violationLevel,
+        violation_category: newAction.violationCategory,
+        incident_date: newAction.incidentDate,
+        location: newAction.location,
+        description: newAction.description,
+        point_deduction: newAction.pointDeduction,
+        mandatory_retraining_sop_id: newAction.mandatoryRetrainingSopId || null,
+        mandatory_retraining_sop_title: newAction.mandatoryRetrainingSopTitle || null,
+        is_retraining_completed: newAction.isRetrainingCompleted,
+        status: newAction.status,
+        issued_by: newAction.issuedBy,
+        issued_at: newAction.issuedAt,
+        expiry_date: newAction.expiryDate || null,
+        action_plan: newAction.actionPlan || null,
+        evidence_photo_url: newAction.evidencePhotoUrl || null,
+        idempotency_key: (newAction as any).idempotencyKey || null,
+      })
+      .then(({ error }) => {
+        if (error) console.info('[DisciplinaryService] Supabase cloud sync info:', error.message);
+      }, () => {});
+
     // Dispatch system notification
     NotificationEngine.addNotification({
       recipientId: params.workerId,
@@ -149,7 +190,6 @@ export class DisciplinaryService {
 
     return newAction;
   }
-
 
   public static completeRetraining(actionId: string, resolutionNotes?: string): boolean {
     const items = this.load();
@@ -165,6 +205,19 @@ export class DisciplinaryService {
     };
 
     this.save(items);
+
+    // Sync status ke Supabase cloud
+    supabase
+      .from('disciplinary_actions')
+      .update({
+        is_retraining_completed: true,
+        retraining_completed_at: items[idx].retrainingCompletedAt,
+        status: 'resolved',
+        resolution_notes: items[idx].resolutionNotes || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', actionId)
+      .then(() => {}, () => {});
 
     NotificationEngine.addNotification({
       recipientId: items[idx].workerId,
@@ -189,6 +242,17 @@ export class DisciplinaryService {
     };
 
     this.save(items);
+
+    supabase
+      .from('disciplinary_actions')
+      .update({
+        status,
+        resolution_notes: resolutionNotes ?? items[idx].resolutionNotes,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', actionId)
+      .then(() => {}, () => {});
+
     return true;
   }
 
@@ -197,6 +261,7 @@ export class DisciplinaryService {
     const filtered = items.filter((a) => a.id !== actionId);
     if (filtered.length === items.length) return false;
     this.save(filtered);
+    supabase.from('disciplinary_actions').delete().eq('id', actionId).then(() => {}, () => {});
     return true;
   }
 
