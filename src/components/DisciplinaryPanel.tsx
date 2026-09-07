@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import {
   ShieldAlert,
@@ -594,21 +595,20 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
               <label className="block text-xs font-bold text-zinc-300 mb-1">
                 Pilih Personel Logistik yang Melakukan Pelanggaran <span className="text-rose-400">*</span>
               </label>
-              <select
+              <SearchableSelect
+                id="disciplinary-worker-select"
                 value={selectedWorkerId}
-                onChange={(e) => setSelectedWorkerId(e.target.value)}
-                required
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-rose-500 font-semibold"
-              >
-                <option value="" disabled>-- Pilih Pekerja Logistik --</option>
-                {workers
+                onChange={setSelectedWorkerId}
+                placeholder="-- Pilih Pekerja Logistik --"
+                searchPlaceholder="Cari nama, NIP, atau divisi..."
+                options={workers
                   .filter((w) => w.division.toUpperCase() !== 'SYSTEM')
-                  .map((w) => (
-                    <option key={w.id} value={w.id}>
-                      {w.name} ({w.employeeId}) — {w.division} / {w.role}
-                    </option>
-                  ))}
-              </select>
+                  .map((w): SelectOption => ({
+                    value: w.id,
+                    label: `${w.name} (${w.employeeId})`,
+                    sublabel: `${w.division} / ${w.role}`,
+                  }))}
+              />
             </div>
 
             {/* 2. Tingkat Sanksi */}
@@ -616,20 +616,21 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
               <label className="block text-xs font-bold text-zinc-300 mb-1">
                 Tingkat Sanksi / Tindakan Disiplin <span className="text-rose-400">*</span>
               </label>
-              <select
+              <SearchableSelect
+                id="disciplinary-level-select"
                 value={violationLevel}
-                onChange={(e) => handleLevelChange(e.target.value as ViolationLevel)}
-                required
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-rose-500 font-semibold"
-              >
-                <option value="" disabled>-- Pilih Tingkat Sanksi / Pembinaan --</option>
-                <option value="coaching_verbal">Level 1: Pembinaan Lisan (Konseling 1-on-1)</option>
-                <option value="written_warning_1">Level 2: Surat Peringatan Pertama (SP 1)</option>
-                <option value="written_warning_2">Level 3: Surat Peringatan Kedua (SP 2)</option>
-                <option value="written_warning_3">Level 4: Surat Peringatan Ketiga (SP 3)</option>
-                <option value="suspension">Level 5: Skorsing Operasional Sementara</option>
-                <option value="remedial_evaluation">Level Khusus: Remedial & Uji Ulang Kompetensi</option>
-              </select>
+                onChange={(v) => handleLevelChange(v as ViolationLevel)}
+                placeholder="-- Pilih Tingkat Sanksi / Pembinaan --"
+                searchPlaceholder="Cari tingkat sanksi..."
+                options={[
+                  { value: 'coaching_verbal', label: 'Level 1: Pembinaan Lisan', sublabel: 'Konseling 1-on-1' },
+                  { value: 'written_warning_1', label: 'Level 2: Surat Peringatan Pertama (SP 1)' },
+                  { value: 'written_warning_2', label: 'Level 3: Surat Peringatan Kedua (SP 2)' },
+                  { value: 'written_warning_3', label: 'Level 4: Surat Peringatan Ketiga (SP 3)' },
+                  { value: 'suspension', label: 'Level 5: Skorsing Operasional Sementara' },
+                  { value: 'remedial_evaluation', label: 'Level Khusus: Remedial & Uji Ulang Kompetensi' },
+                ]}
+              />
             </div>
 
             {/* 3. Kategori Pelanggaran */}
@@ -637,22 +638,23 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
               <label className="block text-xs font-bold text-zinc-300 mb-1">
                 Kategori Pelanggaran K3 <span className="text-rose-400">*</span>
               </label>
-              <select
+              <SearchableSelect
+                id="disciplinary-category-select"
                 value={violationCategory}
-                onChange={(e) => setViolationCategory(e.target.value as ViolationCategory)}
-                required
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-rose-500 font-semibold"
-              >
-                <option value="" disabled>-- Pilih Kategori Pelanggaran K3 --</option>
-                <option value="ppe_violation">Pelanggaran APD Wajib (Helm/Sepatu/Rompi/Harness)</option>
-                <option value="mhe_reckless">Operasional MHE / Forklift Ceroboh & Laju Tinggi</option>
-                <option value="sop_breach">Penyimpangan SOP & Bypass Prosedur Keselamatan</option>
-                <option value="unauthorized_area">Masuk Area Terlarang / Staging Tanpa Izin</option>
-                <option value="hazard_negligence">Pembiaran Bahaya / Tumpahan Cairan & Racking Rusak</option>
-                <option value="cellphone_in_staging">Penggunaan Gadget / HP saat Mengoperasikan Alat</option>
-                <option value="late_absent">Mangkir Safety Briefing Pre-Shift / Terlambat</option>
-                <option value="other">Pelanggaran Operasional Lainnya</option>
-              </select>
+                onChange={(v) => setViolationCategory(v as ViolationCategory)}
+                placeholder="-- Pilih Kategori Pelanggaran K3 --"
+                searchPlaceholder="Cari kategori pelanggaran..."
+                options={[
+                  { value: 'ppe_violation', label: 'Pelanggaran APD Wajib', sublabel: 'Helm / Sepatu / Rompi / Harness' },
+                  { value: 'mhe_reckless', label: 'Operasional MHE / Forklift Ceroboh', sublabel: 'Kecepatan tinggi & manuver berbahaya' },
+                  { value: 'sop_breach', label: 'Penyimpangan SOP & Bypass Prosedur Keselamatan' },
+                  { value: 'unauthorized_area', label: 'Masuk Area Terlarang / Staging Tanpa Izin' },
+                  { value: 'hazard_negligence', label: 'Pembiaran Bahaya', sublabel: 'Tumpahan cairan & racking rusak' },
+                  { value: 'cellphone_in_staging', label: 'Penggunaan Gadget / HP saat Mengoperasikan Alat' },
+                  { value: 'late_absent', label: 'Mangkir Safety Briefing Pre-Shift / Terlambat' },
+                  { value: 'other', label: 'Pelanggaran Operasional Lainnya' },
+                ]}
+              />
             </div>
 
             {/* 4. Tanggal & Lokasi */}
