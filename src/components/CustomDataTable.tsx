@@ -26,6 +26,10 @@ interface CustomDataTableProps<T> {
   selectedRowId?: string;
   getRowId?: (item: T) => string;
   emptyMessage?: string;
+  filterSlot?: React.ReactNode;
+  actionsSlot?: React.ReactNode;
+  hideSearch?: boolean;
+  hideExport?: boolean;
 }
 
 export function CustomDataTable<T extends Record<string, any>>({
@@ -41,6 +45,10 @@ export function CustomDataTable<T extends Record<string, any>>({
   selectedRowId,
   getRowId,
   emptyMessage = 'Tidak ada data ditemukan.',
+  filterSlot,
+  actionsSlot,
+  hideSearch = false,
+  hideExport = false,
 }: CustomDataTableProps<T>) {
   const [search, setSearch] = useState('');
   const [sortKey, setSortKey] = useState<string | undefined>(defaultSortKey);
@@ -138,53 +146,69 @@ export function CustomDataTable<T extends Record<string, any>>({
     <div className="space-y-3 font-sans">
       
       {/* DataTable Top Controls Bar */}
-      <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-zinc-950/80 p-3 rounded-xl border border-zinc-800/80">
-        
-        {/* Search Input */}
-        <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setCurrentPage(1);
-            }}
-            placeholder={searchPlaceholder}
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 transition"
-          />
-        </div>
-
-        {/* Action Controls: Page Size & CSV Export */}
-        <div className="flex items-center gap-2 justify-between sm:justify-end">
-          <div className="flex items-center gap-2 text-xs text-zinc-400">
-            <span className="text-[11px] font-medium hidden sm:inline">Tampilkan:</span>
-            <select
-              value={pageSize}
-              onChange={(e) => {
-                setPageSize(Number(e.target.value));
-                setCurrentPage(1);
-              }}
-              className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1 text-xs text-white focus:outline-none focus:border-emerald-500 font-semibold"
-            >
-              {pageSizeOptions.map((size) => (
-                <option key={size} value={size}>
-                  {size} baris
-                </option>
-              ))}
-            </select>
+      {(!hideSearch || filterSlot || actionsSlot || !hideExport) && (
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 bg-zinc-950/80 p-3 rounded-xl border border-zinc-800/80">
+          
+          {/* Left Area: Search Input + Filters */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-1 min-w-0">
+            {!hideSearch && (
+              <div className="relative flex-1 min-w-[180px]">
+                <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-2.5 pointer-events-none" />
+                <input
+                  type="text"
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setCurrentPage(1);
+                  }}
+                  placeholder={searchPlaceholder}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-9 pr-3 py-1.5 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-500 transition"
+                />
+              </div>
+            )}
+            {filterSlot && (
+              <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
+                {filterSlot}
+              </div>
+            )}
           </div>
 
-          <button
-            onClick={handleExportCSV}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold border border-zinc-700 transition"
-            title="Ekspor Data ke CSV"
-          >
-            <Download className="w-3.5 h-3.5 text-emerald-400" />
-            CSV
-          </button>
+          {/* Right Area: Page Size, Extra Actions, & CSV Export */}
+          <div className="flex items-center gap-2 justify-between sm:justify-end shrink-0 flex-wrap">
+            <div className="flex items-center gap-1.5 text-xs text-zinc-400">
+              <span className="text-[11px] font-medium hidden sm:inline">Tampilkan:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setCurrentPage(1);
+                }}
+                className="bg-zinc-900 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-semibold"
+              >
+                {pageSizeOptions.map((size) => (
+                  <option key={size} value={size}>
+                    {size} baris
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {actionsSlot}
+
+            {!hideExport && (
+              <button
+                type="button"
+                onClick={handleExportCSV}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-bold border border-zinc-700 transition shadow-sm"
+                title="Ekspor Data ke CSV"
+              >
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+                <span>CSV</span>
+              </button>
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Main Table Structure */}
       <div className="overflow-x-auto rounded-xl border border-zinc-800 bg-zinc-950/60 shadow-xl custom-scrollbar">

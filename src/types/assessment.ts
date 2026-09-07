@@ -1,4 +1,5 @@
 export type RoleType = string;
+export type SystemRole = 'worker' | 'supervisor' | 'hse' | 'ga' | 'hr' | 'admin';
 export type DefaultTierType = 'Novice Operational' | 'Pro Specialist' | 'Elite Logistician' | 'Legendary Champion';
 export type TierType = DefaultTierType | (string & {});
 
@@ -38,7 +39,7 @@ export interface WorkerProfile {
   lastActivityDate?: string;
   mustChangePassword?: boolean;
   status?: 'active' | 'inactive' | 'pending_approval' | 'rejected';
-  accountType?: 'worker' | 'supervisor' | 'admin';
+  accountType?: SystemRole;
   competencyAuditScores?: Record<string, number>;
 }
 

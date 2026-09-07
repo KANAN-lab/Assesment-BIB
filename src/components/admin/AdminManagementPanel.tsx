@@ -51,8 +51,6 @@ export const AdminManagementPanel: React.FC<AdminManagementPanelProps> = ({
   showToast,
   onWorkersUpdated,
 }) => {
-  const [searchTerm, setSearchTerm] = useState('');
-
   // ── Modals State ──
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isResetModalOpen, setIsResetModalOpen] = useState(false);
@@ -99,18 +97,6 @@ export const AdminManagementPanel: React.FC<AdminManagementPanelProps> = ({
   const nonAdminWorkers = useMemo(() => {
     return workers.filter((w) => RoleEntity.resolveSystemRole(w.role) !== 'admin');
   }, [workers]);
-
-  // Filtered by Search
-  const filteredAdmins = useMemo(() => {
-    if (!searchTerm.trim()) return adminWorkers;
-    const s = searchTerm.toLowerCase();
-    return adminWorkers.filter(
-      (a) =>
-        a.name.toLowerCase().includes(s) ||
-        a.employeeId.toLowerCase().includes(s) ||
-        (a.email && a.email.toLowerCase().includes(s))
-    );
-  }, [adminWorkers, searchTerm]);
 
   // Summary Metrics
   const totalAdmins = adminWorkers.length;
@@ -480,25 +466,13 @@ export const AdminManagementPanel: React.FC<AdminManagementPanelProps> = ({
           </div>
         </div>
 
-        {/* Search Bar */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex-1">
-            <Search className="w-4 h-4 text-zinc-500 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Cari berdasarkan nama, NIK, atau email administrator..."
-              className="w-full bg-zinc-900/90 border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500 transition"
-            />
-          </div>
-        </div>
-
         {/* Table */}
         <CustomDataTable
-          data={filteredAdmins}
+          data={adminWorkers}
           columns={adminColumns}
           getRowId={(item) => item.id}
+          searchPlaceholder="Cari nama, NIP/NIK, atau email administrator..."
+          searchFields={['name', 'employeeId', 'email']}
           pageSizeOptions={[10, 25, 50]}
           emptyMessage="Tidak ada data Administrator yang sesuai pencarian."
         />

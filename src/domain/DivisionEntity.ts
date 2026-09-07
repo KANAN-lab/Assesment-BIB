@@ -13,12 +13,12 @@ export class DivisionEntity {
 
   public static createDefaultDivisions(): DivisionEntity[] {
     return [
-      new DivisionEntity('div-wfg',       'WFG',      'WFG',      'Warehouse Finished Goods'),
-      new DivisionEntity('div-wrm',       'WRM',      'WRM',      'Warehouse Raw Material'),
-      new DivisionEntity('div-timbangan', 'TIMBANGAN','TIMBANGAN','Weighbridge & Scale Operations'),
-      new DivisionEntity('div-ga',        'GA',       'GA',       'General Affairs & Operations'),
-      new DivisionEntity('div-expedisi',  'EXPEDISI', 'EXPEDISI', 'Fleet & Expedition Logistics'),
-      new DivisionEntity('div-wsp',       'WSP',      'WSP',      'Spare Parts Warehouse'),
+      new DivisionEntity('div-wfg',       'Warehouse Finished Goods',   'WFG',      'Warehouse Finished Goods'),
+      new DivisionEntity('div-wrm',       'Warehouse Raw Material',     'WRM',      'Warehouse Raw Material'),
+      new DivisionEntity('div-wsp',       'Warehouse Sparepart',        'WSP',      'Warehouse Sparepart (Suku Cadang & Komponen Mesin)'),
+      new DivisionEntity('div-timbangan', 'Jembatan Timbang',           'TIMBANGAN','Jembatan Timbang & Scale Operations'),
+      new DivisionEntity('div-ga',        'General Affairs & Fasilitas','GA',       'General Affairs, K3 & Sarana Fasilitas'),
+      new DivisionEntity('div-expedisi',  'Ekspedisi & Transportasi',   'EXPEDISI', 'Ekspedisi, Armada & Transportasi Logistik'),
     ];
   }
 

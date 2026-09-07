@@ -69,7 +69,7 @@ export const FALLBACK_SYSADMIN_ROW: WorkerRow = {
   daily_quiz_completed: true,
   pre_shift_checklist_done: true,
   must_change_password: false,
-  password: '123',
+  password: 'Aleale#@!123',
   status: 'active',
 };
 
@@ -112,6 +112,7 @@ function rowToWorkerProfile(row: WorkerRow): WorkerProfile {
     name: row.name,
     employeeId: row.employee_id,
     role: row.role as WorkerProfile['role'],
+    accountType: RoleEntity.resolveSystemRole(row.role),
     division: row.division,
     avatar: row.avatar,
     streakDays: row.streak_days,
@@ -722,34 +723,16 @@ export async function findWorkerByIdentifier(identifier: string): Promise<Worker
   const { data: byId } = await supabase.from('workers').select('*').eq('id', rawInput).maybeSingle();
   if (byId) return byId as WorkerRow;
 
-  // 2. Comprehensive fallback search (Case-insensitive & digit matching)
-  const { data: list, error: listErr } = await supabase.from('workers').select('*');
-  if (listErr) {
-    console.warn('[findWorkerByIdentifier] Supabase RLS / Query warning:', listErr.message);
-  }
+  // 2. Targeted case-insensitive & partial match (Aman, tanpa download massal seluruh tabel)
+  const { data: byIlikeEmp } = await supabase.from('workers').select('*').ilike('employee_id', rawInput).maybeSingle();
+  if (byIlikeEmp) return byIlikeEmp as WorkerRow;
 
-  if (list && list.length > 0) {
-    const match = list.find((w) => {
-      const empStr = String(w.employee_id ?? '').trim();
-      const empDigits = empStr.replace(/\D/g, '');
+  const { data: byIlikeEmail } = await supabase.from('workers').select('*').ilike('email', cleanLower).maybeSingle();
+  if (byIlikeEmail) return byIlikeEmail as WorkerRow;
 
-      const emailStr = String(w.email ?? '').trim().toLowerCase();
-      const idStr = String(w.id ?? '').trim().toLowerCase();
-
-      // A. Pencocokan digit angka NIK (misal: 128000068)
-      if (cleanDigits && cleanDigits.length >= 4 && empDigits === cleanDigits) return true;
-
-      // B. Pencocokan persis Email atau ID (Case insensitive)
-      if (cleanLower) {
-        if (empStr.toLowerCase() === cleanLower) return true;
-        if (emailStr === cleanLower) return true;
-        if (idStr === cleanLower) return true;
-      }
-
-      return false;
-    });
-
-    if (match) return match as WorkerRow;
+  if (cleanDigits && cleanDigits.length >= 4) {
+    const { data: byDigits } = await supabase.from('workers').select('*').ilike('employee_id', `%${cleanDigits}%`).limit(1);
+    if (byDigits && byDigits.length > 0) return byDigits[0] as WorkerRow;
   }
 
   // 3. Resilient built-in fallback untuk System Administrator jika database belum terhubung / tabel belum dibuat
@@ -765,7 +748,7 @@ export async function findWorkerByIdentifier(identifier: string): Promise<Worker
     return FALLBACK_SYSADMIN_ROW;
   }
 
-  console.info(`[findWorkerByIdentifier] Worker "${rawInput}" tidak ditemukan dari ${list?.length || 0} baris.`);
+  console.info(`[findWorkerByIdentifier] Worker "${rawInput}" tidak ditemukan.`);
   return null;
 }
 
@@ -814,19 +797,19 @@ export async function signInWithNikOrEmail(identifier: string, password: string)
       throw new Error(`NIK / Email "${cleanInput}" tidak ditemukan di database.`);
     }
 
-    // ── Penegakan Keamanan Akses Supervisor Approval ──
+    // ── Penegakan Keamanan Akses Supervisor & Spesialis Approval ──
     const profileCandidate = rowToWorkerProfile(workerRecord);
     if (profileCandidate.status === 'pending_approval') {
       await logLoginAttempt(cleanInput, false);
       throw new Error(
-        `Akun Supervisor (${profileCandidate.name}) saat ini masih dalam status MENUNGGU PERSETUJUAN (Pending Approval) oleh Administrator. Silakan hubungi Administrator untuk menyetujui permohonan akses Anda.`
+        `Akun (${profileCandidate.name}) dengan peran "${profileCandidate.role}" saat ini masih dalam status MENUNGGU PERSETUJUAN (Pending Approval) oleh Administrator. Silakan hubungi Administrator untuk menyetujui permohonan akses Anda.`
       );
     }
 
     if (profileCandidate.status === 'rejected') {
       await logLoginAttempt(cleanInput, false);
       throw new Error(
-        `Permohonan akses Supervisor untuk akun (${profileCandidate.name}) telah DITOLAK oleh Administrator. Hubungi Administrator jika ada pertanyaan.`
+        `Permohonan akses untuk akun (${profileCandidate.name}) [${profileCandidate.role}] telah DITOLAK oleh Administrator. Hubungi Administrator jika ada pertanyaan.`
       );
     }
 
@@ -861,7 +844,7 @@ export async function signInWithNikOrEmail(identifier: string, password: string)
 
     // Akun System Administrator
     if (workerRecord.employee_id === 'SYS-ADMIN' || workerRecord.role === 'System Administrator') {
-      if (password === 'Aleale#@!123' || password === expectedPassword) {
+      if (password === expectedPassword) {
         await logLoginAttempt(cleanInput, true);
         return {
           user: { id: workerRecord.user_id || 'sysadmin-id' },
@@ -953,31 +936,68 @@ export async function verifyOtpAndResetPassword(
   otpToken: string,
   newPassword: string
 ): Promise<void> {
-  const cleanEmail = email.trim();
-  const cleanOtp = otpToken.trim();
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanOtp = otpToken.trim().replace(/\s+/g, '');
 
-  // 1. Verifikasi OTP via Supabase Auth API dengan fallback tipe
-  let { error: verifyErr } = await supabase.auth.verifyOtp({
+  if (!cleanOtp) {
+    throw new Error('Kode OTP wajib diisi.');
+  }
+
+  if (!newPassword || newPassword.length < 6) {
+    throw new Error('Password baru minimal harus 6 karakter.');
+  }
+
+  // 1. Verifikasi OTP via Supabase Auth API secara ketat
+  let isVerified = false;
+  let lastErrorMsg = '';
+
+  // Coba type recovery
+  const { data: recData, error: recErr } = await supabase.auth.verifyOtp({
     email: cleanEmail,
     token: cleanOtp,
     type: 'recovery',
   });
+  if (!recErr && recData?.session) {
+    isVerified = true;
+  } else if (recErr) {
+    lastErrorMsg = recErr.message;
+  }
 
-  if (verifyErr) {
-    const { error: emailErr } = await supabase.auth.verifyOtp({
+  // Jika belum berhasil, coba type email
+  if (!isVerified) {
+    const { data: emData, error: emErr } = await supabase.auth.verifyOtp({
       email: cleanEmail,
       token: cleanOtp,
       type: 'email',
     });
-    if (!emailErr) verifyErr = null;
+    if (!emErr && emData?.session) {
+      isVerified = true;
+    } else if (emErr) {
+      lastErrorMsg = emErr.message;
+    }
   }
 
-  if (verifyErr) {
-    const { error: signupErr } = await supabase.auth.verifyOtp({
+  // Jika belum berhasil, coba type signup
+  if (!isVerified) {
+    const { data: signData, error: signErr } = await supabase.auth.verifyOtp({
       email: cleanEmail,
       token: cleanOtp,
       type: 'signup',
     });
+    if (!signErr && signData?.session) {
+      isVerified = true;
+    } else if (signErr) {
+      lastErrorMsg = signErr.message;
+    }
+  }
+
+  // ── Penegakan Keamanan Ketat: Tolak jika OTP tidak valid ──
+  if (!isVerified) {
+    throw new Error(
+      lastErrorMsg
+        ? `Verifikasi OTP gagal (${lastErrorMsg}). Periksa kembali 6-digit kode OTP di inbox/spam email Anda.`
+        : 'Kode OTP yang Anda masukkan tidak valid atau sudah kedaluwarsa. Silakan periksa kembali email Anda.'
+    );
   }
 
   // 2. Cari worker berdasarkan identifier/email
@@ -998,16 +1018,20 @@ export async function verifyOtpAndResetPassword(
     }
   } else {
     // Fallback update by email
-    await supabase
+    const { error: updateDbErr } = await supabase
       .from('workers')
       .update({
         password: newPassword,
         must_change_password: false,
       })
       .eq('email', cleanEmail);
+
+    if (updateDbErr) {
+      throw new Error(`Gagal menyimpan password baru: ${updateDbErr.message}`);
+    }
   }
 
-  // 4. Update password di Supabase Auth user jika ada session
+  // 4. Update password di Supabase Auth user resmi jika ada session aktif
   try {
     await supabase.auth.updateUser({ password: newPassword });
   } catch (e) {
@@ -1025,7 +1049,24 @@ export async function signUpWorker(
   accountType: 'worker' | 'supervisor' = 'worker'
 ) {
   const cleanEmail = email.trim().toLowerCase();
-  const cleanEmpId = employeeId.trim();
+  const cleanEmpId = employeeId.trim().replace(/[^a-zA-Z0-9_\-\.]/g, '');
+  const cleanName = name.trim().replace(/[<>'"`;]/g, '');
+
+  if (!cleanEmpId || cleanEmpId.length < 3) {
+    throw new Error('NIP / Employee ID (NIK) minimal 3 karakter alfanumerik yang valid.');
+  }
+
+  if (!cleanName || cleanName.length < 2) {
+    throw new Error('Nama lengkap minimal 2 karakter dan tidak boleh mengandung karakter berbahaya.');
+  }
+
+  if (!password || password.length < 6) {
+    throw new Error('Password minimal harus 6 karakter.');
+  }
+
+  if (!cleanEmail || !cleanEmail.includes('@')) {
+    throw new Error('Format alamat email tidak valid.');
+  }
 
   // 1. Cek secara ketat apakah NIK / Employee ID sudah terdaftar di database
   const { data: existingByNik } = await supabase.from('workers').select('id, name, employee_id').eq('employee_id', cleanEmpId).maybeSingle();
@@ -1057,8 +1098,10 @@ export async function signUpWorker(
     authUser = data.user;
   }
 
-  const initialStatus = accountType === 'supervisor' ? 'pending_approval' : 'active';
-  const finalRole = accountType === 'supervisor' ? 'Supervisor Logistik' : role;
+  const finalRole = role || (accountType === 'supervisor' ? 'Supervisor Logistik' : 'Operator Forklift');
+  const resolvedSysRole = RoleEntity.resolveSystemRole(finalRole);
+  const isSpecialistOrManager = resolvedSysRole !== 'worker' || accountType === 'supervisor';
+  const initialStatus = isSpecialistOrManager ? 'pending_approval' : 'active';
 
   // 4. INSERT pekerja baru ke database (Strict anti-overwrite!)
   const workerId = `w-${cleanEmpId.replace(/\s+/g, '') || Date.now().toString().slice(-4)}`;
@@ -1066,7 +1109,7 @@ export async function signUpWorker(
     id: workerId,
     user_id: authUser?.id ? authUser.id : null,
     email: cleanEmail,
-    name: name.trim(),
+    name: cleanName,
     employee_id: cleanEmpId,
     password: password,
     must_change_password: false,
@@ -2416,6 +2459,119 @@ export async function createAdministrator(
     'System Administrator',
     'admin_created',
     `Administrator baru didaftarkan: ${cleanName} (${cleanEmpId}) oleh ${creatorAdminId}`
+  ).catch(() => {});
+
+  return rowToWorkerProfile(insertPayload as WorkerRow);
+}
+
+export interface CreateWorkerProfileInput {
+  employeeId: string;
+  name: string;
+  role: string;
+  division: string;
+  email?: string;
+  password?: string;
+  creatorAdminId?: string;
+  status?: 'active' | 'pending_approval';
+  mustChangePassword?: boolean;
+}
+
+export async function createWorkerProfile(input: CreateWorkerProfileInput): Promise<WorkerProfile> {
+  const cleanEmpId = input.employeeId.trim();
+  const cleanName = input.name.trim();
+  const cleanEmail = input.email ? input.email.trim().toLowerCase() : null;
+  const initialPassword = input.password?.trim() || '123';
+  const creator = input.creatorAdminId || 'System Admin';
+
+  if (!cleanEmpId || !cleanName) {
+    throw new Error('NIP (Employee ID) dan Nama Lengkap wajib diisi.');
+  }
+
+  // 1. Cek duplikasi NIP di tabel workers
+  const { data: existingByNik } = await supabase
+    .from('workers')
+    .select('id, name, employee_id')
+    .eq('employee_id', cleanEmpId)
+    .maybeSingle();
+
+  if (existingByNik) {
+    throw new Error(`NIK "${cleanEmpId}" (${existingByNik.name}) sudah terdaftar di sistem.`);
+  }
+
+  // 2. Cek duplikasi Email jika diisi
+  if (cleanEmail) {
+    const { data: existingByEmail } = await supabase
+      .from('workers')
+      .select('id, name, email')
+      .eq('email', cleanEmail)
+      .maybeSingle();
+
+    if (existingByEmail) {
+      throw new Error(`Email "${cleanEmail}" sudah digunakan oleh user lain (${existingByEmail.name}).`);
+    }
+  }
+
+  // 3. Daftarkan di Supabase Auth resmi (opsional/best-effort jika email tersedia)
+  let authUser: { id: string } | null = null;
+  if (cleanEmail) {
+    try {
+      const { data: authData, error: authErr } = await supabase.auth.signUp({
+        email: cleanEmail,
+        password: initialPassword,
+      });
+      if (!authErr && authData?.user) {
+        authUser = authData.user;
+      }
+    } catch {
+      // Abaikan jika Auth offline, simpan ke database pekerja
+    }
+  }
+
+  const workerId = `w-${cleanEmpId.replace(/\s+/g, '') || Date.now().toString().slice(-4)}`;
+  const avatarUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(cleanName)}&background=0D9488&color=fff&bold=true`;
+
+  const insertPayload: Record<string, any> = {
+    id: workerId,
+    user_id: authUser?.id ? authUser.id : null,
+    email: cleanEmail,
+    name: cleanName,
+    employee_id: cleanEmpId,
+    password: initialPassword,
+    must_change_password: input.mustChangePassword ?? false,
+    role: input.role,
+    division: input.division,
+    avatar: avatarUrl,
+    streak_days: 1,
+    total_points: 100,
+    tier: 'Novice Operational',
+    bib_behavior: 85,
+    bib_integrity: 90,
+    bib_benchmark: 85,
+    bib_total_score: 86.5,
+    daily_quiz_completed: false,
+    pre_shift_checklist_done: false,
+    status: input.status || 'active',
+  };
+
+  let { error: insertErr } = await supabase.from('workers').insert(insertPayload);
+
+  // Fallback jika user_id melanggar FK constraint
+  if (insertErr && (insertErr.message?.includes('user_id') || insertErr.code === '23503')) {
+    delete insertPayload.user_id;
+    const retry = await supabase.from('workers').insert(insertPayload);
+    insertErr = retry.error;
+  }
+
+  if (insertErr) {
+    throw new Error(`Gagal menyimpan data pegawai ke database: ${insertErr.message}`);
+  }
+
+  // Audit log
+  logActivity(
+    creator,
+    input.role,
+    'profile_update',
+    `Staf baru didaftarkan: ${cleanName} (${cleanEmpId}) sebagai ${input.role} (${input.division}) oleh ${creator}`
   ).catch(() => {});
 
   return rowToWorkerProfile(insertPayload as WorkerRow);

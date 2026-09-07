@@ -3,14 +3,14 @@ import SearchableSelect, { SelectOption } from '../ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import {
   UserCheck, Search, ChevronDown, Download, Upload, ArrowRightLeft,
-  X, AlertTriangle, Loader2, Plus, Users
+  X, AlertTriangle, Loader2, Plus, Users, UserPlus, KeyRound
 } from 'lucide-react';
 import { WorkerProfile } from '../../types/assessment';
 import { DivisionEntity } from '../../domain/DivisionEntity';
 import { RoleEntity } from '../../domain/RoleEntity';
 import { CustomDataTable, DataTableColumn } from '../CustomDataTable';
 import { WorkerAvatar } from '../WorkerAvatar';
-import { exportWorkersCSV, batchImportWorkers } from '../../lib/supabaseService';
+import { exportWorkersCSV, batchImportWorkers, createWorkerProfile } from '../../lib/supabaseService';
 import { RoleMutationManager } from '../../domain/RoleMutationManager';
 import { SystemConfigService } from '../../domain/SystemConfigService';
 
@@ -109,16 +109,27 @@ export function parseTSVEmployeeData(text: string, existingIds: Set<string>): Pa
     if (!role) role = rawRole;
 
     const roleUpper = role.toUpperCase();
-    if (roleUpper.includes('OPERATOR FORKLIFT')) role = 'Operator Forklift';
-    else if (roleUpper.includes('OPERATOR REACHTRUCK') || roleUpper.includes('REACHTRUCK')) role = 'Operator Reachtruck';
+    if (roleUpper.includes('OPERATOR REACHTRUCK') || roleUpper.includes('REACHTRUCK')) role = 'Operator Reachtruck';
+    else if (roleUpper.includes('OPERATOR FORKLIFT') && (roleUpper.includes('WSP') || divUpper.includes('WSP'))) role = 'Operator Forklift WSP';
+    else if (roleUpper.includes('OPERATOR FORKLIFT')) role = 'Operator Forklift';
     else if (roleUpper.includes('CHECKER WFG')) role = 'Checker WFG';
     else if (roleUpper.includes('CHECKER WRM')) role = 'Checker WRM';
+    else if (roleUpper.includes('CHECKER WSP') || (roleUpper.includes('CHECKER') && divUpper.includes('WSP'))) role = 'Checker WSP';
     else if (roleUpper.includes('PIC AREA')) role = 'PIC Area';
     else if (roleUpper.includes('ADMIN') && (roleUpper.includes('TIMBANGAN') || divUpper.includes('TIM'))) role = 'Admin Timbangan';
     else if (roleUpper.includes('ADMIN') && (roleUpper.includes('WRM') || divUpper.includes('WRM'))) role = 'Admin WRM';
+    else if (roleUpper.includes('ADMIN') && (roleUpper.includes('WSP') || divUpper.includes('WSP'))) role = 'Admin WSP';
     else if (roleUpper.includes('ADMIN') && (roleUpper.includes('GA') || divUpper.includes('GA'))) role = 'Admin GA';
     else if (roleUpper.includes('ADMIN') && (roleUpper.includes('EXPEDISI') || roleUpper.includes('EKSPEDISI') || divUpper.includes('EXP'))) role = 'Admin Ekspedisi';
     else if (roleUpper.includes('ADMIN') && (roleUpper.includes('WFG') || divUpper.includes('WFG'))) role = 'Admin WFG';
+    else if (roleUpper.includes('SUPERVISOR') || roleUpper.includes('SPV')) {
+      if (divUpper.includes('WRM')) role = 'Supervisor WRM';
+      else if (divUpper.includes('WSP')) role = 'Supervisor WSP';
+      else role = 'Supervisor Logistik';
+    }
+    else if (roleUpper.includes('HSE') || roleUpper.includes('EHS') || roleUpper.includes('K3') || roleUpper.includes('SAFETY')) role = 'HSE Officer';
+    else if (roleUpper.includes('GA') || roleUpper.includes('GENERAL AFFAIRS') || roleUpper.includes('FACILITY') || roleUpper.includes('FASILITAS')) role = 'GA & Facility Officer';
+    else if (roleUpper.includes('HR') || roleUpper.includes('TRAINING') || roleUpper.includes('HRD') || roleUpper.includes('DEVELOPMENT')) role = 'HR & Training Specialist';
 
     const isDuplicate = seenIds.has(employeeId);
     seenIds.add(employeeId);
@@ -147,7 +158,7 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
   onWorkersUpdated,
 }) => {
   const [filterDiv, setFilterDiv] = useState('Semua');
-  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState<'Semua' | 'worker' | 'specialist'>('Semua');
 
   // Import modal state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -162,17 +173,94 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
   const [mutationReason, setMutationReason] = useState('');
   const [isMutating, setIsMutating] = useState(false);
 
-  // Filtered workers list
+  // Add single worker modal state
+  const [isAddWorkerModalOpen, setIsAddWorkerModalOpen] = useState(false);
+  const [newWorkerEmpId, setNewWorkerEmpId] = useState('');
+  const [newWorkerName, setNewWorkerName] = useState('');
+  const [newWorkerEmail, setNewWorkerEmail] = useState('');
+  const [newWorkerDivision, setNewWorkerDivision] = useState(divisions[0]?.code ?? 'WFG');
+  const [newWorkerRole, setNewWorkerRole] = useState('');
+  const [isCustomRole, setIsCustomRole] = useState(false);
+  const [customRoleText, setCustomRoleText] = useState('');
+  const [newWorkerPassword, setNewWorkerPassword] = useState('123');
+  const [isSubmittingWorker, setIsSubmittingWorker] = useState(false);
+
+  // Filtered roles available for new worker registration, categorized
+  const { operationalRoles, specialistRoles, allDivisionRoles } = useMemo(() => {
+    const matching = roles.filter(
+      (r) => r.divisionCode === newWorkerDivision || r.name.toLowerCase().includes(newWorkerDivision.toLowerCase())
+    );
+    const pool = matching.length > 0 ? matching : roles;
+    return {
+      operationalRoles: pool.filter((r) => RoleEntity.isOperationalWorker(r.name)),
+      specialistRoles: pool.filter((r) => !RoleEntity.isOperationalWorker(r.name)),
+      allDivisionRoles: pool,
+    };
+  }, [roles, newWorkerDivision]);
+
+  const handleOpenAddModal = () => {
+    const defaultDiv = divisions[0]?.code ?? 'WFG';
+    setNewWorkerDivision(defaultDiv);
+    const matching = roles.filter((r) => r.divisionCode === defaultDiv);
+    setNewWorkerRole(matching.length > 0 ? matching[0].name : 'Operator Forklift');
+    setIsCustomRole(false);
+    setCustomRoleText('');
+    setNewWorkerEmpId('');
+    setNewWorkerName('');
+    setNewWorkerEmail('');
+    setNewWorkerPassword('123');
+    setIsAddWorkerModalOpen(true);
+  };
+
+  const handleCreateSingleWorker = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newWorkerEmpId.trim() || !newWorkerName.trim()) {
+      showToast('NIP dan Nama Lengkap wajib diisi.');
+      return;
+    }
+    const finalRole = (isCustomRole ? customRoleText.trim() : newWorkerRole) || (allDivisionRoles[0]?.name ?? 'Operator Forklift');
+    if (isCustomRole && !customRoleText.trim()) {
+      showToast('Nama role kustom tidak boleh kosong.');
+      return;
+    }
+    setIsSubmittingWorker(true);
+    try {
+      const created = await createWorkerProfile({
+        employeeId: newWorkerEmpId.trim(),
+        name: newWorkerName.trim(),
+        email: newWorkerEmail.trim() || undefined,
+        division: newWorkerDivision,
+        role: finalRole,
+        password: newWorkerPassword.trim() || '123',
+        creatorAdminId: currentAdminId || 'System Admin',
+        status: 'active',
+      });
+      showToast(`Pegawai ${created.name} (${created.role}) berhasil didaftarkan!`);
+      setIsAddWorkerModalOpen(false);
+      if (onWorkersUpdated) {
+        onWorkersUpdated();
+      } else {
+        setTimeout(() => window.location.reload(), 1000);
+      }
+    } catch (err: any) {
+      showToast(err?.message || 'Gagal mendaftarkan pegawai.');
+    } finally {
+      setIsSubmittingWorker(false);
+    }
+  };
+
+  // Filtered workers list (Divisi & Kategori - pencarian dihandle otomatis oleh CustomDataTable)
   const filteredWorkers = useMemo(() => {
     return workers.filter((w) => {
       const matchDiv = filterDiv === 'Semua' || w.division === filterDiv;
-      const matchSearch =
-        w.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        w.employeeId.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        w.role.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchDiv && matchSearch;
+      const isWorker = RoleEntity.isOperationalWorker(w.role);
+      const matchCat =
+        filterCategory === 'Semua' ||
+        (filterCategory === 'worker' && isWorker) ||
+        (filterCategory === 'specialist' && !isWorker);
+      return matchDiv && matchCat;
     });
-  }, [workers, filterDiv, searchTerm]);
+  }, [workers, filterDiv, filterCategory]);
 
   // Roles available for mutation target
   const availableRolesForMutation = useMemo(() => {
@@ -299,14 +387,28 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
       key: 'division',
       header: 'Divisi & Role',
       sortable: true,
-      render: (w) => (
-        <div className="text-xs">
-          <div className="text-white font-semibold">{w.role}</div>
-          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300">
-            {w.division}
-          </span>
-        </div>
-      ),
+      render: (w) => {
+        const isWorker = RoleEntity.isOperationalWorker(w.role);
+        return (
+          <div className="text-xs space-y-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="text-white font-semibold">{w.role}</span>
+              <span
+                className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${
+                  isWorker
+                    ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                    : 'bg-purple-500/10 text-purple-300 border-purple-500/20'
+                }`}
+              >
+                {isWorker ? 'Staf Lapangan' : 'Pengawas / Spesialis'}
+              </span>
+            </div>
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 inline-block">
+              {w.division}
+            </span>
+          </div>
+        );
+      },
     },
     {
       key: 'tier',
@@ -366,73 +468,83 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
   ];
 
   return (
-    <div className="card p-5 space-y-4">
-      {/* Table Toolbar */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-        <h3 className="font-bold text-white text-xs flex items-center gap-2">
-          <UserCheck className="w-4 h-4 text-emerald-400" />
-          Daftar Personel Operasional ({filteredWorkers.length})
-        </h3>
+    <div className="card p-4 sm:p-5 space-y-4">
+      {/* Table Header & Primary Actions */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-zinc-800/80 pb-3">
+        <div>
+          <h3 className="font-bold text-white text-sm flex items-center gap-2">
+            <UserCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>Daftar Personel Operasional & Spesialis ({workers.length})</span>
+          </h3>
+          <p className="text-[11px] text-zinc-500 mt-0.5">
+            Kelola data staf lapangan, lisensi SIO, tier prestasi, dan mutasi jabatan lintas divisi
+          </p>
+        </div>
 
-        <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-          {/* Division Filter Dropdown */}
-          <div className="relative">
-            <select
-              value={filterDiv}
-              onChange={(e) => setFilterDiv(e.target.value)}
-              className="appearance-none bg-zinc-950 border border-zinc-800 rounded-xl pl-3 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
-            >
-              <option value="Semua">Semua Divisi</option>
-              {divisions.map((d) => (
-                <option key={d.id} value={d.code}>{d.code} — {d.name}</option>
-              ))}
-            </select>
-            <ChevronDown className="w-3.5 h-3.5 text-zinc-500 absolute right-2.5 top-2.5 pointer-events-none" />
-          </div>
-
-          {/* Search */}
-          <div className="relative flex-1 min-w-48">
-            <Search className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-2.5" />
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="Cari nama, NIP, role..."
-              className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500"
-            />
-          </div>
-
-          {/* Export CSV Button */}
-          <button
-            type="button"
-            onClick={() => exportWorkersCSV(filteredWorkers)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-xl text-xs font-bold transition"
-            title="Ekspor daftar pekerja ke file CSV"
-          >
-            <Download className="w-3.5 h-3.5 text-emerald-400" />
-            <span>Export CSV</span>
-          </button>
-
-          {/* Import Massal Button */}
+        {/* Primary Action Buttons (Desktop Inline, Mobile 2-Column Balanced) */}
+        <div className="grid grid-cols-2 sm:flex items-center gap-2 w-full sm:w-auto">
           <button
             type="button"
             onClick={() => setIsImportModalOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-sm"
+            className="flex items-center justify-center gap-1.5 px-3.5 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-xl text-xs font-bold transition shadow-sm min-h-[38px]"
             title="Import data pekerja massal dari format TSV/Text"
           >
-            <Upload className="w-3.5 h-3.5" />
+            <Upload className="w-3.5 h-3.5 text-purple-400" />
             <span>Import TSV</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleOpenAddModal}
+            className="flex items-center justify-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold transition shadow-sm shadow-emerald-950/40 min-h-[38px]"
+            title="Daftarkan satu personel operasional/spesialis baru ke sistem"
+          >
+            <UserPlus className="w-4 h-4" />
+            <span>+ Tambah Pegawai</span>
           </button>
         </div>
       </div>
 
-      {/* Reusable Data Table */}
+      {/* Unified Custom Data Table with Integrated Filters */}
       <CustomDataTable
         columns={workerColumns}
         data={filteredWorkers}
-        searchPlaceholder="Cari NIP, nama, role, divisi..."
+        searchPlaceholder="Cari nama, NIP, role, divisi..."
+        searchFields={['name', 'employeeId', 'role', 'division']}
         defaultSortKey="name"
         exportFileName="Data_Staf_Operasional_PT_DAYA_ANUGRAH_MULYA"
+        filterSlot={
+          <>
+            {/* Division Filter Dropdown */}
+            <div className="relative flex-1 sm:flex-initial min-w-[130px] sm:min-w-[150px]">
+              <select
+                value={filterDiv}
+                onChange={(e) => setFilterDiv(e.target.value)}
+                className="appearance-none w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-3 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium"
+              >
+                <option value="Semua">Semua Divisi</option>
+                {divisions.map((d) => (
+                  <option key={d.id} value={d.code}>{d.code} — {d.name}</option>
+                ))}
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-zinc-500 absolute right-2.5 top-2.5 pointer-events-none" />
+            </div>
+
+            {/* Role Category Filter Dropdown */}
+            <div className="relative flex-1 sm:flex-initial min-w-[140px] sm:min-w-[160px]">
+              <select
+                value={filterCategory}
+                onChange={(e) => setFilterCategory(e.target.value as any)}
+                className="appearance-none w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-3 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium"
+              >
+                <option value="Semua">Semua Kategori</option>
+                <option value="worker">Staf Lapangan / Operator</option>
+                <option value="specialist">Pengawas & Spesialis</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-zinc-500 absolute right-2.5 top-2.5 pointer-events-none" />
+            </div>
+          </>
+        }
       />
 
       {/* ─── MODAL IMPORT MASSAL TSV ─── */}
@@ -614,7 +726,7 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
                   searchPlaceholder="Cari divisi..."
                   options={divisions.map((d): SelectOption => ({
                     value: d.code,
-                    label: `${d.code} — ${d.name}`,
+                    label: `${d.code} — ${d.description || d.name}`,
                   }))}
                 />
               </div>
@@ -628,7 +740,7 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
                   searchPlaceholder="Cari role..."
                   options={availableRolesForMutation.map((r): SelectOption => ({
                     value: r.name,
-                    label: r.name,
+                    label: `${r.name} (${RoleEntity.isOperationalWorker(r.name) ? 'Staf Lapangan' : 'Pengawas / Spesialis'})`,
                   }))}
                 />
               </div>
@@ -659,6 +771,236 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
                 >
                   {isMutating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRightLeft className="w-3.5 h-3.5" />}
                   <span>Eksekusi Mutasi</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─── MODAL TAMBAH PEGAWAI BARU ─── */}
+      {isAddWorkerModalOpen && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/85 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+          onClick={() => setIsAddWorkerModalOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-lg m-auto card-elevated p-6 space-y-4 border border-emerald-500/40 shadow-2xl shadow-emerald-950/40"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-800">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-emerald-500/20 rounded-xl text-emerald-400 border border-emerald-500/30">
+                  <UserPlus className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-white text-sm">Registrasi Pegawai Baru</h3>
+                  <p className="text-[11px] text-zinc-400">Daftarkan personel operasional atau spesialis (HSE, GA, HR, SPV)</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddWorkerModalOpen(false)}
+                className="p-1.5 text-zinc-400 hover:text-white rounded-lg hover:bg-zinc-800 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateSingleWorker} className="space-y-3.5">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-300 mb-1">
+                    NIP / Employee ID <span className="text-rose-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={newWorkerEmpId}
+                    onChange={(e) => setNewWorkerEmpId(e.target.value)}
+                    placeholder="cth. 128000095"
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-zinc-300 mb-1">
+                    Password Awal
+                  </label>
+                  <div className="relative">
+                    <KeyRound className="w-3.5 h-3.5 text-zinc-500 absolute left-3 top-2.5" />
+                    <input
+                      type="text"
+                      value={newWorkerPassword}
+                      onChange={(e) => setNewWorkerPassword(e.target.value)}
+                      placeholder="123"
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-9 pr-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-emerald-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-300 mb-1">
+                  Nama Lengkap <span className="text-rose-400">*</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={newWorkerName}
+                  onChange={(e) => setNewWorkerName(e.target.value)}
+                  placeholder="cth. Ahmad Zaki, S.T."
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-zinc-300 mb-1">
+                  Email Operasional (Opsional)
+                </label>
+                <input
+                  type="email"
+                  value={newWorkerEmail}
+                  onChange={(e) => setNewWorkerEmail(e.target.value)}
+                  placeholder="cth. ahmad.zaki@dam.co.id"
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-zinc-300 mb-1">
+                    Divisi Penempatan <span className="text-rose-400">*</span>
+                  </label>
+                  <select
+                    value={newWorkerDivision}
+                    onChange={(e) => {
+                      const div = e.target.value;
+                      setNewWorkerDivision(div);
+                      const matching = roles.filter(r => r.divisionCode === div);
+                      setNewWorkerRole(matching.length > 0 ? matching[0].name : 'Operator Forklift');
+                    }}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
+                  >
+                    {divisions.map((d) => (
+                      <option key={d.id} value={d.code}>{d.code} — {d.description || d.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-zinc-300">
+                      Role / Jabatan <span className="text-rose-400">*</span>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setIsCustomRole(!isCustomRole)}
+                      className="text-[10px] text-emerald-400 hover:underline font-semibold"
+                    >
+                      {isCustomRole ? 'Pilih dari List' : '+ Ketik Kustom'}
+                    </button>
+                  </div>
+                  {isCustomRole ? (
+                    <input
+                      type="text"
+                      required
+                      value={customRoleText}
+                      onChange={(e) => setCustomRoleText(e.target.value)}
+                      placeholder="cth. Safety Officer, Facility Lead..."
+                      className="w-full bg-zinc-950 border border-emerald-500/50 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500"
+                    />
+                  ) : (
+                    <select
+                      value={newWorkerRole}
+                      onChange={(e) => setNewWorkerRole(e.target.value)}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                    >
+                      {operationalRoles.length > 0 && (
+                        <optgroup label="Staf Lapangan / Operator">
+                          {operationalRoles.map((r) => (
+                            <option key={r.id} value={r.name}>{r.name}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {specialistRoles.length > 0 && (
+                        <optgroup label="Pengawas & Spesialis">
+                          {specialistRoles.map((r) => (
+                            <option key={r.id} value={r.name}>{r.name}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {operationalRoles.length === 0 && specialistRoles.length === 0 && (
+                        <option value="Operator Forklift">Operator Forklift</option>
+                      )}
+                    </select>
+                  )}
+                </div>
+              </div>
+
+              {/* Dynamic Contextual Authorization Feedback */}
+              {(() => {
+                const chosenRole = isCustomRole ? customRoleText : newWorkerRole;
+                const sysRole = RoleEntity.resolveSystemRole(chosenRole);
+                const isOp = RoleEntity.isOperationalWorker(chosenRole);
+
+                let consoleTitle = 'Portal Staf Lapangan Operasional';
+                let consoleDesc = 'Akses Kuis K3 Harian, Pre-Shift Checklist MHE, Papan Kaizen & Marketplace Poin BIB.';
+
+                if (sysRole === 'hse') {
+                  consoleTitle = 'Konsol K3 / HSE Specialist';
+                  consoleDesc = 'Akses Investigasi Insiden, Verifikasi CAPA, Lisensi SIO Kemnaker & Gemba Walk Safety Patrol.';
+                } else if (sysRole === 'ga') {
+                  consoleTitle = 'Konsol General Affairs & Fasilitas';
+                  consoleDesc = 'Akses Manajemen Stok APD, Master Fasilitas Gudang & Audit Standar 5R/5S.';
+                } else if (sysRole === 'hr') {
+                  consoleTitle = 'Konsol HR & Training Specialist';
+                  consoleDesc = 'Akses Matriks 54 Kompetensi, Kurikulum Kuis Adaptif & Penegakan Disiplin SP K3.';
+                } else if (sysRole === 'supervisor') {
+                  consoleTitle = 'Konsol Supervisor Operasional';
+                  consoleDesc = 'Akses Audit Lapangan BIB, Validasi Insiden Shift & Monitoring Ritme Kerja Lapangan.';
+                }
+
+                return (
+                  <div className={`p-3 rounded-xl border text-[11px] space-y-1.5 transition-all ${
+                    isOp
+                      ? 'bg-emerald-950/40 border-emerald-500/30 text-emerald-200'
+                      : 'bg-purple-950/40 border-purple-500/30 text-purple-200'
+                  }`}>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5 font-bold">
+                        <span className={`w-2 h-2 rounded-full ${isOp ? 'bg-emerald-400' : 'bg-purple-400'}`}></span>
+                        <span>{consoleTitle}</span>
+                      </div>
+                      <span className="text-[10px] px-2 py-0.5 rounded font-mono font-bold bg-zinc-900/80 border border-zinc-700 text-zinc-300">
+                        {isOp ? 'Staf Lapangan' : 'Pengawas & Spesialis'}
+                      </span>
+                    </div>
+                    <p className="text-[10.5px] leading-relaxed text-zinc-300">
+                      {consoleDesc}
+                    </p>
+                    <div className="text-[10px] text-zinc-400 pt-0.5">
+                      Status Akun: <strong className="text-emerald-400">Langsung Aktif</strong> (Otorisasi Resmi Administrator)
+                    </div>
+                  </div>
+                );
+              })()}
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setIsAddWorkerModalOpen(false)}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold rounded-xl transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingWorker}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition flex items-center gap-2 shadow-md shadow-emerald-900/30"
+                >
+                  {isSubmittingWorker ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
+                  <span>Daftarkan Pegawai</span>
                 </button>
               </div>
             </form>

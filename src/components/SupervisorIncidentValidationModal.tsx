@@ -15,7 +15,10 @@ import {
   Download,
   ExternalLink,
   ImageIcon,
-  Sparkles
+  Sparkles,
+  GitFork,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 import { IncidentReport, WorkerProfile } from '../types/assessment';
 import { NotificationEngine } from '../domain/NotificationEngine';
@@ -54,11 +57,44 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 5-Why & Fishbone Advanced Root Cause State
+  const [use5Why, setUse5Why] = useState(false);
+  const [fishboneCategory, setFishboneCategory] = useState<'man' | 'machine' | 'method' | 'material' | 'environment'>('man');
+  const [why1, setWhy1] = useState('');
+  const [why2, setWhy2] = useState('');
+  const [why3, setWhy3] = useState('');
+  const [why4, setWhy4] = useState('');
+  const [why5, setWhy5] = useState('');
+
+  const generate5WhySummary = () => {
+    const categoryLabels: Record<string, string> = {
+      man: 'Man (Manusia / Perilaku / Kompetensi)',
+      machine: 'Machine (Armada / Alat / Malfungsi)',
+      method: 'Method (SOP / Prosedur / Standar Kerja)',
+      material: 'Material (Kualitas Palet / Muatan / Beban)',
+      environment: 'Environment (Lantai / Penerangan / Cuaca)',
+    };
+    const parts: string[] = [];
+    parts.push(`[Kategori 4M+1E: ${categoryLabels[fishboneCategory]}]`);
+    if (why1.trim()) parts.push(`1. Why: ${why1.trim()}`);
+    if (why2.trim()) parts.push(`2. Why: ${why2.trim()}`);
+    if (why3.trim()) parts.push(`3. Why: ${why3.trim()}`);
+    if (why4.trim()) parts.push(`4. Why: ${why4.trim()}`);
+    if (why5.trim()) parts.push(`5. Akar Masalah Hakiki: ${why5.trim()}`);
+    return parts.join('\n');
+  };
+
   const reporterWorker = workers.find((w) => w.id === incident.workerId || w.employeeId === incident.workerId);
 
   const handleValidateAndSave = async (approved: boolean) => {
     setLoading(true);
     setError(null);
+
+    let finalRootCause = rootCause.trim();
+    if (use5Why && (why1.trim() || why5.trim())) {
+      const summary = generate5WhySummary();
+      finalRootCause = finalRootCause ? `${finalRootCause}\n\n${summary}` : summary;
+    }
 
     try {
       await IncidentManager.validateAndApplyCapa({
@@ -67,7 +103,7 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
         location: incident.location,
         incidentType: incident.incidentType,
         approved,
-        rootCause,
+        rootCause: finalRootCause,
         correctiveAction,
         assignedPic,
         dueDate,
@@ -248,15 +284,111 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
                 />
               </div>
 
-              <div>
-                <label className="block text-xs font-bold text-zinc-300 mb-1">
-                  Akar Masalah (Root Cause / 5-Why Analysis)
-                </label>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-zinc-300">
+                    Akar Masalah (Root Cause Analysis)
+                  </label>
+                  <div className="flex items-center gap-1 bg-zinc-900 p-0.5 rounded-lg border border-zinc-800">
+                    <button
+                      type="button"
+                      onClick={() => setUse5Why(false)}
+                      className={`px-2 py-0.5 rounded text-[10px] font-bold transition ${
+                        !use5Why ? 'bg-zinc-700 text-white shadow' : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      Format Bebas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setUse5Why(true)}
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold transition ${
+                        use5Why ? 'bg-emerald-600 text-white shadow' : 'text-zinc-400 hover:text-zinc-200'
+                      }`}
+                    >
+                      <GitFork className="w-3 h-3" />
+                      <span>5-Why & Fishbone</span>
+                    </button>
+                  </div>
+                </div>
+
+                {use5Why ? (
+                  <div className="bg-zinc-900/90 border border-emerald-500/30 p-3 rounded-xl space-y-3">
+                    {/* Fishbone 4M+1E Category Selector */}
+                    <div>
+                      <span className="text-[10px] uppercase font-bold text-emerald-400 tracking-wider block mb-1.5 flex items-center gap-1">
+                        <GitFork className="w-3 h-3" /> Faktor Utama Fishbone (4M + 1E):
+                      </span>
+                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                        {[
+                          { id: 'man', label: 'Man', sub: 'Manusia/Skill' },
+                          { id: 'machine', label: 'Machine', sub: 'Alat/MHE' },
+                          { id: 'method', label: 'Method', sub: 'SOP/Prosedur' },
+                          { id: 'material', label: 'Material', sub: 'Muatan/Palet' },
+                          { id: 'environment', label: 'Environment', sub: 'Lantai/Area' },
+                        ].map((cat) => (
+                          <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setFishboneCategory(cat.id as any)}
+                            className={`p-1.5 rounded-lg border text-left transition ${
+                              fishboneCategory === cat.id
+                                ? 'bg-emerald-500/20 border-emerald-500 text-white'
+                                : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                            }`}
+                          >
+                            <div className="text-[10px] font-bold">{cat.label}</div>
+                            <div className="text-[8px] text-zinc-500 truncate">{cat.sub}</div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* 5-Why Progressive Inputs */}
+                    <div className="space-y-2">
+                      <span className="text-[10px] uppercase font-bold text-zinc-400 tracking-wider block">
+                        Runtutan Kausalitas 5-Why (Metode Kenichi Ohno):
+                      </span>
+                      {[
+                        { num: 1, val: why1, setVal: setWhy1, label: 'Why 1: Mengapa insiden langsung terjadi?' },
+                        { num: 2, val: why2, setVal: setWhy2, label: 'Why 2: Mengapa kondisi tersebut bisa muncul?' },
+                        { num: 3, val: why3, setVal: setWhy3, label: 'Why 3: Mengapa tidak terdeteksi saat pre-shift?' },
+                        { num: 4, val: why4, setVal: setWhy4, label: 'Why 4: Mengapa sistem kontrol belum mencegahnya?' },
+                        { num: 5, val: why5, setVal: setWhy5, label: 'Why 5: Apa akar masalah hakiki (Root Cause)?' },
+                      ].map((w, idx) => (
+                        <div key={w.num} className="flex items-start gap-2">
+                          <span className="w-5 h-5 rounded-full bg-zinc-800 border border-zinc-700 text-[10px] font-bold text-emerald-400 flex items-center justify-center shrink-0 mt-0.5">
+                            {w.num}
+                          </span>
+                          <input
+                            type="text"
+                            value={w.val}
+                            onChange={(e) => w.setVal(e.target.value)}
+                            placeholder={w.label}
+                            className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500"
+                          />
+                        </div>
+                      ))}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const summary = generate5WhySummary();
+                        setRootCause(summary);
+                      }}
+                      className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 underline pt-1"
+                    >
+                      <Sparkles className="w-3 h-3" /> Salin Struktur 5-Why ke Catatan Teks
+                    </button>
+                  </div>
+                ) : null}
+
                 <textarea
                   rows={2}
                   value={rootCause}
                   onChange={(e) => setRootCause(e.target.value)}
-                  placeholder="Jelaskan analisis penyebab utama timbulnya insiden keselamatan ini..."
+                  placeholder="Jelaskan analisis penyebab utama timbulnya insiden keselamatan ini (atau gunakan mode 5-Why di atas)..."
                   className="w-full bg-zinc-900 border border-zinc-700 rounded-xl p-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500"
                 />
               </div>

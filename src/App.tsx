@@ -7,6 +7,9 @@ import { RewardMarketplace } from './components/RewardMarketplace';
 import { LeaderboardSection } from './components/LeaderboardSection';
 import { HandoverKanbanBoard } from './components/HandoverKanbanBoard';
 const SupervisorConsole = React.lazy(() => import('./components/SupervisorConsole').then(m => ({ default: m.SupervisorConsole })));
+const HseConsole = React.lazy(() => import('./components/HseConsole').then(m => ({ default: m.HseConsole })));
+const GaConsole = React.lazy(() => import('./components/GaConsole').then(m => ({ default: m.GaConsole })));
+const HrConsole = React.lazy(() => import('./components/HrConsole').then(m => ({ default: m.HrConsole })));
 import { LoginModal } from './components/LoginModal';
 const CompetencyAuditModal = React.lazy(() => import('./components/CompetencyAuditModal').then(m => ({ default: m.CompetencyAuditModal })));
 const AdminConsole = React.lazy(() => import('./components/AdminConsole').then(m => ({ default: m.AdminConsole })));
@@ -78,15 +81,16 @@ import { supabase } from './lib/supabaseClient';
 import { AtomicTransactionManager } from './lib/atomicService';
 import { cleanExistingLocalStorageQuota } from './lib/storageSanitizer';
 
-import { WorkerProfile, RewardItem, RewardHistory, AuditInput, LeaderboardEntry, ScoreHistoryEntry, TierType, Announcement, WorkerBadge, Badge, IncidentReport } from './types/assessment';
+import { WorkerProfile, RewardItem, RewardHistory, AuditInput, LeaderboardEntry, ScoreHistoryEntry, TierType, Announcement, WorkerBadge, Badge, IncidentReport, SystemRole } from './types/assessment';
 import { RoleEntity } from './domain/RoleEntity';
 import { WorkerEntity } from './domain/WorkerEntity';
 import { SystemConfigService } from './domain/SystemConfigService';
+import { PermissionService } from './domain/PermissionService';
 
 import { Zap, ShieldCheck, Flame, Coins, Trophy, CheckCircle2, AlertCircle, Loader2, Camera, ShieldAlert, BookOpen, Award, Sparkles, Lightbulb, History, QrCode, Truck } from 'lucide-react';
 
 export const App: React.FC = () => {
-  const [activeView, setActiveView] = useState<'worker' | 'supervisor' | 'admin'>('worker');
+  const [activeView, setActiveView] = useState<SystemRole>('worker');
 
   // ── Core state ──
   const [currentWorker, setCurrentWorker] = useState<WorkerProfile | null>(null);
@@ -159,10 +163,8 @@ export const App: React.FC = () => {
   useEffect(() => {
     if (!currentWorker) return;
     const sysRole = RoleEntity.resolveSystemRole(currentWorker.role);
-    if (sysRole === 'worker' && activeView !== 'worker') {
-      setActiveView('worker');
-    } else if (sysRole === 'supervisor' && activeView === 'admin') {
-      setActiveView('supervisor');
+    if (!PermissionService.canAccessView(sysRole, activeView)) {
+      setActiveView(sysRole);
     }
   }, [currentWorker, activeView]);
 
@@ -187,14 +189,14 @@ export const App: React.FC = () => {
         localStorage.removeItem('komar_active_worker_id');
         setCurrentWorker(null);
         setShowLoginModal(true);
-        throw new Error(`Akun Supervisor (${worker.name}) saat ini masih dalam status MENUNGGU PERSETUJUAN (Pending Approval) oleh Administrator.`);
+        throw new Error(`Akun (${worker.name}) dengan peran "${worker.role}" saat ini masih dalam status MENUNGGU PERSETUJUAN (Pending Approval) oleh Administrator.`);
       }
 
       if (worker.status === 'rejected') {
         localStorage.removeItem('komar_active_worker_id');
         setCurrentWorker(null);
         setShowLoginModal(true);
-        throw new Error(`Permohonan akses Supervisor (${worker.name}) telah DITOLAK oleh Administrator.`);
+        throw new Error(`Permohonan akses (${worker.name}) [${worker.role}] telah DITOLAK oleh Administrator.`);
       }
 
       // Check & reset daily activity if date has rolled over
@@ -1141,7 +1143,7 @@ export const App: React.FC = () => {
           <div className="animate-fade-in">
             <React.Suspense fallback={
               <div className="flex items-center justify-center py-24 text-zinc-500 gap-3 text-sm">
-                <svg className="animate-spin w-5 h-5 text-emerald-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <svg className="animate-spin w-5 h-5 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                 <span>Memuat Supervisor Console...</span>
               </div>
             }>
@@ -1153,11 +1155,62 @@ export const App: React.FC = () => {
               />
             </React.Suspense>
           </div>
-        ) : (
+        ) : activeView === 'hse' ? (
+          <div className="animate-fade-in">
+            <React.Suspense fallback={
+              <div className="flex items-center justify-center py-24 text-zinc-500 gap-3 text-sm">
+                <svg className="animate-spin w-5 h-5 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <span>Memuat Pusat Komando K3 (HSE)...</span>
+              </div>
+            }>
+              <HseConsole
+                workers={allWorkers}
+                currentHseId={currentWorker?.id}
+                currentUserName={currentWorker?.name}
+              />
+            </React.Suspense>
+          </div>
+        ) : activeView === 'ga' ? (
+          <div className="animate-fade-in">
+            <React.Suspense fallback={
+              <div className="flex items-center justify-center py-24 text-zinc-500 gap-3 text-sm">
+                <svg className="animate-spin w-5 h-5 text-cyan-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <span>Memuat Konsol Fasilitas & Sarana (GA)...</span>
+              </div>
+            }>
+              <GaConsole
+                workers={allWorkers}
+                currentGaId={currentWorker?.id}
+                currentUserName={currentWorker?.name}
+                rewardCatalog={rewardCatalog}
+                onCreateReward={handleCreateReward}
+                onUpdateReward={handleUpdateReward}
+                onRestockReward={handleRestockReward}
+                onDeleteReward={handleDeleteReward}
+              />
+            </React.Suspense>
+          </div>
+        ) : activeView === 'hr' ? (
           <div className="animate-fade-in">
             <React.Suspense fallback={
               <div className="flex items-center justify-center py-24 text-zinc-500 gap-3 text-sm">
                 <svg className="animate-spin w-5 h-5 text-purple-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                <span>Memuat Konsol Personalia & Kompetensi (HR)...</span>
+              </div>
+            }>
+              <HrConsole
+                workers={allWorkers}
+                currentHrId={currentWorker?.id}
+                currentUserName={currentWorker?.name}
+                onOpenMatrixAudit={handleOpenMatrixAudit}
+              />
+            </React.Suspense>
+          </div>
+        ) : (
+          <div className="animate-fade-in">
+            <React.Suspense fallback={
+              <div className="flex items-center justify-center py-24 text-zinc-500 gap-3 text-sm">
+                <svg className="animate-spin w-5 h-5 text-rose-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                 <span>Memuat Administrator Console...</span>
               </div>
             }>

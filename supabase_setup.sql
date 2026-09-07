@@ -412,14 +412,19 @@ CREATE POLICY "Allow authenticated full system_settings" ON system_settings
 
 -- ─── 5. Seed Data ─────────────────────────────────────────────
 
--- Seed: Workers (Clean Setup — Only System Administrator)
-INSERT INTO workers (id, name, employee_id, role, division, avatar, streak_days, total_points, tier, bib_behavior, bib_integrity, bib_benchmark, bib_total_score, daily_quiz_completed, pre_shift_checklist_done, status)
+-- Seed: Workers (Clean Setup — System Administrator & Sample Specialized Roles)
+INSERT INTO workers (id, name, employee_id, role, division, avatar, streak_days, total_points, tier, bib_behavior, bib_integrity, bib_benchmark, bib_total_score, daily_quiz_completed, pre_shift_checklist_done, status, password, must_change_password)
 VALUES
-  ('w-sysadmin',    'System Administrator',  'SYS-ADMIN', 'System Administrator', 'SYSTEM',   'https://ui-avatars.com/api/?name=System+Admin&background=6B21A8&color=fff&bold=true', 100, 9999, 'Legendary Champion', 100.0, 100.0, 100.0, 100.0, true, true, 'active')
+  ('w-sysadmin', 'System Administrator',    'SYS-ADMIN', 'System Administrator',    'SYSTEM', 'https://ui-avatars.com/api/?name=System+Admin&background=6B21A8&color=fff&bold=true', 100, 9999, 'Legendary Champion', 100.0, 100.0, 100.0, 100.0, true, true, 'active', 'Aleale#@!123', false),
+  ('w-hse-01',   'Ahmad Zaki, S.T.',        'HSE-001',   'HSE Officer',              'GA',     'https://ui-avatars.com/api/?name=Ahmad+Zaki&background=DC2626&color=fff&bold=true',    14, 1850, 'Pro Specialist',     94.0,  96.0,  92.0,  94.0,  true, true, 'active', '123', false),
+  ('w-ga-01',    'Hendra Wijaya',           'GA-001',    'GA & Facility Officer',    'GA',     'https://ui-avatars.com/api/?name=Hendra+Wijaya&background=D97706&color=fff&bold=true', 20, 2100, 'Elite Logistician',   92.0,  94.0,  95.0,  93.7,  true, true, 'active', '123', false),
+  ('w-hr-01',    'Siti Rahmawati, S.Psi',   'HR-001',    'HR & Training Specialist', 'GA',     'https://ui-avatars.com/api/?name=Siti+Rahmawati&background=2563EB&color=fff&bold=true',18, 1950, 'Pro Specialist',     95.0,  98.0,  93.0,  95.3,  true, true, 'active', '123', false),
+  ('w-spv-01',   'Bambang Pratama',         'SPV-001',   'Supervisor Logistik',      'WFG',    'https://ui-avatars.com/api/?name=Bambang+Pratama&background=059669&color=fff&bold=true',25, 2600, 'Elite Logistician',   96.0,  95.0,  97.0,  96.0,  true, true, 'active', '123', false)
 ON CONFLICT (id) DO UPDATE SET
   name = EXCLUDED.name,
   role = EXCLUDED.role,
-  division = EXCLUDED.division;
+  division = EXCLUDED.division,
+  employee_id = EXCLUDED.employee_id;
 
 -- Seed: Reward Catalog (Tepat 12 Item: 11 Produk Fisik Wings Group + 1 Voucher Indomaret)
 INSERT INTO reward_catalog (id, title, category, points_required, icon_name, description, available_stock, badge_tag)
@@ -1482,30 +1487,48 @@ $$;
 -- ─── 24. Phase 15: Disciplinary Actions & SP K3 (Pembinaan & Sanksi) ────────
 
 CREATE TABLE IF NOT EXISTS disciplinary_actions (
-  id TEXT PRIMARY KEY,
-  worker_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
-  worker_name TEXT NOT NULL,
-  worker_division TEXT NOT NULL,
-  worker_role TEXT NOT NULL,
-  document_ref_number TEXT UNIQUE NOT NULL,
-  violation_level TEXT NOT NULL CHECK (violation_level IN ('coaching_verbal', 'written_warning_1', 'written_warning_2', 'written_warning_3', 'suspension', 'remedial_evaluation')),
-  violation_category TEXT NOT NULL,
-  incident_date DATE NOT NULL,
-  location TEXT,
-  description TEXT NOT NULL,
-  action_plan TEXT,
-  point_deduction INTEGER NOT NULL DEFAULT 0,
-  issued_by TEXT NOT NULL,
-  expiry_date DATE NOT NULL,
-  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'in_retraining', 'resolved', 'appealed')),
+  id                          TEXT PRIMARY KEY,
+  worker_id                   TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  worker_name                 TEXT NOT NULL,
+  employee_id                 TEXT DEFAULT '',
+  division                    TEXT DEFAULT '',
+  role                        TEXT DEFAULT '',
+  worker_division             TEXT,
+  worker_role                 TEXT,
+  document_ref_number         TEXT UNIQUE NOT NULL,
+  violation_level             TEXT NOT NULL CHECK (violation_level IN ('coaching_verbal', 'written_warning_1', 'written_warning_2', 'written_warning_3', 'suspension', 'remedial_evaluation')),
+  violation_category          TEXT NOT NULL CHECK (violation_category IN ('ppe_violation', 'mhe_reckless', 'sop_breach', 'unauthorized_area', 'hazard_negligence', 'cellphone_in_staging', 'late_absent', 'other')),
+  incident_date               DATE NOT NULL,
+  location                    TEXT,
+  description                 TEXT NOT NULL,
+  action_plan                 TEXT,
+  point_deduction             INTEGER NOT NULL DEFAULT 0,
+  issued_by                   TEXT NOT NULL DEFAULT 'Supervisor HSE',
+  issued_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expiry_date                 DATE NOT NULL,
+  status                      TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'in_retraining', 'resolved', 'appealed')),
   mandatory_retraining_sop_id TEXT,
   mandatory_retraining_sop_title TEXT,
-  is_retraining_completed BOOLEAN NOT NULL DEFAULT false,
-  retraining_completed_at TIMESTAMPTZ,
-  resolution_notes TEXT,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  is_retraining_completed     BOOLEAN NOT NULL DEFAULT false,
+  retraining_completed_at     TIMESTAMPTZ,
+  resolution_notes            TEXT,
+  evidence_photo_url          TEXT,
+  idempotency_key             TEXT,
+  created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Schema compatibility migrations for existing instances
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS employee_id TEXT;
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS division TEXT;
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS role TEXT;
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS worker_division TEXT;
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS worker_role TEXT;
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS issued_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS evidence_photo_url TEXT;
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS action_plan TEXT;
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS resolution_notes TEXT;
 
 CREATE INDEX IF NOT EXISTS idx_disciplinary_worker ON disciplinary_actions(worker_id);
 CREATE INDEX IF NOT EXISTS idx_disciplinary_status ON disciplinary_actions(status);
@@ -1866,36 +1889,17 @@ ALTER TABLE safety_patrol_logs ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Allow all access to safety_patrol_logs" ON safety_patrol_logs;
 CREATE POLICY "Allow all access to safety_patrol_logs" ON safety_patrol_logs FOR ALL USING (true) WITH CHECK (true);
 
--- ─── 28.1 Disciplinary Actions Table (Konseling & Sanksi K3) ─────────────────
-CREATE TABLE IF NOT EXISTS disciplinary_actions (
-  id                          TEXT PRIMARY KEY,
-  document_ref_number         TEXT NOT NULL,
-  worker_id                   TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
-  worker_name                 TEXT NOT NULL,
-  employee_id                 TEXT NOT NULL,
-  division                    TEXT NOT NULL,
-  role                        TEXT NOT NULL,
-  violation_level             TEXT NOT NULL CHECK (violation_level IN ('coaching_verbal', 'written_warning_1', 'written_warning_2', 'written_warning_3', 'suspension', 'remedial_evaluation')),
-  violation_category          TEXT NOT NULL CHECK (violation_category IN ('ppe_violation', 'mhe_reckless', 'sop_breach', 'unauthorized_area', 'hazard_negligence', 'cellphone_in_staging', 'late_absent', 'other')),
-  incident_date               DATE NOT NULL,
-  location                    TEXT NOT NULL,
-  description                 TEXT NOT NULL,
-  point_deduction             INTEGER NOT NULL DEFAULT 0,
-  mandatory_retraining_sop_id TEXT,
-  mandatory_retraining_sop_title TEXT,
-  is_retraining_completed     BOOLEAN NOT NULL DEFAULT false,
-  retraining_completed_at     TIMESTAMPTZ,
-  status                      TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'in_retraining', 'resolved', 'appealed')),
-  issued_by                   TEXT NOT NULL DEFAULT 'Supervisor HSE',
-  issued_at                   TIMESTAMPTZ NOT NULL DEFAULT now(),
-  expiry_date                 DATE,
-  resolution_notes            TEXT,
-  evidence_photo_url          TEXT,
-  action_plan                 TEXT,
-  idempotency_key             TEXT,
-  created_at                  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  updated_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
+-- ─── 28.1 Disciplinary Actions Compatibility & Performance Indexes ───────────
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS employee_id TEXT;
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS division TEXT;
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS role TEXT;
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS worker_division TEXT;
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS worker_role TEXT;
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS issued_at TIMESTAMPTZ DEFAULT now();
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS evidence_photo_url TEXT;
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS action_plan TEXT;
+ALTER TABLE disciplinary_actions ADD COLUMN IF NOT EXISTS resolution_notes TEXT;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_disciplinary_idempotency_key ON disciplinary_actions(idempotency_key) WHERE idempotency_key IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_disciplinary_worker_id ON disciplinary_actions(worker_id);
@@ -1955,4 +1959,49 @@ CREATE INDEX IF NOT EXISTS idx_audit_5s_zone_date ON audit_5s_records(zone_id, a
 CREATE INDEX IF NOT EXISTS idx_shift_handovers_date ON shift_handovers(shift_date DESC, status);
 CREATE INDEX IF NOT EXISTS idx_worker_kudos_receiver_date ON worker_kudos(receiver_id, created_at DESC);
 
+-- ─── 32. Authentication Security, Rate Limiting & Activity Audit Tables (Phase 34) ───
 
+-- Table: login_attempts (Untuk proteksi brute-force rate limiting: maks 5x gagal per 15 menit)
+CREATE TABLE IF NOT EXISTS login_attempts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  identifier TEXT NOT NULL,
+  success BOOLEAN NOT NULL,
+  attempted_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_login_attempts_rate_limit ON login_attempts(identifier, success, attempted_at DESC);
+CREATE INDEX IF NOT EXISTS idx_login_attempts_cleanup ON login_attempts(attempted_at DESC);
+
+ALTER TABLE login_attempts ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "allow_anon_insert_login_attempts" ON login_attempts;
+  DROP POLICY IF EXISTS "allow_anon_select_login_attempts" ON login_attempts;
+END $$;
+
+CREATE POLICY "allow_anon_insert_login_attempts" ON login_attempts FOR INSERT TO public WITH CHECK (true);
+CREATE POLICY "allow_anon_select_login_attempts" ON login_attempts FOR SELECT TO public USING (true);
+
+-- Table: activity_log (Audit trail login, registrasi, pergantian status & operasional)
+CREATE TABLE IF NOT EXISTS activity_log (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  worker_id TEXT REFERENCES workers(id) ON DELETE SET NULL,
+  worker_name TEXT,
+  action TEXT NOT NULL,
+  detail TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_activity_log_worker ON activity_log(worker_id, created_at DESC);
+
+ALTER TABLE activity_log ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "allow_anon_all_activity_log" ON activity_log;
+END $$;
+
+CREATE POLICY "allow_anon_all_activity_log" ON activity_log FOR ALL TO public USING (true) WITH CHECK (true);
+
+GRANT ALL ON TABLE login_attempts TO anon, authenticated, service_role;
+GRANT ALL ON TABLE activity_log TO anon, authenticated, service_role;

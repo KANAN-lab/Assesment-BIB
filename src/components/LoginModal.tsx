@@ -30,13 +30,31 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [accountType, setAccountType] = useState<'worker' | 'supervisor'>('worker');
   const [selectedDivCode, setSelectedDivCode] = useState<string>(divisions[0]?.code ?? 'WFG');
 
-  // Filtered roles based on selected division
+  // Filtered divisions based on account type
+  const availableDivisions = useMemo(() => {
+    return divisions.filter((d) =>
+      allRoles.some((r) =>
+        r.divisionCode === d.code &&
+        (accountType === 'worker'
+          ? RoleEntity.isOperationalWorker(r.name)
+          : !RoleEntity.isOperationalWorker(r.name))
+      )
+    );
+  }, [divisions, allRoles, accountType]);
+
+  // Filtered roles based on selected division and account type
   const availableRolesForDivision = useMemo(() => {
-    return allRoles.filter((r) => r.divisionCode === selectedDivCode);
-  }, [allRoles, selectedDivCode]);
+    return allRoles.filter(
+      (r) =>
+        r.divisionCode === selectedDivCode &&
+        (accountType === 'worker'
+          ? RoleEntity.isOperationalWorker(r.name)
+          : !RoleEntity.isOperationalWorker(r.name))
+    );
+  }, [allRoles, selectedDivCode, accountType]);
 
   const [selectedRoleName, setSelectedRoleName] = useState<string>(
-    availableRolesForDivision[0]?.name ?? 'Operator Forklift'
+    allRoles.filter((r) => r.divisionCode === 'WFG' && RoleEntity.isOperationalWorker(r.name))[0]?.name ?? 'Operator Forklift'
   );
 
   // Form states - Forgot Password
@@ -50,10 +68,38 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  // Switch Account Type -> auto-select valid division and valid role
+  const handleAccountTypeChange = (type: 'worker' | 'supervisor') => {
+    setAccountType(type);
+    const validDivs = divisions.filter((d) =>
+      allRoles.some((r) =>
+        r.divisionCode === d.code &&
+        (type === 'worker' ? RoleEntity.isOperationalWorker(r.name) : !RoleEntity.isOperationalWorker(r.name))
+      )
+    );
+    const targetDiv = validDivs[0]?.code ?? (type === 'worker' ? 'WFG' : 'WFG');
+    setSelectedDivCode(targetDiv);
+
+    const validRoles = allRoles.filter(
+      (r) =>
+        r.divisionCode === targetDiv &&
+        (type === 'worker' ? RoleEntity.isOperationalWorker(r.name) : !RoleEntity.isOperationalWorker(r.name))
+    );
+    if (validRoles.length > 0) {
+      setSelectedRoleName(validRoles[0].name);
+    }
+  };
+
   // Handle Division Change -> Auto select first valid role for that division
   const handleDivisionChange = (divCode: string) => {
     setSelectedDivCode(divCode);
-    const rolesForDiv = allRoles.filter((r) => r.divisionCode === divCode);
+    const rolesForDiv = allRoles.filter(
+      (r) =>
+        r.divisionCode === divCode &&
+        (accountType === 'worker'
+          ? RoleEntity.isOperationalWorker(r.name)
+          : !RoleEntity.isOperationalWorker(r.name))
+    );
     if (rolesForDiv.length > 0) {
       setSelectedRoleName(rolesForDiv[0].name);
     }
@@ -82,7 +128,22 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password || !name || !employeeId) {
-      setError('Semua bidang wajib diisi.');
+      setError('Semua bidang formulir pendaftaran wajib diisi.');
+      return;
+    }
+
+    if (password.length < 6) {
+      setError('Password baru minimal harus 6 karakter.');
+      return;
+    }
+
+    if (name.trim().length < 2) {
+      setError('Nama lengkap minimal 2 karakter.');
+      return;
+    }
+
+    if (employeeId.trim().length < 3) {
+      setError('NIP / Employee ID (NIK) minimal 3 karakter.');
       return;
     }
 
@@ -91,7 +152,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setSuccessMsg(null);
 
     try {
-      await signUpWorker(
+      const res = await signUpWorker(
         email,
         password,
         name,
@@ -101,10 +162,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         accountType
       );
 
-      if (accountType === 'supervisor') {
+      if (res?.worker?.status === 'pending_approval') {
+        const registeredRole = res.worker.role || selectedRoleName;
         setSuccessMsg(
-          'Pendaftaran Supervisor berhasil! Akun Anda membutuhkan persetujuan (approval) Administrator.'
+          `Pendaftaran akun "${registeredRole}" berhasil diajukan! Demi keamanan & tata kelola operasional, akun pengawas/spesialis memerlukan persetujuan (approval) Administrator sebelum dapat digunakan untuk login.`
         );
+        setPassword('');
       } else {
         onLoginSuccess(employeeId);
       }
@@ -290,32 +353,32 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => setAccountType('worker')}
+                  onClick={() => handleAccountTypeChange('worker')}
                   className={`p-2 rounded-xl border text-xs text-left transition flex items-center gap-2 ${
                     accountType === 'worker'
-                      ? 'bg-emerald-600/15 border-emerald-500/40 text-emerald-300 font-bold'
+                      ? 'bg-emerald-600/15 border-emerald-500/40 text-emerald-300 font-bold shadow-inner'
                       : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
                   }`}
                 >
                   <UserCheck className="w-4 h-4 text-emerald-400 shrink-0" />
                   <div>
-                    <div className="font-bold text-[11px]">Operational Employee</div>
+                    <div className="font-bold text-[11px]">Staf Lapangan / Operator</div>
                     <div className="text-[9px] text-zinc-500">Langsung Aktif</div>
                   </div>
                 </button>
 
                 <button
                   type="button"
-                  onClick={() => setAccountType('supervisor')}
+                  onClick={() => handleAccountTypeChange('supervisor')}
                   className={`p-2 rounded-xl border text-xs text-left transition flex items-center gap-2 ${
                     accountType === 'supervisor'
-                      ? 'bg-indigo-600/15 border-indigo-500/40 text-indigo-300 font-bold'
+                      ? 'bg-purple-600/15 border-purple-500/40 text-purple-300 font-bold shadow-inner'
                       : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:text-white'
                   }`}
                 >
-                  <LayoutDashboard className="w-4 h-4 text-indigo-400 shrink-0" />
+                  <ShieldCheck className="w-4 h-4 text-purple-400 shrink-0" />
                   <div>
-                    <div className="font-bold text-[11px]">Supervisor</div>
+                    <div className="font-bold text-[11px]">Pengawas & Spesialis</div>
                     <div className="text-[9px] text-amber-400 font-medium">Butuh Approval</div>
                   </div>
                 </button>
@@ -323,9 +386,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
 
             {accountType === 'supervisor' && (
-              <div className="p-2.5 bg-indigo-950/40 border border-indigo-500/30 rounded-xl text-[11px] text-indigo-300 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-indigo-400 shrink-0" />
-                <span>Pendaftaran Supervisor memerlukan persetujuan Administrator terlebih dahulu.</span>
+              <div className="p-2.5 bg-purple-950/40 border border-purple-500/30 rounded-xl text-[11px] text-purple-300 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-purple-400 shrink-0" />
+                <span>Akun Pengawas & Spesialis memerlukan persetujuan (approval) Administrator sebelum dapat login.</span>
               </div>
             )}
 
@@ -353,15 +416,17 @@ export const LoginModal: React.FC<LoginModalProps> = ({
 
             {/* Step 1: Pilih Divisi */}
             <div>
-              <label className="block text-xs font-bold text-zinc-300 mb-1">1. Pilih Divisi Operasional</label>
+              <label className="block text-xs font-bold text-zinc-300 mb-1">
+                1. Pilih Divisi {accountType === 'worker' ? 'Operasional' : 'Unit / Kerja'}
+              </label>
               <select
                 value={selectedDivCode}
                 onChange={(e) => handleDivisionChange(e.target.value)}
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-mono"
                 required
               >
-                <option value="" disabled>-- Pilih Divisi Operasional --</option>
-                {divisions.map((d) => (
+                <option value="" disabled>-- Pilih Divisi --</option>
+                {availableDivisions.map((d) => (
                   <option key={d.id} value={d.code}>
                     {d.code} — {d.description}
                   </option>
@@ -369,28 +434,70 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               </select>
             </div>
 
-            {/* Step 2: Pilih Role (Filtered based on selected division) */}
-            {accountType === 'worker' && (
-              <div>
-                <label className="block text-xs font-bold text-zinc-300 mb-1">2. Pilih Role Operasional ({selectedDivCode})</label>
-                <select
-                  value={selectedRoleName}
-                  onChange={(e) => setSelectedRoleName(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  required
-                >
-                  <option value="" disabled>-- Pilih Role Operasional --</option>
-                  {availableRolesForDivision.map((r) => (
-                    <option key={r.id} value={r.name}>
-                      {r.name}
-                    </option>
-                  ))}
-                  {availableRolesForDivision.length === 0 && (
-                    <option value="Operator Forklift">Operator Forklift</option>
-                  )}
-                </select>
-              </div>
-            )}
+            {/* Step 2: Pilih Role / Jabatan */}
+            <div>
+              <label className="block text-xs font-bold text-zinc-300 mb-1">
+                {accountType === 'worker'
+                  ? `2. Pilih Role Staf Lapangan (${selectedDivCode})`
+                  : `2. Pilih Jabatan Pengawas / Spesialis (${selectedDivCode})`}
+              </label>
+              <select
+                value={selectedRoleName}
+                onChange={(e) => setSelectedRoleName(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                required
+              >
+                <option value="" disabled>
+                  {accountType === 'worker' ? '-- Pilih Role Staf Lapangan --' : '-- Pilih Jabatan Pengawas / Spesialis --'}
+                </option>
+                {availableRolesForDivision.map((r) => (
+                  <option key={r.id} value={r.name}>
+                    {r.name}
+                  </option>
+                ))}
+                {availableRolesForDivision.length === 0 && (
+                  <option value="Operator Forklift">Operator Forklift</option>
+                )}
+              </select>
+            </div>
+
+            {/* Contextual Specialized Console Feedback & Approval Requirement */}
+            {accountType === 'supervisor' && selectedRoleName && (() => {
+              const sysRole = RoleEntity.resolveSystemRole(selectedRoleName);
+              if (sysRole === 'supervisor') {
+                return (
+                  <div className="p-2.5 bg-purple-950/40 border border-purple-500/40 rounded-xl text-[11px] text-purple-300 flex items-center gap-2 animate-fade-in shadow-inner">
+                    <Clock className="w-4 h-4 text-purple-400 shrink-0" />
+                    <span>Jabatan <strong>{selectedRoleName}</strong>: Memiliki hak akses <strong>Konsol Supervisor & Penilaian Lapangan</strong>. Memerlukan persetujuan Admin.</span>
+                  </div>
+                );
+              }
+              if (sysRole === 'hse') {
+                return (
+                  <div className="p-2.5 bg-rose-950/40 border border-rose-500/40 rounded-xl text-[11px] text-rose-300 flex items-center gap-2 animate-fade-in shadow-inner">
+                    <Clock className="w-4 h-4 text-rose-400 shrink-0" />
+                    <span>Jabatan <strong>{selectedRoleName}</strong>: Memiliki hak akses <strong>Konsol K3 & Investigasi Insiden</strong>. Memerlukan persetujuan Admin.</span>
+                  </div>
+                );
+              }
+              if (sysRole === 'ga') {
+                return (
+                  <div className="p-2.5 bg-amber-950/40 border border-amber-500/40 rounded-xl text-[11px] text-amber-300 flex items-center gap-2 animate-fade-in shadow-inner">
+                    <Clock className="w-4 h-4 text-amber-400 shrink-0" />
+                    <span>Jabatan <strong>{selectedRoleName}</strong>: Memiliki hak akses <strong>Konsol General Affairs & Sarana Fasilitas</strong>. Memerlukan persetujuan Admin.</span>
+                  </div>
+                );
+              }
+              if (sysRole === 'hr') {
+                return (
+                  <div className="p-2.5 bg-blue-950/40 border border-blue-500/40 rounded-xl text-[11px] text-blue-300 flex items-center gap-2 animate-fade-in shadow-inner">
+                    <Clock className="w-4 h-4 text-blue-400 shrink-0" />
+                    <span>Jabatan <strong>{selectedRoleName}</strong>: Memiliki hak akses <strong>Konsol HR & Matriks Kompetensi</strong>. Memerlukan persetujuan Admin.</span>
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             <div>
               <label className="block text-xs font-bold text-zinc-300 mb-1">Email</label>
@@ -417,14 +524,22 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2"
+              className={`w-full py-2.5 text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 ${
+                accountType === 'supervisor'
+                  ? 'bg-purple-600 hover:bg-purple-500'
+                  : 'bg-emerald-600 hover:bg-emerald-500'
+              }`}
             >
               {loading ? (
                 <Loader2 className="w-4 h-4 animate-spin text-white" />
               ) : (
                 <>
                   <UserPlus className="w-4 h-4" />
-                  <span>Daftar Akun {accountType === 'supervisor' ? 'Supervisor' : 'Operational User'}</span>
+                  <span>
+                    {accountType === 'supervisor'
+                      ? 'Ajukan Pendaftaran Pengawas / Spesialis'
+                      : 'Daftar Akun Staf Lapangan'}
+                  </span>
                 </>
               )}
             </button>

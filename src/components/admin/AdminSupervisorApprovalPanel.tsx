@@ -1,7 +1,8 @@
 import React from 'react';
-import { UserCheck, UserPlus } from 'lucide-react';
+import { UserCheck, UserPlus, ShieldAlert, ShieldCheck, Building2, Users } from 'lucide-react';
 import { WorkerProfile } from '../../types/assessment';
 import { supabase } from '../../lib/supabaseClient';
+import { RoleEntity } from '../../domain/RoleEntity';
 
 interface AdminSupervisorApprovalPanelProps {
   pendingSupervisors: WorkerProfile[];
@@ -19,13 +20,50 @@ export const AdminSupervisorApprovalPanel: React.FC<AdminSupervisorApprovalPanel
   showToast,
 }) => {
   const handleSimulation = async () => {
-    const candidate = workers.find((w) => w.role !== 'System Administrator' && w.status !== 'pending_approval');
+    const candidate =
+      workers.find((w) => !RoleEntity.isOperationalWorker(w.role) && w.role !== 'System Administrator' && w.status !== 'pending_approval') ||
+      workers.find((w) => w.role !== 'System Administrator' && w.status !== 'pending_approval');
     if (candidate) {
       await supabase.from('workers').update({ status: 'pending_approval' }).eq('id', candidate.id);
-      showToast(`Simulasi permohonan supervisor dibuat untuk ${candidate.name}!`);
+      showToast(`Simulasi permohonan dibuat untuk ${candidate.name} (${candidate.role})!`);
       setTimeout(() => window.location.reload(), 1000);
     } else {
       showToast('Semua worker sudah memiliki permohonan aktif.');
+    }
+  };
+
+  const renderRoleBadge = (roleName: string) => {
+    const sysRole = RoleEntity.resolveSystemRole(roleName);
+    switch (sysRole) {
+      case 'hse':
+        return (
+          <span className="bg-rose-500/15 text-rose-400 border border-rose-500/30 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
+            <ShieldAlert className="w-3 h-3" />
+            <span>HSE / K3</span>
+          </span>
+        );
+      case 'ga':
+        return (
+          <span className="bg-amber-500/15 text-amber-300 border border-amber-500/30 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
+            <Building2 className="w-3 h-3" />
+            <span>GA / Fasilitas</span>
+          </span>
+        );
+      case 'hr':
+        return (
+          <span className="bg-blue-500/15 text-blue-300 border border-blue-500/30 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
+            <Users className="w-3 h-3" />
+            <span>HR / Training</span>
+          </span>
+        );
+      case 'supervisor':
+      default:
+        return (
+          <span className="bg-purple-500/15 text-purple-300 border border-purple-500/30 text-[10px] font-bold px-2 py-0.5 rounded flex items-center gap-1">
+            <ShieldCheck className="w-3 h-3" />
+            <span>Supervisor</span>
+          </span>
+        );
     }
   };
 
@@ -35,10 +73,10 @@ export const AdminSupervisorApprovalPanel: React.FC<AdminSupervisorApprovalPanel
         <div>
           <h3 className="font-bold text-white text-xs flex items-center gap-2">
             <UserCheck className="w-4 h-4 text-purple-400" />
-            Permohonan Akses Supervisor Logistik ({pendingSupervisors.length})
+            Antrean Permohonan Pengawas & Spesialis ({pendingSupervisors.length})
           </h3>
           <p className="text-[11px] text-zinc-500 mt-0.5">
-            Disetujui untuk memberikan hak akses Audit Matriks Kompetensi & Evaluasi Staf Operasional
+            Disetujui untuk memberikan hak akses konsol Pengawas & Spesialis (Supervisor, HSE / K3, General Affairs, atau HR Training)
           </p>
         </div>
 
@@ -57,7 +95,7 @@ export const AdminSupervisorApprovalPanel: React.FC<AdminSupervisorApprovalPanel
           <UserCheck className="w-8 h-8 text-zinc-600 mx-auto" />
           <div className="font-bold text-white">Tidak Ada Permohonan Antrean (0 Pending)</div>
           <p className="text-[11px] text-zinc-500 max-w-sm mx-auto leading-relaxed">
-            Permohonan akan muncul saat staf mendaftar melalui form <strong>"Daftar Akun Baru → Akses Supervisor / Pengawas"</strong> pada layar Login. Anda juga dapat menguji alur approval dengan mengeklik tombol <strong>"+ Uji Simulasi Permohonan"</strong> di atas.
+            Permohonan akan muncul saat staf mendaftar mandiri melalui form <strong>"Daftar Akun Baru"</strong> dengan memilih peran Pengawas & Spesialis (Supervisor, HSE, GA, HR).
           </p>
         </div>
       ) : (
@@ -74,14 +112,15 @@ export const AdminSupervisorApprovalPanel: React.FC<AdminSupervisorApprovalPanel
                   className="w-10 h-10 rounded-lg object-cover ring-1 ring-zinc-700 shrink-0"
                 />
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-bold text-sm text-white">{w.name}</span>
+                    {renderRoleBadge(w.role)}
                     <span className="bg-amber-500/10 text-amber-400 border border-amber-500/20 text-[10px] font-bold px-2 py-0.5 rounded">
                       Pending Approval
                     </span>
                   </div>
-                  <p className="text-xs text-zinc-400 mt-0.5">
-                    {w.email || w.employeeId} · Permohonan Role: <span className="text-white font-bold">{w.role}</span> ({w.division})
+                  <p className="text-xs text-zinc-400 mt-1">
+                    {w.email || w.employeeId} · Permohonan Jabatan: <span className="text-white font-bold">{w.role}</span> (Divisi {w.division})
                   </p>
                 </div>
               </div>
@@ -101,7 +140,7 @@ export const AdminSupervisorApprovalPanel: React.FC<AdminSupervisorApprovalPanel
                   type="button"
                   onClick={() => {
                     onApproveWorker?.(w.id);
-                    showToast(`Akses Supervisor ${w.name} berhasil disetujui!`);
+                    showToast(`Akses ${w.role} untuk ${w.name} berhasil disetujui!`);
                   }}
                   className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition shadow-sm"
                 >

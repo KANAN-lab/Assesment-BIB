@@ -826,5 +826,113 @@
   - [x] Type check `npx tsc --noEmit` lulus 0 error.
   - [x] Production build `npm run build` sukses (3441 modules, 19.14s).
 
+---
+
+## Phase 44: Multi-Role RBAC Expansion (HSE, GA, HR Specialized Consoles & Governance Engine)
+
+- [x] **1. Landasan Tipe & Taksonomi 6 Peran Sistem (`src/types/assessment.ts`)**:
+  - [x] Mendefinisikan tipe `SystemRole = 'worker' | 'supervisor' | 'hse' | 'ga' | 'hr' | 'admin'`.
+  - [x] Memperbarui antarmuka `WorkerProfile.accountType` ke tipe `SystemRole` untuk mendukung segmentasi hak akun perusahaan.
+- [x] **2. Engine Resolusi Peran Cerdas (`src/domain/RoleEntity.ts`)**:
+  - [x] Memperluas metode `RoleEntity.resolveSystemRole(roleName: string): SystemRole` untuk mengenali kata kunci jabatan spesialis:
+    - `admin`: System Administrator, Sysadmin, App Administrator.
+    - `hse`: HSE, EHS, K3, Safety Officer, Safety Inspector, Ahli K3.
+    - `ga`: General Affairs, GA Officer, Fasilitas, Facility, Maintenance Lead.
+    - `hr`: Human Resources, People Development, Trainer, Training, HRD.
+    - `supervisor`: Supervisor, Pengawas, Head, SPV, Section Manager.
+    - `worker`: Default untuk peran lapangan (Operator Forklift, Reach Truck, Checker, PIC Area, dll.).
+  - [x] Mendaftarkan entitas master role baru: `role-hse-officer`, `role-ga-officer`, `role-hr-training`.
+  - [x] Menyediakan helper OOP: `RoleEntity.isManagementRole(role)` dan `RoleEntity.getRoleLabel(role)`.
+- [x] **3. Otorisasi Terpusat (`src/domain/PermissionService.ts`)**:
+  - [x] Membuat service RBAC terpusat `PermissionService` yang mengimplementasikan pemetaan izin modular:
+    - `getAvailableViewsForRole(userRole)`: Menentukan konsol yang boleh dibuka berdasarkan hak akses pengguna.
+    - `canAccessView(userRole, targetView)`: Proteksi routing tampilan agar pengguna tidak bisa melompati batas wewenang.
+    - Metode validasi per modul: `canValidateIncidents()`, `canManageSioLicenses()`, `canManagePpeInventory()`, `canPerform5sAudit()`, `canManageDisciplinary()`, `canFulfillRewards()`, `canSignExecutiveReport()`.
+- [x] **4. Pembuatan 3 Konsol Khusus Departemen**:
+  - [x] **Pusat Komando K3 & Lingkungan (`src/components/HseConsole.tsx`)**:
+    - Tab 1: Investigasi Insiden & CAPA (Integrasi `SupervisorIncidentKanban` + modal validasi).
+    - Tab 2: Safety Patrol Gemba Walk (`SafetyPatrolKanban`).
+    - Tab 3: Kepatuhan Lisensi SIO MHE Alat Berat (`MheLicensePanel`).
+    - Tab 4: Audit Masa Pakai & Kelayakan APD (`PpeManagementPanel`).
+    - Tab 5: Penerbitan Dokumen Resmi K3 (`ExecutiveReportPanel`).
+  - [x] **Konsol Fasilitas, Aset & Sarana (`src/components/GaConsole.tsx`)**:
+    - Tab 1: Master Inventaris Stok APD (`PpeManagementPanel`).
+    - Tab 2: Audit 5R / 5S Fasilitas & Area Umum Gudang (`Audit5sPanel`).
+    - Tab 3: Logistik & Serah-Terima Fisik Reward (`AdminRewardCatalogPanel`).
+    - Tab 4: Laporan Inventaris & Pengeluaran APD/5S (`ExecutiveReportPanel`).
+  - [x] **Konsol Personalia, Kompetensi & Disiplin (`src/components/HrConsole.tsx`)**:
+    - Tab 1: Evaluasi Matriks & Kompetensi BIB Tim (Tabel staf operasional, gap analysis, audit matriks).
+    - Tab 2: Pustaka SOP & Kurikulum Pelatihan K3 (`SopManagementPanel`).
+    - Tab 3: Tata Tertib & Penanganan Sanksi Disipliner SP (`DisciplinaryPanel`).
+    - Tab 4: Laporan SDM & Matriks Eksekutif (`ExecutiveReportPanel`).
+- [x] **5. Navigasi Switcher 6 Mode Terintegrasi (`src/components/Navbar.tsx`)**:
+  - [x] Mendaftarkan 6 mode peran di `ROLE_MODES` dengan ikon, warna aksen, dan deskripsi tugas: `Operational`, `Supervisor`, `HSE / K3`, `GA / Facility`, `HR / Training`, `Admin`.
+  - [x] Integrasi `PermissionService.canAccessView` pada menu dropdown switch role:
+    - Akun Worker terkunci pada mode operasional.
+    - Akun HSE dapat berpindah antara mode operasional dan HSE Console.
+    - Akun GA dapat berpindah antara mode operasional dan GA Console.
+    - Akun HR dapat berpindah antara mode operasional dan HR Console.
+    - Akun Admin memiliki hak supervisi total ke seluruh 6 konsol.
+- [x] **6. Perutean Tampilan Aplikasi (`src/App.tsx`)**:
+  - [x] Menerapkan lazy-loading mandiri untuk `HseConsole`, `GaConsole`, dan `HrConsole`.
+  - [x] Menghubungkan state `activeView: SystemRole` dengan strict RBAC enforcement effect.
+  - [x] Menghubungkan perutean render conditional untuk menampilkan konsol yang aktif.
+- [x] **7. Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` lulus 0 error.
+  - [x] Production build `npm run build` sukses (3445 modules, 20.27s, bundle terpecah secara rapi ke dalam chunks `HseConsole`, `GaConsole`, `HrConsole`).
+
+---
+
+## Phase 45: Dedicated Single Staff Creator & Multi-Role Onboarding
+
+- [x] **1. Backend Data Service (`src/lib/supabaseService.ts`)**:
+  - [x] Implementasi fungsi `createWorkerProfile(params: CreateWorkerProfileInput)`:
+    - Validasi duplikasi NIP & Email ketat.
+    - Sinkronisasi otomatis ke Supabase Auth resmi.
+    - Inisialisasi record `workers` dengan default status `active`, tier `Novice Operational`, skor BIB awal, dan password default `123`.
+    - Logging aktivitas audit ke `activity_log`.
+- [x] **2. UI Admin Staff Panel (`src/components/admin/AdminStaffPanel.tsx`)**:
+  - [x] Tambahkan tombol `+ Tambah Staf` (ikon `UserPlus`, warna `bg-emerald-600`) di sebelah toolbar `Import TSV`.
+  - [x] Buat Modal `Tambah Personel Operasional Baru`:
+    - Form NIP, Nama Lengkap, Email, Pilihan Divisi, Pilihan Role (termasuk HSE, GA, HR, SPV), dan Password Awal.
+    - Validasi interaktif dan integrasi refresh data `onWorkersUpdated`.
+- [x] **3. Self-Registration Enhancement (`src/components/LoginModal.tsx`)**:
+  - [x] Sempurnakan tampilan pemilih peran di modal registrasi mandiri.
+  - [x] Tambahkan highlight visual untuk peran spesialis (`HSE Officer`, `GA & Facility Officer`, `HR & Training Specialist`).
+  - [x] Izinkan pemilihan divisi dinamis untuk pendaftaran `Supervisor`.
+- [x] **4. Verifikasi & Build**:
+  - [x] Validasi TypeScript `npx tsc --noEmit` (0 error).
+  - [x] Validasi build produksi `npm run build` (lulus sukses).
+
+---
+
+## Phase 46: Advanced Specialist Features & Workflow Refinement (Fase 3 SPEC)
+
+- [x] **1. HR Console: Integrasi Bank Soal Kuis Dinamis (`src/components/HrConsole.tsx`)**:
+  - [x] Tambahkan tab navigasi `Bank Soal Kuis Harian` di samping `Pustaka SOP & Kurikulum K3`.
+  - [x] Lazy-load `QuizManagementPanel` di dalam `HrConsole.tsx`.
+  - [x] Memungkinkan tim People Development / HR membuat soal, mengatur kategori kuis, dan poin reward secara mandiri.
+- [x] **2. HSE Console: Investigasi Terstruktur 5-Why & Fishbone 4M+1E (`src/components/SupervisorIncidentValidationModal.tsx`)**:
+  - [x] Toggle mode `Format Bebas` vs `5-Why & Fishbone (ISO 45001)`.
+  - [x] Selector faktor penyebab Fishbone (Man, Machine, Method, Material, Environment).
+  - [x] 5 input bertingkat kausalitas Why 1 s.d. Why 5 (Akar Masalah Hakiki).
+  - [x] Tombol otomatisasi sinkronisasi ke ringkasan teks CAPA dan penyimpanan ke database.
+- [x] **3. GA Console: Kalkulator Reorder Point (ROP) Logistik APD (`src/components/PpeManagementPanel.tsx`)**:
+  - [x] Tambahkan tombol kalkulator logistik ROP (`Calculator`) pada katalog master APD.
+  - [x] Modal interaktif kalkulasi: $ROP = (Demand \times Lead Time) + Safety Stock$.
+  - [x] Tombol terapkan langsung hasil kalkulasi ke `minimumStockThreshold` item APD terkait.
+  - [x] Tampilan badge dinamis batas ROP di tabel katalog master APD.
+- [x] **4. GA Console: Verifikasi Tanda Tangan Digital Serah-Terima Reward (`src/components/admin/AdminRewardCatalogPanel.tsx`)**:
+  - [x] Modal penyerahan fisik voucher/sembako berkanvas tanda tangan digital (`<canvas>`).
+  - [x] Dukungan interaksi mouse dan layar sentuh gawai (*touch events*).
+  - [x] Tombol bersihkan kanvas dan perekaman metadata tanda tangan digital ke penyimpanan audit.
+  - [x] Tombol "Bukti TTD" pada baris riwayat penukaran yang telah diserahkan untuk audit akuntabilitas.
+- [x] **5. Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` (0 error).
+  - [x] Production build `npm run build` (sukses).
+
+
+
+
 
 

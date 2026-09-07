@@ -143,12 +143,12 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
     {
       groupLabel: 'SDM & AKSES PEKERJA',
       tabs: [
-        { key: 'workers', label: 'Operational Employee', icon: Users, badge: workers.length },
+        { key: 'workers', label: 'Data Personel & Staf', icon: Users, badge: workers.length },
         { key: 'admins', label: 'User Administrator', icon: ShieldCheck, badge: adminWorkers.length },
         { key: 'disciplinary', label: 'Konseling & Sanksi K3', icon: ShieldAlert },
         { key: 'licenses', label: 'Pelacak SIO & Lisensi MHE', icon: Truck },
         { key: 'ppe', label: 'Inventaris & Distribusi APD', icon: HardHat },
-        { key: 'approvals', label: 'Approval Supervisor', icon: UserCheck, badge: pendingSupervisors.length, alert: pendingSupervisors.length > 0 },
+        { key: 'approvals', label: 'Approval Pengawas & Spesialis', icon: UserCheck, badge: pendingSupervisors.length, alert: pendingSupervisors.length > 0 },
         { key: 'activity', label: 'Log Aktivitas Sistem', icon: History },
       ],
     },
@@ -275,7 +275,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
         </div>
 
         {/* Mobile Horizontal Scrollable Tab Bar */}
-        <div className="md:hidden flex items-center gap-1.5 overflow-x-auto pb-1 custom-scrollbar">
+        <div className="md:hidden flex bg-zinc-900/90 border border-zinc-800 p-1.5 rounded-2xl overflow-x-auto gap-1.5 custom-scrollbar">
           {TAB_GROUPS.flatMap((g) => g.tabs).map((t) => {
             const isActive = activeTab === t.key;
             const Icon = t.icon;
@@ -284,16 +284,26 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
                 key={t.key}
                 type="button"
                 onClick={() => setActiveTab(t.key)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition shrink-0 ${
+                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition shrink-0 min-h-[40px] ${
                   isActive
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-zinc-900 text-zinc-400 hover:text-white'
+                    ? 'bg-purple-600 text-white shadow-md shadow-purple-950 ring-1 ring-purple-400/30'
+                    : t.alert
+                    ? 'bg-amber-950/40 text-amber-300 border border-amber-500/40 animate-pulse'
+                    : 'text-zinc-400 hover:text-white bg-zinc-950 border border-zinc-850'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-white' : 'text-zinc-400'}`} />
                 <span>{t.label}</span>
                 {t.badge !== undefined && (
-                  <span className="text-[9px] font-mono font-bold px-1 rounded bg-zinc-800 text-zinc-300">
+                  <span
+                    className={`text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full shrink-0 ${
+                      t.alert
+                        ? 'bg-amber-500 text-zinc-950 font-black animate-pulse'
+                        : isActive
+                        ? 'bg-purple-800 text-purple-100'
+                        : 'bg-zinc-800 text-zinc-300'
+                    }`}
+                  >
                     {t.badge}
                   </span>
                 )}

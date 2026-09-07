@@ -1,15 +1,34 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { ShieldCheck, Flame, Coins, UserCheck, LayoutDashboard, LogOut, Settings, Zap, ChevronDown, Check, Camera, Lock, BookOpen, HelpCircle } from 'lucide-react';
-import { WorkerProfile } from '../types/assessment';
+import {
+  ShieldCheck,
+  Flame,
+  Coins,
+  UserCheck,
+  LayoutDashboard,
+  LogOut,
+  Settings,
+  Zap,
+  ChevronDown,
+  Check,
+  Camera,
+  Lock,
+  BookOpen,
+  HelpCircle,
+  Building2,
+  GraduationCap,
+  HardHat
+} from 'lucide-react';
+import { WorkerProfile, SystemRole } from '../types/assessment';
 import { RoleEntity } from '../domain/RoleEntity';
+import { PermissionService } from '../domain/PermissionService';
 import { WorkerAvatar } from './WorkerAvatar';
 import { NotificationBell } from './NotificationBell';
 import { NetworkStatusBadge } from './NetworkStatusBadge';
 
 interface NavbarProps {
   currentWorker: WorkerProfile;
-  activeView: 'worker' | 'supervisor' | 'admin';
-  setActiveView: (view: 'worker' | 'supervisor' | 'admin') => void;
+  activeView: SystemRole;
+  setActiveView: (view: SystemRole) => void;
   onOpenDailyQuiz: () => void;
   onOpenProfilePicModal: () => void;
   onOpenSopLibrary?: () => void;
@@ -19,7 +38,7 @@ interface NavbarProps {
 
 const ROLE_MODES = [
   {
-    key: 'worker',
+    key: 'worker' as SystemRole,
     label: 'Operational Employee (Worker)',
     shortLabel: 'Operational',
     icon: UserCheck,
@@ -27,22 +46,46 @@ const ROLE_MODES = [
     desc: 'Kinerja, Quest Harian & Rewards',
   },
   {
-    key: 'supervisor',
-    label: 'Supervisor (Pengawas)',
+    key: 'supervisor' as SystemRole,
+    label: 'Supervisor (Pengawas Lapangan)',
     shortLabel: 'Supervisor',
     icon: LayoutDashboard,
     badgeBg: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
     desc: 'Audit Matriks & Monitoring Tim',
   },
   {
-    key: 'admin',
+    key: 'hse' as SystemRole,
+    label: 'HSE / EHS (Keselamatan K3)',
+    shortLabel: 'HSE / K3',
+    icon: ShieldCheck,
+    badgeBg: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    desc: 'Insiden K3, SIO Kemnaker & Gemba Walk',
+  },
+  {
+    key: 'ga' as SystemRole,
+    label: 'General Affairs (Fasilitas & Sarana)',
+    shortLabel: 'GA / Facility',
+    icon: Building2,
+    badgeBg: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+    desc: 'Master Stok APD, 5R & Logistik Reward',
+  },
+  {
+    key: 'hr' as SystemRole,
+    label: 'HR & Training (Personalia & SDM)',
+    shortLabel: 'HR / Training',
+    icon: GraduationCap,
+    badgeBg: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+    desc: 'Matriks BIB, Kurikulum SOP & Disiplin SP',
+  },
+  {
+    key: 'admin' as SystemRole,
     label: 'Administrator (System)',
     shortLabel: 'Admin',
     icon: Settings,
-    badgeBg: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-    desc: 'Kelola Divisi, Role & Matrix',
+    badgeBg: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+    desc: 'Kelola Divisi, Role, Konfigurasi IT',
   },
-] as const;
+];
 
 export const Navbar: React.FC<NavbarProps> = ({
   currentWorker,
@@ -60,10 +103,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   const userSystemRole = RoleEntity.resolveSystemRole(currentWorker.role);
 
   // Filter allowed mode keys based on actual user role
-  const isModeAllowed = (modeKey: 'worker' | 'supervisor' | 'admin') => {
-    if (userSystemRole === 'admin') return true;
-    if (userSystemRole === 'supervisor') return modeKey === 'worker' || modeKey === 'supervisor';
-    return modeKey === 'worker';
+  const isModeAllowed = (modeKey: SystemRole) => {
+    return PermissionService.canAccessView(userSystemRole, modeKey);
   };
 
   // Close dropdown on outside click

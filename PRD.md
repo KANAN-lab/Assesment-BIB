@@ -5,12 +5,12 @@
 
 | Metadata | Detail |
 | :--- | :--- |
-| **Document Version** | 4.5.0 (Full Enterprise Logistics & HSE Suite — 38 Implementation Phases) |
+| **Document Version** | 4.6.0 (Full Enterprise Logistics, Multi-Role RBAC & Specialized Consoles Suite) |
 | **Status** | Production Ready / Active Enterprise Specification |
 | **Author** | Antigravity AI & Engineering Team |
-| **Target User** | Staff Logistik (Operator Forklift, Reach Truck, Checker, PIC Area, Driver, Supervisor/Pengawas, Ops Manager, HSE Officer, System Administrator) |
+| **Target User** | Staff Logistik (Operator Forklift, Reach Truck, Checker, PIC Area, Driver, Supervisor/Pengawas, Ops Manager, HSE Officer, GA Officer, HR Specialist, System Administrator) |
 | **Company** | PT. DAYA ANUGRAH MULYA |
-| **Primary Goal** | Platform holistik penilaian kinerja berimbang (BIB & 54-Item Competency Matrix), **Pustaka SOP Micro-Deck & K3 Interactive Academy (Step Builder, DOs/DON'Ts, Safety Alert, TTS Voiceover Engine, WMS Simulator, Hazard Hunt)**, **Pelacak SIO & Lisensi Alat Berat MHE dengan Supabase Realtime & Fast Gemini Vision AI**, **Inventaris & Distribusi APD**, **Generator Laporan Audit Eksekutif & Formulir BAP Insiden K3 Resmi**, **Papan Kanban Serah Terima Shift & Kaizen Inovasi**, **Safety Patrol Gemba Walk**, **Google Drive Gateway User-Bound**, **Sistem Poin Dinamis & Dynamic Tier Engine**, **Offline Queue Drawer**, **Dialog Konfirmasi OOP SwalService**, dan **High-Performance Database Indexing**. |
+| **Primary Goal** | Platform holistik penilaian kinerja berimbang (BIB & 54-Item Competency Matrix), **Pustaka SOP Micro-Deck & K3 Interactive Academy (Step Builder, DOs/DON'Ts, Safety Alert, TTS Voiceover Engine, WMS Simulator, Hazard Hunt)**, **Pelacak SIO & Lisensi Alat Berat MHE dengan Supabase Realtime & Fast Gemini Vision AI**, **Inventaris & Distribusi APD**, **Generator Laporan Audit Eksekutif & Formulir BAP Insiden K3 Resmi**, **Papan Kanban Serah Terima Shift & Kaizen Inovasi**, **Safety Patrol Gemba Walk**, **Google Drive Gateway User-Bound**, **Sistem Poin Dinamis & Dynamic Tier Engine**, **Offline Queue Drawer**, **Dialog Konfirmasi OOP SwalService**, **Enterprise Multi-Role RBAC (HSE, GA, HR Specialized Consoles)**, dan **High-Performance Database Indexing**. |
 
 ---
 
@@ -22,7 +22,8 @@ Aplikasi dibangun menggunakan **Object-Oriented Programming (OOP)** dan **Domain
 [ Domain Entities & State Machines (OOP / DDD) ]
   ├── WorkerEntity             ── Tier progression, BIB score, streak calculation, dynamic tier thresholds
   ├── DivisionEntity           ── Dynamic divisions (WFG, WRM, Timbangan, GA, Expedisi, WSP, dll)
-  ├── RoleEntity               ── Dynamic roles + resolveSystemRole() RBAC enforcement (Worker vs Supervisor vs Admin)
+  ├── RoleEntity               ── Dynamic roles + resolveSystemRole() 6-role mapping (Worker, Supervisor, HSE, GA, HR, Admin)
+  ├── PermissionService        ── Centralized Enterprise RBAC Engine, view routing guards & action permissions
   ├── RewardEntity             ── OOP validation, stock mutation, dynamic tier eligibility, FCFS claim lock
   ├── CompetencyMatrixEngine   ── 54 items, max score bounds, grade calculation, dynamic AI matrix extraction
   ├── IncidentManager / Entity ── Incident lifecycle state machine (Open -> Investigating -> Resolved -> Closed), CAPA validation, reporter reward
@@ -765,5 +766,30 @@ Modul pembelajaran interaktif multi-format (*Gamified Micro-Learning*) untuk mem
   - **Fitur Reset & Simpan Aman**: Dilengkapi dialog konfirmasi OOP SweetAlert2 bertema gelap dan sinkronisasi real-time lintas tab via `BroadcastChannel` dan event `gappy_notification_updated`.
 - **Penyempurnaan Lonceng Notifikasi Header (`NotificationBell.tsx`)**:
   - Menambahkan tab filter `Lisensi SIO` di popover lonceng notifikasi pekerja dan supervisor untuk pemisahan informasi legalitas yang cepat dan teratur.
+
+---
+
+## 32. Enterprise Multi-Role RBAC Architecture & Specialized Departmental Consoles
+
+- **Taksonomi 6 Peran Sistem & Pemisahan Tanggung Jawab (*Segregation of Duties*)**:
+  - `worker` (Operational Employee): Eksekusi lapangan, kuis harian, checklist pra-shift, lapor insiden/near-miss, penukaran poin reward.
+  - `supervisor` (Operational Supervisor): Pemantauan ritme tim divisi, evaluasi skor BIB, serah terima shift, usulan kaizen.
+  - `hse` (HSE / EHS Specialist): Investigasi insiden & CAPA, kepatuhan lisensi SIO Kemnaker RI, audit masa pakai APD, Safety Patrol Gemba Walk, penerbitan dokumen eksekutif K3 resmi.
+  - `ga` (General Affairs Officer): Pengendalian master inventaris APD, audit 5R/5S fasilitas & area umum gudang, penyerahan fisik sembako/voucher reward.
+  - `hr` (HR & Training Lead): Evaluasi matriks kompetensi BIB, manajemen kurikulum SOP & kuis, tata tertib & sanksi disipliner SP.
+  - `admin` (System Administrator): Tata kelola platform, master data role & divisi, konfigurasi bobot poin/penalti, template dokumen SK.
+
+- **Engine Otorisasi Terpusat (`PermissionService.ts`)**:
+  - Pemetaan perizinan berbasis role modular (`canValidateIncidents`, `canManageSioLicenses`, `canManagePpeInventory`, `canPerform5sAudit`, `canManageDisciplinary`, `canFulfillRewards`, `canSignExecutiveReport`).
+  - Strict view routing guard via `PermissionService.canAccessView(userRole, targetView)`.
+
+- **Konsol Spesialis Mandiri (Vite Code Splitting & Lazy Chunks)**:
+  - **`HseConsole.tsx`**: Modul Investigasi Insiden, Safety Patrol Kanban, SIO MHE Panel, Audit APD, dan Generator Laporan K3.
+  - **`GaConsole.tsx`**: Modul Master Stok APD, Audit 5S Fasilitas, Logistik Penyerahan Reward, dan Laporan Inventaris.
+  - **`HrConsole.tsx`**: Modul Matriks BIB Tim & Gap Analysis, Pustaka SOP, Sanksi Disipliner SP, dan Laporan SDM.
+
+- **Navigasi Dinamis & Role Switcher (`Navbar.tsx`)**:
+  - Dropdown navigasi 6 mode peran dengan warna aksen, ikon representatif, dan pembatasan switch berbasis hak akun karyawan.
+
 
 

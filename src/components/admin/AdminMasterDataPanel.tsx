@@ -184,7 +184,7 @@ export const AdminMasterDataPanel: React.FC<AdminMasterDataPanelProps> = ({
           <div className="card p-5">
             <h3 className="font-bold text-white text-xs mb-3 flex items-center gap-2">
               <UserPlus className="w-4 h-4 text-emerald-400" />
-              Tambah Role Operasional
+              Tambah Role Pegawai
             </h3>
 
             <form onSubmit={handleAddRole} className="space-y-3">
@@ -194,10 +194,31 @@ export const AdminMasterDataPanel: React.FC<AdminMasterDataPanelProps> = ({
                   type="text"
                   value={newRoleName}
                   onChange={(e) => setNewRoleName(e.target.value)}
-                  placeholder="Inspector QC"
+                  placeholder="cth. Checker WSP, Inspector QC, Supervisor..."
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                   required
                 />
+                {newRoleName.trim() && (
+                  <div className="mt-2 p-2.5 rounded-lg bg-zinc-900 border border-zinc-800 text-[11px] space-y-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-zinc-400">Kategori Akses:</span>
+                      <span
+                        className={`font-bold px-1.5 py-0.5 rounded text-[10px] border ${
+                          RoleEntity.isOperationalWorker(newRoleName)
+                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            : 'bg-purple-500/10 text-purple-300 border-purple-500/20'
+                        }`}
+                      >
+                        {RoleEntity.isOperationalWorker(newRoleName) ? 'Staf Lapangan / Operator' : 'Pengawas & Spesialis'}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-zinc-500">
+                      {RoleEntity.isOperationalWorker(newRoleName)
+                        ? 'Dapat login ke Worker Portal. Registrasi mandiri berstatus langsung aktif.'
+                        : 'Memiliki akses konsol khusus (Supervisor / HSE / GA / HR). Registrasi mandiri memerlukan persetujuan Admin.'}
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -241,17 +262,31 @@ export const AdminMasterDataPanel: React.FC<AdminMasterDataPanelProps> = ({
           <div className="card p-5 lg:col-span-2">
             <h3 className="font-bold text-white text-xs mb-3">Role Terdaftar ({roles.length})</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[480px] overflow-y-auto custom-scrollbar pr-1">
-              {roles.map((r) => (
-                <div key={r.id} className="p-3.5 rounded-xl bg-zinc-800/60 border border-zinc-800 flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
-                    <span className="font-black text-emerald-400 text-[9px]">{r.divisionCode}</span>
+              {roles.map((r) => {
+                const isWorker = RoleEntity.isOperationalWorker(r.name);
+                return (
+                  <div key={r.id} className="p-3.5 rounded-xl bg-zinc-800/60 border border-zinc-800 flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                      <span className="font-black text-emerald-400 text-[9px]">{r.divisionCode}</span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="font-bold text-white text-xs">{r.name}</h4>
+                        <span
+                          className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${
+                            isWorker
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                              : 'bg-purple-500/10 text-purple-300 border-purple-500/20'
+                          }`}
+                        >
+                          {isWorker ? 'Staf Lapangan' : 'Pengawas & Spesialis'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-zinc-400 mt-0.5 truncate">{r.description || 'Peran operasional tim logistik'}</p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <h4 className="font-bold text-white text-xs">{r.name}</h4>
-                    <p className="text-[11px] text-zinc-400 mt-0.5 truncate">{r.description || 'Peran operasional tim logistik'}</p>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         </div>

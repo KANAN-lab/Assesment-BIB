@@ -24,7 +24,8 @@ import {
   FileCheck,
   RotateCcw,
   Check,
-  UserCheck
+  UserCheck,
+  Calculator
 } from 'lucide-react';
 import {
   PpeItemEntity,
@@ -89,6 +90,38 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
   const [selectedDistForDamage, setSelectedDistForDamage] = useState<PpeDistributionEntity | null>(null);
   const [selectedReportForReview, setSelectedReportForReview] = useState<PpeDamageReportEntity | null>(null);
   const [editingMasterItem, setEditingMasterItem] = useState<PpeItemEntity | null>(null);
+
+  // ROP (Reorder Point) Logistics Calculator State
+  const [isRopModalOpen, setIsRopModalOpen] = useState(false);
+  const [selectedItemForRop, setSelectedItemForRop] = useState<PpeItemEntity | null>(null);
+  const [dailyDemand, setDailyDemand] = useState<number>(2);
+  const [leadTimeDays, setLeadTimeDays] = useState<number>(7);
+  const [safetyStock, setSafetyStock] = useState<number>(5);
+
+  const handleOpenRopModal = (item: PpeItemEntity) => {
+    setSelectedItemForRop(item);
+    setDailyDemand(Math.max(1, Math.round(item.stockDistributed / 30)) || 1);
+    setLeadTimeDays(7);
+    setSafetyStock(Math.max(2, Math.round(item.minimumStockThreshold / 2)) || 5);
+    setIsRopModalOpen(true);
+  };
+
+  const calculatedRopValue = useMemo(() => {
+    return (dailyDemand * leadTimeDays) + safetyStock;
+  }, [dailyDemand, leadTimeDays, safetyStock]);
+
+  const handleApplyRop = () => {
+    if (!selectedItemForRop) return;
+    PpeService.updateMasterItem(selectedItemForRop.id, {
+      minimumStockThreshold: calculatedRopValue,
+    });
+    setMasterItems(PpeService.getAllMasterItems());
+    setIsRopModalOpen(false);
+    SwalService.success(
+      'Reorder Point (ROP) Diterapkan',
+      `Batas minimum stok untuk "${selectedItemForRop.name}" berhasil disetel ke ${calculatedRopValue} ${selectedItemForRop.unit}.`
+    );
+  };
 
   // Distribution Form
   const [distWorkerId, setDistWorkerId] = useState('');
@@ -796,7 +829,7 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
                         </td>
                         <td className="p-3.5 text-center">
                           <span
-                            className={`px-2.5 py-1 rounded-full text-[11px] font-bold border ${
+                            className={`px-2.5 py-1 rounded-full text-[11px] font-bold border inline-block ${
                               isLowStock
                                 ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 animate-pulse'
                                 : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
@@ -804,6 +837,9 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
                           >
                             {item.stockAvailable} {item.unit}
                           </span>
+                          <div className="text-[10px] text-zinc-500 mt-1">
+                            Batas ROP: <strong className={isLowStock ? 'text-rose-400' : 'text-zinc-400'}>{item.minimumStockThreshold} {item.unit}</strong>
+                          </div>
                         </td>
                         <td className="p-3.5 text-center font-semibold text-zinc-300">
                           {item.stockDistributed} {item.unit}
@@ -813,6 +849,13 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
                         </td>
                         <td className="p-3.5 text-center">
                           <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => handleOpenRopModal(item)}
+                              className="p-1.5 rounded-lg bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border border-amber-500/30 transition"
+                              title="Kalkulator Reorder Point (ROP) Logistik"
+                            >
+                              <Calculator className="w-3.5 h-3.5" />
+                            </button>
                             <button
                               onClick={() => handleOpenMasterModal(item)}
                               className="p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition"
@@ -1422,6 +1465,143 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─── MODAL: KALKULATOR REORDER POINT (ROP) LOGISTIK ─── */}
+      {isRopModalOpen && selectedItemForRop && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-zinc-900 border border-amber-500/40 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl shadow-amber-950/50">
+            <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/80">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center text-amber-400">
+                  <Calculator className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">Kalkulator Reorder Point (ROP) Logistik</h3>
+                  <p className="text-[11px] text-amber-300 font-medium">
+                    Item: {selectedItemForRop.name} ({selectedItemForRop.unit})
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsRopModalOpen(false)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              {/* Formula Banner */}
+              <div className="p-3 rounded-xl bg-zinc-950 border border-zinc-800 space-y-1">
+                <span className="text-[10px] font-bold uppercase text-amber-400 tracking-wider block">
+                  Rumus Manajemen Persediaan:
+                </span>
+                <p className="font-mono text-xs text-zinc-300">
+                  ROP = (Konsumsi Harian × Lead Time Hari) + Safety Stock
+                </p>
+                <p className="text-[10px] text-zinc-500">
+                  Ketika stok gudang menyentuh angka ROP, pengadaan unit baru harus segera diproses ke vendor.
+                </p>
+              </div>
+
+              {/* 3 Parameter Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-zinc-300">
+                    Konsumsi Harian
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={1}
+                      value={dailyDemand}
+                      onChange={(e) => setDailyDemand(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-amber-500"
+                    />
+                    <span className="absolute right-2.5 top-2 text-[10px] text-zinc-500">/hari</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-zinc-300">
+                    Lead Time Vendor
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={1}
+                      value={leadTimeDays}
+                      onChange={(e) => setLeadTimeDays(Math.max(1, parseInt(e.target.value) || 1))}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-amber-500"
+                    />
+                    <span className="absolute right-2.5 top-2 text-[10px] text-zinc-500">hari</span>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="block text-[11px] font-bold text-zinc-300">
+                    Safety Stock
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min={0}
+                      value={safetyStock}
+                      onChange={(e) => setSafetyStock(Math.max(0, parseInt(e.target.value) || 0))}
+                      className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white font-bold focus:outline-none focus:border-amber-500"
+                    />
+                    <span className="absolute right-2.5 top-2 text-[10px] text-zinc-500">{selectedItemForRop.unit}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* ROP Calculation Result Box */}
+              <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between">
+                <div>
+                  <div className="text-[10px] font-bold text-amber-300 uppercase tracking-wider">
+                    Hasil Ambang Batas ROP Rekomendasi
+                  </div>
+                  <div className="text-2xl font-black text-amber-400 font-mono mt-0.5">
+                    {calculatedRopValue} <span className="text-xs font-normal text-amber-200">{selectedItemForRop.unit}</span>
+                  </div>
+                  <div className="text-[10px] text-zinc-400 mt-0.5">
+                    Stok Tersedia Saat Ini: <strong className="text-white">{selectedItemForRop.stockAvailable} {selectedItemForRop.unit}</strong> (
+                    {selectedItemForRop.stockAvailable <= calculatedRopValue ? (
+                      <span className="text-rose-400 font-bold">Harus Segera Dipesan Ulang!</span>
+                    ) : (
+                      <span className="text-emerald-400 font-bold">Stok Masih Aman</span>
+                    )}
+                    )
+                  </div>
+                </div>
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-300 shrink-0">
+                  <Package className="w-6 h-6" />
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex gap-2 pt-2 border-t border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setIsRopModalOpen(false)}
+                  className="w-1/3 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-bold transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleApplyRop}
+                  className="w-2/3 py-2.5 bg-amber-500 hover:bg-amber-400 text-black font-black rounded-xl text-xs transition shadow-lg shadow-amber-950 flex items-center justify-center gap-1.5"
+                >
+                  <Check className="w-4 h-4" />
+                  <span>Terapkan Sebagai Batas Minimum</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>,
         document.body

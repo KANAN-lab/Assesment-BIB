@@ -258,4 +258,61 @@ return createPortal(
 4. [ ] **Focus & Event Bubbling**: Pasang `onClick={(e) => e.stopPropagation()}` pada dialog card agar interaksi pada field input/select tidak memicu backdrop click.
 5. [ ] **Select / Input Styling**: Input wajib memiliki `text-white bg-zinc-950 border-zinc-800 focus:border-amber-500` (atau emerald) dan `<option className="bg-zinc-900 text-white">` agar terbaca jelas di semua browser/OS.
 
+---
+
+## 11. Desktop-Centric & Mobile-Friendly Layout Architecture
+
+> [!IMPORTANT]
+> **Prinsip Dualitas Tampilan**:
+> Sistem ini harus memberikan pengalaman eksekutif tingkat enterprise di **Desktop (layar lebar)** dan kemudahan penggunaan operasional lapangan di **Mobile (smartphone/tablet)**. Desain tidak boleh mengorbankan salah satu platform.
+
+### A. Breakpoint Standar Proyek
+| Device | Breakpoint Tailwind | Ciri Layout Utama |
+|---|---|---|
+| **Mobile** | `< 640px` (default) | Single-column stack, full-width actions, horizontal swipeable tabs, touch targets min 40-44px. |
+| **Tablet** | `640px - 1023px` (`sm:` / `md:`) | 2-column grid, compact action chips, responsive card padding. |
+| **Desktop** | `>= 1024px` (`lg:` / `xl:`) | Multi-column executive navigation suite (3 atau 4 kolom), inline toolbars, split 12-column panes (4-col sidebar, 8-col content). |
+
+### B. Pola Navigasi Konsol Eksekutif (Admin / Supervisor / HSE / GA / HR)
+- **Desktop (`>= md`)**:
+  - Gunakan **Categorized Navigation Suite** (4 kolom card grouping untuk Admin Console, 3 kolom untuk Supervisor Console).
+  - Setiap grup memuat tab-tab relevan dengan badge counter dan alert indicator yang tidak memerlukan scrolling tambahan.
+- **Mobile (`< md`)**:
+  - Bungkus tab dalam **Horizontal Segmented Scroll Bar** (`bg-zinc-900/90 border border-zinc-800 p-1.5 rounded-2xl overflow-x-auto gap-1.5 custom-scrollbar`).
+  - Setiap tab item wajib memiliki `min-h-[40px] px-3.5 py-2` agar ramah sentuhan jari operator di lapangan.
+  - Sediakan indikator badge counter dan pulse alert untuk tab dengan antrean pending.
+
+---
+
+## 12. Unified Data Table & Toolbar Standards (Anti-Duplikasi Kontrol)
+
+> [!WARNING]
+> **Dilarang Menumpuk Kotak Pencarian & Tombol Aksi yang Sama!**
+> Tabel data yang menggunakan `CustomDataTable` tidak boleh didahului oleh kotak pencarian (`<input placeholder="Cari...">`) atau tombol export CSV eksternal terpisah. Semua filter dan aksi harus terintegrasi ke dalam satu kesatuan.
+
+### A. Arsitektur Toolbar Tabel yang Benar
+1. **Header Card Section**:
+   - Menampilkan judul tabel (`<h3>`), badge jumlah data, dan sublabel deskripsi fungsi.
+   - Di sisi kanan (desktop) atau baris bawah 2-kolom (mobile): HANYA menampung **Aksi Primer** (contoh: `+ Tambah Pegawai` dan `Import TSV`).
+2. **Integrated Toolbar (`CustomDataTable`)**:
+   - **`filterSlot`**: Tempatkan filter dropdown (Divisi, Kategori, Status) langsung di dalam `CustomDataTable`.
+   - **Search Input Bawaan**: Gunakan search input tunggal milik `CustomDataTable` yang otomatis menyaring field data (`searchFields`).
+   - **`actionsSlot`**: Tempatkan tombol batch aksi jika diperlukan di samping selector jumlah baris dan tombol CSV bawaan.
+
+### B. Perilaku Responsif Toolbar Tabel
+```tsx
+// Desktop Layout (Inline 1 Baris):
+[ Search Input (flex-1) ] [ Filter Divisi ] [ Filter Kategori ]  ---  [ Tampilkan: 10 baris ] [ Export CSV ]
+
+// Mobile Layout (Stacked 3 Baris Rapi):
+Baris 1: [ Search Input (full-width) ]
+Baris 2: [ Filter Divisi (50%) ] [ Filter Kategori (50%) ]
+Baris 3: [ Tampilkan: 10 baris ] [ Export CSV ]
+```
+
+### C. Keamanan Scroll Horizontal Tabel di Mobile
+- Elemen `<table>` **WAJIB** berada di dalam wrapper `overflow-x-auto custom-scrollbar rounded-xl border border-zinc-800`.
+- Di layar mobile (`< sm`), tabel dapat digeser ke samping secara mandiri tanpa menyebabkan seluruh viewport halaman bergeser keluar layar (*horizontal layout break prevention*).
+
+
 

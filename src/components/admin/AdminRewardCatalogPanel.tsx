@@ -3,7 +3,8 @@ import SearchableSelect, { SelectOption } from '../ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import {
   ShoppingBag, Plus, Search, AlertTriangle, History, Coins, PackagePlus,
-  Edit2, Trash2, X, Check, Loader2, AlertCircle, PackageCheck
+  Edit2, Trash2, X, Check, Loader2, AlertCircle, PackageCheck,
+  PenTool, RotateCcw, FileSignature, Eye
 } from 'lucide-react';
 import { RewardItem, TierType } from '../../types/assessment';
 import { CustomDataTable, DataTableColumn } from '../CustomDataTable';
@@ -51,6 +52,101 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
   const [restockAddAmount, setRestockAddAmount] = useState<number>(10);
   const [fulfillingRewardId, setFulfillingRewardId] = useState<string | null>(null);
   const [cancellingRewardId, setCancellingRewardId] = useState<string | null>(null);
+
+  // Digital Signature & Physical Handover State
+  const [fulfillingLog, setFulfillingLog] = useState<AdminRedemptionRecord | null>(null);
+  const [receiverName, setReceiverName] = useState('');
+  const [receiverNik, setReceiverNik] = useState('');
+  const [viewingSignatureUrl, setViewingSignatureUrl] = useState<string | null>(null);
+  const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
+  const [isDrawing, setIsDrawing] = useState(false);
+  const [hasDrawn, setHasDrawn] = useState(false);
+
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    setIsDrawing(true);
+    setHasDrawn(true);
+  };
+
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    if (!isDrawing) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const rect = canvas.getBoundingClientRect();
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    ctx.lineWidth = 2.5;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#10b981';
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  };
+
+  const stopDrawing = () => {
+    setIsDrawing(false);
+  };
+
+  const clearCanvas = () => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    setHasDrawn(false);
+  };
+
+  const handleOpenFulfillModal = (log: AdminRedemptionRecord) => {
+    setFulfillingLog(log);
+    setReceiverName(log.workerName || '');
+    setReceiverNik(log.workerEmployeeId || '');
+    setHasDrawn(false);
+    setTimeout(() => {
+      clearCanvas();
+    }, 120);
+  };
+
+  const handleConfirmFulfillWithSignature = async () => {
+    if (!fulfillingLog) return;
+    if (!hasDrawn) {
+      SwalService.warning(
+        'Tanda Tangan Diperlukan',
+        'Penerima barang wajib membubuhkan tanda tangan digital pada kanvas sebagai bukti serah terima.'
+      );
+      return;
+    }
+    const canvas = canvasRef.current;
+    const sigDataUrl = canvas ? canvas.toDataURL('image/png') : null;
+
+    setFulfillingRewardId(fulfillingLog.id);
+    try {
+      if (sigDataUrl) {
+        localStorage.setItem(`gappy_reward_sig_${fulfillingLog.id}`, sigDataUrl);
+      }
+      await fulfillRedemption(fulfillingLog.id, currentAdminId || 'SYS-ADMIN');
+      showToast(`Voucher ${fulfillingLog.redemptionCode} diserahkan ke ${receiverName} (TTD Digital terverifikasi).`);
+      setFulfillingLog(null);
+      loadAllRedemptions();
+    } catch (err: any) {
+      showToast(`Gagal memproses penyerahan: ${err.message}`);
+    } finally {
+      setFulfillingRewardId(null);
+    }
+  };
 
   // Dynamic Master Config from SystemConfigService
   const [availableCategories, setAvailableCategories] = useState<string[]>(() =>
@@ -222,7 +318,23 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
         const isCompleted = log.status === 'completed';
         const isCancelled = log.status === 'cancelled';
         if (isCompleted) {
-          return <span className="text-[10px] text-zinc-500">Selesai</span>;
+          const sig = localStorage.getItem(`gappy_reward_sig_${log.id}`);
+          return (
+            <div className="flex items-center justify-center gap-1.5">
+              <span className="text-[10px] text-zinc-500 font-bold">Selesai</span>
+              {sig && (
+                <button
+                  type="button"
+                  onClick={() => setViewingSignatureUrl(sig)}
+                  className="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold transition flex items-center gap-1"
+                  title="Lihat Bukti Tanda Tangan Digital"
+                >
+                  <FileSignature className="w-3 h-3" />
+                  <span>Bukti TTD</span>
+                </button>
+              )}
+            </div>
+          );
         }
         if (isCancelled) {
           return <span className="text-[10px] text-rose-400 font-mono">Poin Direfund</span>;
@@ -231,17 +343,17 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
           <div className="flex items-center justify-center gap-1.5">
             <button
               type="button"
-              onClick={() => handleFulfillFromAdmin(log.id)}
+              onClick={() => handleOpenFulfillModal(log)}
               disabled={fulfillingRewardId === log.id || cancellingRewardId === log.id}
               className="px-2 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-[11px] font-bold transition flex items-center gap-1 disabled:opacity-50"
-              title="Tandai voucher ini sudah diserahkan ke pekerja"
+              title="Serahkan voucher fisik dengan tanda tangan digital pekerja"
             >
               {fulfillingRewardId === log.id ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
               ) : (
-                <Check className="w-3 h-3" />
+                <PenTool className="w-3 h-3" />
               )}
-              <span>Serahkan</span>
+              <span>Serahkan (TTD)</span>
             </button>
 
             <button
@@ -852,6 +964,162 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
                 </button>
               </div>
             </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─── MODAL: KONFIRMASI & TANDA TANGAN SERAH TERIMA REWARD FISIK ─── */}
+      {fulfillingLog && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-zinc-900 border border-emerald-500/40 rounded-2xl w-full max-w-lg overflow-hidden shadow-2xl shadow-emerald-950/40">
+            <div className="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/80">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center text-emerald-400">
+                  <PenTool className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">Serah-Terima Fisik Reward</h3>
+                  <p className="text-[11px] text-emerald-300 font-medium">
+                    Verifikasi Tanda Tangan Digital Penerima Hadiah
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setFulfillingLog(null)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="p-5 space-y-4 text-xs">
+              {/* Ringkasan Klaim */}
+              <div className="bg-zinc-950 p-3.5 rounded-xl border border-zinc-800 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400 text-[11px]">Item Hadiah:</span>
+                  <strong className="text-white text-xs">{fulfillingLog.itemTitle}</strong>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400 text-[11px]">Kode Transaksi / Voucher:</span>
+                  <span className="font-mono text-emerald-400 font-bold bg-zinc-900 px-2 py-0.5 rounded border border-zinc-800">
+                    {fulfillingLog.redemptionCode}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400 text-[11px]">Poin Ditukarkan:</span>
+                  <span className="font-bold text-amber-400 font-mono">-{fulfillingLog.pointsSpent} PTS</span>
+                </div>
+              </div>
+
+              {/* Input Nama Penerima Fisik */}
+              <div>
+                <label className="block text-[11px] font-bold text-zinc-300 mb-1">
+                  Nama Karyawan Penerima Barang Fisik *
+                </label>
+                <input
+                  type="text"
+                  value={receiverName}
+                  onChange={(e) => setReceiverName(e.target.value)}
+                  placeholder="Ketik nama karyawan yang menerima barang/voucher..."
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-bold"
+                  required
+                />
+              </div>
+
+              {/* Signature Canvas Box */}
+              <div>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="text-[11px] font-bold text-zinc-300 flex items-center gap-1.5">
+                    <PenTool className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Bubuhkan Tanda Tangan Penerima di Bawah *</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={clearCanvas}
+                    className="text-[10px] text-zinc-400 hover:text-rose-400 transition flex items-center gap-1 font-bold"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Bersihkan
+                  </button>
+                </div>
+                <div className="border border-zinc-700 bg-zinc-950 rounded-xl overflow-hidden relative cursor-crosshair touch-none">
+                  <canvas
+                    ref={canvasRef}
+                    width={460}
+                    height={150}
+                    onMouseDown={startDrawing}
+                    onMouseMove={draw}
+                    onMouseUp={stopDrawing}
+                    onMouseLeave={stopDrawing}
+                    onTouchStart={startDrawing}
+                    onTouchMove={draw}
+                    onTouchEnd={stopDrawing}
+                    className="w-full h-[140px] block bg-zinc-950"
+                  />
+                  {!hasDrawn && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none text-zinc-600 text-xs italic">
+                      Goreskan tanda tangan pekerja di sini...
+                    </div>
+                  )}
+                </div>
+                <p className="text-[10px] text-zinc-500 mt-1">
+                  Tanda tangan digital ini akan tersimpan sebagai bukti serah-terima fisik yang sah untuk audit internal GA.
+                </p>
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-2 pt-2 border-t border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setFulfillingLog(null)}
+                  className="w-1/3 py-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-bold transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmFulfillWithSignature}
+                  disabled={fulfillingRewardId === fulfillingLog.id}
+                  className="w-2/3 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-black transition shadow-lg shadow-emerald-950 flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {fulfillingRewardId === fulfillingLog.id ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <Check className="w-4 h-4" />
+                  )}
+                  <span>Konfirmasi & Serahkan Hadiah</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─── MODAL: PREVIEW BUKTI TANDA TANGAN DIGITAL ─── */}
+      {viewingSignatureUrl && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
+            <div className="p-3.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-950">
+              <div className="flex items-center gap-2">
+                <FileSignature className="w-4 h-4 text-emerald-400" />
+                <h4 className="text-xs font-bold text-white">Bukti Tanda Tangan Penerima</h4>
+              </div>
+              <button
+                onClick={() => setViewingSignatureUrl(null)}
+                className="p-1 rounded-lg text-zinc-400 hover:text-white"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="p-4 bg-zinc-950 flex flex-col items-center justify-center">
+              <img
+                src={viewingSignatureUrl}
+                alt="Bukti Tanda Tangan Digital"
+                className="max-h-36 object-contain border border-zinc-800 rounded-xl p-2 bg-zinc-900/60"
+              />
+              <p className="text-[10px] text-zinc-500 mt-2">Terekam saat proses serah-terima fisik reward.</p>
+            </div>
           </div>
         </div>,
         document.body
