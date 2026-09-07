@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import {
   ShieldAlert,
   CheckCircle2,
@@ -234,15 +235,17 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
             <div className="bg-zinc-950 p-4 rounded-xl border border-zinc-800 space-y-3.5">
               <div>
                 <label className="block text-xs font-bold text-zinc-300 mb-1">Status Penanganan Insiden</label>
-                <select
+                <SearchableSelect
                   value={status}
-                  onChange={(e) => setStatus(e.target.value as IncidentReport['status'])}
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500 font-bold"
-                >
-                  <option value="investigating">INVESTIGATING (Sedang Diinvestigasi Tim K3)</option>
-                  <option value="resolved">RESOLVED (Tindakan Korektif Selesai)</option>
-                  <option value="closed">CLOSED (Insiden Resmi Ditutup)</option>
-                </select>
+                  onChange={(v) => setStatus(v as IncidentReport['status'])}
+                  placeholder="Pilih Status Penanganan"
+                  searchPlaceholder="Cari status penanganan..."
+                  options={[
+                    { value: 'investigating', label: 'INVESTIGATING', sublabel: 'Sedang Diinvestigasi Tim K3' },
+                    { value: 'resolved', label: 'RESOLVED', sublabel: 'Tindakan Korektif Selesai' },
+                    { value: 'closed', label: 'CLOSED', sublabel: 'Insiden Resmi Ditutup' },
+                  ]}
+                />
               </div>
 
               <div>

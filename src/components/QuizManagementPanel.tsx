@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import { HelpCircle, Plus, Edit2, Trash2, Loader2, CheckCircle2, X, ChevronDown } from 'lucide-react';
 import type { QuizQuestion } from '../types/assessment';
@@ -20,7 +21,7 @@ interface QuizFormData {
   category: string;
 }
 
-const emptyForm = (defaultCategory = 'Safety & APD'): QuizFormData => ({
+const emptyForm = (defaultCategory = ''): QuizFormData => ({
   question: '',
   options: ['', '', '', ''],
   correctAnswerIndex: 0,
@@ -39,9 +40,7 @@ export const QuizManagementPanel: React.FC = () => {
   const [quizCategories, setQuizCategories] = useState<string[]>(() =>
     SystemConfigService.getConfig().quizCategories
   );
-  const [form, setForm] = useState<QuizFormData>(() =>
-    emptyForm(SystemConfigService.getConfig().quizCategories[0] || 'Safety & APD')
-  );
+  const [form, setForm] = useState<QuizFormData>(() => emptyForm(''));
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filterCat, setFilterCat] = useState<string>('all');
@@ -109,6 +108,10 @@ export const QuizManagementPanel: React.FC = () => {
     e.preventDefault();
     if (!form.question.trim() || form.options.some(o => !o.trim())) {
       showToast('Lengkapi semua soal dan pilihan jawaban.');
+      return;
+    }
+    if (!form.category) {
+      showToast('Silakan pilih kategori soal kuis.');
       return;
     }
     setSubmitting(true);
@@ -316,13 +319,13 @@ export const QuizManagementPanel: React.FC = () => {
                     </button>
                   </div>
                 ) : (
-                  <select
+                  <SearchableSelect
                     value={form.category}
-                    onChange={e => setForm(f => ({ ...f, category: e.target.value }))}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                  >
-                    {quizCategories.map(c => <option key={c} value={c}>{c}</option>)}
-                  </select>
+                    onChange={v => setForm(f => ({ ...f, category: v }))}
+                    placeholder="-- Pilih Kategori --"
+                    searchPlaceholder="Cari kategori soal..."
+                    options={quizCategories.map((c): SelectOption => ({ value: c, label: c }))}
+                  />
                 )}
               </div>
               <div>

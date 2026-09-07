@@ -214,7 +214,9 @@ export type ActivityAction =
   | 'kaizen_approved'
   | 'role_mutated'
   | 'admin_created'
-  | 'admin_status_toggled';
+  | 'admin_status_toggled'
+  | 'points_refunded'
+  | 'redemption_rejected';
 
 export interface WorkerRoleMutation {
   id: string;

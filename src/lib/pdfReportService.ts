@@ -22,6 +22,7 @@ export interface ReportSigningConfig {
   managerName?: string;
   managerTitle?: string;
   divisionFilter?: string;
+  issueDate?: string;
 }
 
 export class ExecutivePDFReportGenerator {
@@ -36,7 +37,7 @@ export class ExecutivePDFReportGenerator {
     const supervisorName = config.supervisorName || 'Supervisor Logistik';
     const managerName = config.managerName || 'Head of Operations';
     const docNumber = config.documentNumber || SystemConfigService.generateDocumentNumber('competency_matrix');
-    const periodLabel = config.periodLabel || 'Tahun Berjalan 2026';
+    const periodLabel = config.periodLabel || `Tahun Berjalan ${new Date().getFullYear()}`;
     const divFilter = config.divisionFilter || 'Semua Divisi';
 
     let opWorkers = workers.filter(
@@ -48,11 +49,17 @@ export class ExecutivePDFReportGenerator {
 
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
-    const currentDate = new Date().toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric',
-    });
+    const currentDate = config.issueDate
+      ? new Date(config.issueDate).toLocaleDateString('id-ID', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        })
+      : new Date().toLocaleDateString('id-ID', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric',
+        });
 
     // Corporate Header
     doc.setFillColor(15, 23, 42); // #0f172a
@@ -165,7 +172,7 @@ export class ExecutivePDFReportGenerator {
     const supervisorName = config.supervisorName || 'Supervisor HSE & K3';
     const managerName = config.managerName || 'Plant Safety Manager';
     const docNumber = config.documentNumber || SystemConfigService.generateDocumentNumber('k3_incident');
-    const periodLabel = config.periodLabel || 'Tahun Berjalan 2026';
+    const periodLabel = config.periodLabel || `Tahun Berjalan ${new Date().getFullYear()}`;
 
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
@@ -246,9 +253,13 @@ export class ExecutivePDFReportGenerator {
     const supervisorName = config.supervisorName || 'Supervisor Operasional MHE';
     const managerName = config.managerName || 'Head of Engineering & K3';
     const docNumber = config.documentNumber || SystemConfigService.generateDocumentNumber('mhe_sio');
+    const periodLabel = config.periodLabel || `Tahun Berjalan ${new Date().getFullYear()}`;
 
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
+    const currentDate = config.issueDate
+      ? new Date(config.issueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+      : new Date().toLocaleDateString('id-ID');
 
     // Corporate Header
     doc.setFillColor(30, 41, 59);
@@ -263,7 +274,7 @@ export class ExecutivePDFReportGenerator {
     doc.setFontSize(8.5);
     doc.setTextColor(203, 213, 225);
     doc.text('LEGALITAS SURAT IZIN OPERATOR (SIO) FORKLIFT, REACH TRUCK & K3 KEMNAKER RI', 14, 18);
-    doc.text(`No. Dokumen: ${docNumber} | Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}`, 14, 24);
+    doc.text(`No. Dokumen: ${docNumber} | Periode: ${periodLabel} | Tanggal Cetak: ${currentDate}`, 14, 24);
 
     // Summary Metric
     const total = licenses.length;
@@ -328,9 +339,13 @@ export class ExecutivePDFReportGenerator {
     const supervisorName = config.supervisorName || 'Supervisor K3 / Safety Officer';
     const managerName = config.managerName || 'Logistics Operations Manager';
     const docNumber = config.documentNumber || SystemConfigService.generateDocumentNumber('ppe_inventory');
+    const periodLabel = config.periodLabel || `Tahun Berjalan ${new Date().getFullYear()}`;
 
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
+    const currentDate = config.issueDate
+      ? new Date(config.issueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+      : new Date().toLocaleDateString('id-ID');
 
     // Corporate Header
     doc.setFillColor(13, 148, 136); // Teal-600
@@ -345,7 +360,7 @@ export class ExecutivePDFReportGenerator {
     doc.setFontSize(8.5);
     doc.setTextColor(204, 251, 241);
     doc.text('MONITORING DISTRIBUSI ALAT PELINDUNG DIRI, JATUH TEMPO & TIKET PENGGANTIAN', 14, 18);
-    doc.text(`No. Dokumen: ${docNumber} | Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}`, 14, 24);
+    doc.text(`No. Dokumen: ${docNumber} | Periode: ${periodLabel} | Tanggal Cetak: ${currentDate}`, 14, 24);
 
     // Summary Metric
     const totalDist = distributions.length;
@@ -408,9 +423,13 @@ export class ExecutivePDFReportGenerator {
     const supervisorName = config.supervisorName || 'HRD & Compensation Specialist';
     const managerName = config.managerName || 'Finance & Plant Director';
     const docNumber = config.documentNumber || SystemConfigService.generateDocumentNumber('reward_budget');
+    const periodLabel = config.periodLabel || `Tahun Berjalan ${new Date().getFullYear()}`;
 
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
+    const currentDate = config.issueDate
+      ? new Date(config.issueDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' })
+      : new Date().toLocaleDateString('id-ID');
 
     // Corporate Header
     doc.setFillColor(147, 51, 234); // Purple-600
@@ -425,7 +444,7 @@ export class ExecutivePDFReportGenerator {
     doc.setFontSize(8.5);
     doc.setTextColor(243, 232, 255);
     doc.text('EVALUASI POIN INSENTIF PRESTASI K3, TINGKAT PENUKARAN & ALOKASI ANGGARAN', 14, 18);
-    doc.text(`No. Dokumen: ${docNumber} | Tanggal Cetak: ${new Date().toLocaleDateString('id-ID')}`, 14, 24);
+    doc.text(`No. Dokumen: ${docNumber} | Periode: ${periodLabel} | Tanggal Cetak: ${currentDate}`, 14, 24);
 
     // Metric Summary
     const totalPointsInCirculation = workers.reduce((sum, w) => sum + (w.totalPoints || 0), 0);

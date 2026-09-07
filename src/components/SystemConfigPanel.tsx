@@ -697,9 +697,9 @@ export const SystemConfigPanel: React.FC<SystemConfigPanelProps> = ({ onToast })
             <span>ℹ️ Token variabel dinamis yang didukung:</span>
           </div>
           <div className="flex flex-wrap gap-2 pt-1 font-mono text-[10px]">
-            <span className="bg-zinc-800 text-indigo-300 px-2 py-0.5 rounded">{'{YEAR}'} = 2026</span>
-            <span className="bg-zinc-800 text-indigo-300 px-2 py-0.5 rounded">{'{MONTH}'} = 09</span>
-            <span className="bg-zinc-800 text-indigo-300 px-2 py-0.5 rounded">{'{DAY}'} = 03</span>
+            <span className="bg-zinc-800 text-indigo-300 px-2 py-0.5 rounded">{'{YEAR}'} = {new Date().getFullYear()}</span>
+            <span className="bg-zinc-800 text-indigo-300 px-2 py-0.5 rounded">{'{MONTH}'} = {String(new Date().getMonth() + 1).padStart(2, '0')}</span>
+            <span className="bg-zinc-800 text-indigo-300 px-2 py-0.5 rounded">{'{DAY}'} = {String(new Date().getDate()).padStart(2, '0')}</span>
             <span className="bg-zinc-800 text-indigo-300 px-2 py-0.5 rounded">{'{RANDOM}'} = 4-digit acak</span>
             <span className="bg-zinc-800 text-indigo-300 px-2 py-0.5 rounded">{'{ID}'} = 6-karakter ID</span>
             <span className="bg-zinc-800 text-indigo-300 px-2 py-0.5 rounded">{'{CODE}'} = Kode Modul/Divisi</span>

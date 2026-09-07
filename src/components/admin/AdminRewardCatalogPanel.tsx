@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import SearchableSelect, { SelectOption } from '../ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import {
   ShoppingBag, Plus, Search, AlertTriangle, History, Coins, PackagePlus,
@@ -9,6 +10,7 @@ import { CustomDataTable, DataTableColumn } from '../CustomDataTable';
 import {
   fetchAllRedemptionHistory,
   fulfillRedemption,
+  cancelAndRefundRedemption,
   AdminRedemptionRecord
 } from '../../lib/supabaseService';
 import { SystemConfigService } from '../../domain/SystemConfigService';
@@ -48,6 +50,7 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
   const [restockRewardItem, setRestockRewardItem] = useState<RewardItem | null>(null);
   const [restockAddAmount, setRestockAddAmount] = useState<number>(10);
   const [fulfillingRewardId, setFulfillingRewardId] = useState<string | null>(null);
+  const [cancellingRewardId, setCancellingRewardId] = useState<string | null>(null);
 
   // Dynamic Master Config from SystemConfigService
   const [availableCategories, setAvailableCategories] = useState<string[]>(() =>
@@ -61,13 +64,13 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
 
   // Form states
   const [rewardFormTitle, setRewardFormTitle] = useState('');
-  const [rewardFormCategory, setRewardFormCategory] = useState<string>('E-Wallet');
+  const [rewardFormCategory, setRewardFormCategory] = useState<string>('');
   const [rewardFormPoints, setRewardFormPoints] = useState<number>(500);
   const [rewardFormIcon, setRewardFormIcon] = useState<string>('Wallet');
   const [rewardFormDesc, setRewardFormDesc] = useState('');
   const [rewardFormStock, setRewardFormStock] = useState<number>(20);
   const [rewardFormMonthlyLimit, setRewardFormMonthlyLimit] = useState<number>(25);
-  const [rewardFormMinTier, setRewardFormMinTier] = useState<string>('Novice Operational');
+  const [rewardFormMinTier, setRewardFormMinTier] = useState<string>('');
   const [rewardFormMaxClaims, setRewardFormMaxClaims] = useState<number>(1);
   const [rewardFormBadge, setRewardFormBadge] = useState('');
   const [rewardFormError, setRewardFormError] = useState<string | null>(null);
@@ -111,6 +114,26 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
       showToast(`Gagal memproses penyerahan: ${err.message}`);
     } finally {
       setFulfillingRewardId(null);
+    }
+  };
+
+  const handleCancelFromAdmin = async (redemptionId: string, itemTitle: string, pointsSpent: number) => {
+    const isConfirmed = await SwalService.confirm({
+      title: 'Batalkan Klaim & Refund Poin?',
+      text: `Batalkan penukaran voucher "${itemTitle}"? Penalti ${pointsSpent} PTS akan otomatis dikembalikan ke saldo dompet pekerja dan stok barang akan dipulihkan.`,
+      confirmButtonText: 'Ya, Batalkan & Refund',
+      isDestructive: true,
+    });
+    if (!isConfirmed) return;
+    setCancellingRewardId(redemptionId);
+    try {
+      await cancelAndRefundRedemption(redemptionId, currentAdminId || 'SYS-ADMIN');
+      showToast(`Penukaran berhasil dibatalkan. +${pointsSpent} PTS telah direfund ke pekerja.`);
+      loadAllRedemptions();
+    } catch (err: any) {
+      showToast(`Gagal membatalkan penukaran: ${err.message}`);
+    } finally {
+      setCancellingRewardId(null);
     }
   };
 
@@ -175,58 +198,82 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
       sortable: true,
       render: (log) => {
         const isCompleted = log.status === 'completed';
+        const isCancelled = log.status === 'cancelled';
         return (
           <span
             className={`text-[9px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
               isCompleted
                 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                : isCancelled
+                ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                 : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
             }`}
           >
-            {isCompleted ? '✓ Diserahkan' : '⏳ Menunggu'}
+            {isCompleted ? '✓ Diserahkan' : isCancelled ? '✕ Dibatalkan' : '⏳ Menunggu'}
           </span>
         );
       },
     },
     {
       key: 'id',
-      header: 'Aksi Serahkan',
+      header: 'Aksi Kelola',
       align: 'center',
       render: (log) => {
         const isCompleted = log.status === 'completed';
+        const isCancelled = log.status === 'cancelled';
         if (isCompleted) {
           return <span className="text-[10px] text-zinc-500">Selesai</span>;
         }
+        if (isCancelled) {
+          return <span className="text-[10px] text-rose-400 font-mono">Poin Direfund</span>;
+        }
         return (
-          <button
-            type="button"
-            onClick={() => handleFulfillFromAdmin(log.id)}
-            disabled={fulfillingRewardId === log.id}
-            className="px-2 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-[11px] font-bold transition flex items-center gap-1 disabled:opacity-50 mx-auto"
-            title="Tandai voucher ini sudah diserahkan ke pekerja"
-          >
-            {fulfillingRewardId === log.id ? (
-              <Loader2 className="w-3 h-3 animate-spin" />
-            ) : (
-              <Check className="w-3 h-3" />
-            )}
-            <span>Serahkan</span>
-          </button>
+          <div className="flex items-center justify-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => handleFulfillFromAdmin(log.id)}
+              disabled={fulfillingRewardId === log.id || cancellingRewardId === log.id}
+              className="px-2 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-[11px] font-bold transition flex items-center gap-1 disabled:opacity-50"
+              title="Tandai voucher ini sudah diserahkan ke pekerja"
+            >
+              {fulfillingRewardId === log.id ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Check className="w-3 h-3" />
+              )}
+              <span>Serahkan</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => handleCancelFromAdmin(log.id, log.itemTitle, log.pointsSpent)}
+              disabled={fulfillingRewardId === log.id || cancellingRewardId === log.id}
+              className="px-2 py-1 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 rounded-lg text-[11px] font-bold transition flex items-center gap-1 disabled:opacity-50"
+              title="Batalkan penukaran voucher ini dan kembalikan poin pekerja"
+            >
+              {cancellingRewardId === log.id ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <X className="w-3 h-3" />
+              )}
+              <span>Batalkan</span>
+            </button>
+          </div>
         );
       },
     },
-  ], [fulfillingRewardId]);
+  ], [fulfillingRewardId, cancellingRewardId]);
 
   const handleOpenCreateRewardModal = () => {
     setEditingReward(null);
     setRewardFormTitle('');
-    setRewardFormCategory('E-Wallet');
+    setRewardFormCategory('');
     setRewardFormPoints(500);
     setRewardFormIcon('Wallet');
     setRewardFormDesc('');
     setRewardFormStock(20);
     setRewardFormMonthlyLimit(25);
-    setRewardFormMinTier('Novice Operational');
+    setRewardFormMinTier('');
     setRewardFormMaxClaims(1);
     setRewardFormBadge('');
     setRewardFormError(null);
@@ -270,6 +317,15 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
   const handleSaveRewardForm = async (e: React.FormEvent) => {
     e.preventDefault();
     setRewardFormError(null);
+
+    if (!rewardFormCategory) {
+      setRewardFormError('Silakan pilih kategori reward terlebih dahulu.');
+      return;
+    }
+    if (!rewardFormMinTier) {
+      setRewardFormError('Silakan pilih syarat minimal tier.');
+      return;
+    }
 
     const payload: Omit<RewardItem, 'id'> = {
       title: rewardFormTitle.trim(),
@@ -647,17 +703,16 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
                       </button>
                     </div>
                   ) : (
-                    <select
-                      value={rewardFormCategory}
-                      onChange={(e) => setRewardFormCategory(e.target.value)}
-                      className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                    >
-                      {availableCategories.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </select>
+                  <SearchableSelect
+                    value={rewardFormCategory}
+                    onChange={setRewardFormCategory}
+                    placeholder="-- Pilih Kategori --"
+                    searchPlaceholder="Cari kategori reward..."
+                    options={availableCategories.map((cat): SelectOption => ({
+                      value: cat,
+                      label: cat,
+                    }))}
+                  />
                   )}
                 </div>
 
@@ -677,17 +732,16 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-zinc-400 mb-1">Syarat Minimal Tier</label>
-                  <select
-                    value={rewardFormMinTier}
-                    onChange={(e) => setRewardFormMinTier(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 font-medium"
-                  >
-                    {availableTiers.map((tier, idx) => (
-                      <option key={tier} value={tier}>
-                        {tier} {idx === 0 ? '(Semua Pekerja)' : ''}
-                      </option>
-                    ))}
-                  </select>
+                  <SearchableSelect
+                  value={rewardFormMinTier}
+                  onChange={setRewardFormMinTier}
+                  placeholder="-- Pilih Min Tier --"
+                  searchPlaceholder="Cari tier..."
+                  options={availableTiers.map((tier, idx): SelectOption => ({
+                    value: tier,
+                    label: `${tier}${idx === 0 ? ' (Semua Pekerja)' : ''}`,
+                  }))}
+                />
                 </div>
 
                 <div>

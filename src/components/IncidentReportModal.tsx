@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useIdempotentSubmit } from '../hooks/useIdempotentSubmit';
+import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import {
   AlertTriangle,
   MapPin,
@@ -283,19 +284,16 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
                     <AlertTriangle className="w-3.5 h-3.5 inline mr-1 text-orange-400" />
                     Jenis Insiden K3
                   </label>
-                  <select
+                  <SearchableSelect
                     value={incidentType}
-                    onChange={(e) => setIncidentType(e.target.value as IncidentReport['incidentType'])}
-                    className={`w-full bg-zinc-950 border rounded-xl px-3 py-2.5 text-xs focus:outline-none focus:border-orange-500 font-semibold ${
-                      !incidentType ? 'text-zinc-500 border-zinc-800' : 'text-white border-orange-500/50'
-                    }`}
-                    required
-                  >
-                    <option value="" disabled>-- Pilih Jenis Insiden K3 --</option>
-                    {INCIDENT_TYPES.map((t) => (
-                      <option key={t.value} value={t.value} className="text-white bg-zinc-900">{t.label}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setIncidentType(v as IncidentReport['incidentType'])}
+                    placeholder="-- Pilih Jenis Insiden K3 --"
+                    searchPlaceholder="Cari jenis insiden..."
+                    options={INCIDENT_TYPES.map((t): SelectOption => ({
+                      value: t.value,
+                      label: t.label,
+                    }))}
+                  />
                 </div>
 
                 {/* Severity */}

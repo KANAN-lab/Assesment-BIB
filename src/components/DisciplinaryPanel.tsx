@@ -252,10 +252,15 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
   };
 
   const handleDelete = async (id: string) => {
+    const targetAction = actions.find((a) => a.id === id);
+    const penaltyInfo = targetAction && targetAction.pointDeduction && targetAction.pointDeduction > 0
+      ? ` Penalti sebesar ${targetAction.pointDeduction} PTS akan otomatis dipulihkan kembali ke saldo pekerja.`
+      : '';
+
     const isConfirmed = await SwalService.confirm({
-      title: 'Hapus Arsip Sanksi?',
-      text: 'Apakah Anda yakin ingin menghapus arsip sanksi ini? Data pelanggaran dan penalti terkait akan terhapus.',
-      confirmButtonText: 'Ya, Hapus Arsip',
+      title: 'Hapus & Batalkan Sanksi?',
+      text: `Apakah Anda yakin ingin menghapus arsip sanksi ini? Data sanksi akan dihapus.${penaltyInfo}`,
+      confirmButtonText: 'Ya, Hapus & Pulihkan',
       isDestructive: true,
     });
     if (isConfirmed) {
@@ -703,18 +708,21 @@ export const DisciplinaryPanel: React.FC<DisciplinaryPanelProps> = ({
               <label className="block text-xs font-bold text-zinc-300 mb-1">
                 Penugasan Mandatory Retraining Modul SOP (Opsional)
               </label>
-              <select
+              <SearchableSelect
+                id="disciplinary-retraining-sop-select"
                 value={mandatoryRetrainingSopId}
-                onChange={(e) => setMandatoryRetrainingSopId(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-rose-500"
-              >
-                <option value="">-- Tidak Ada Penugasan Retraining --</option>
-                {sopModules.map((sop) => (
-                  <option key={sop.id} value={sop.id}>
-                    [{sop.code}] {sop.title} ({sop.category})
-                  </option>
-                ))}
-              </select>
+                onChange={setMandatoryRetrainingSopId}
+                placeholder="-- Tidak Ada Penugasan Retraining --"
+                searchPlaceholder="Cari modul SOP..."
+                options={[
+                  { value: '', label: '-- Tidak Ada Penugasan Retraining --' },
+                  ...sopModules.map((sop) => ({
+                    value: sop.id,
+                    label: `[${sop.code}] ${sop.title}`,
+                    sublabel: sop.category,
+                  })),
+                ]}
+              />
             </div>
 
             {/* 6. Deskripsi Kronologi */}

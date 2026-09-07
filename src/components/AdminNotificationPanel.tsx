@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import {
   Bell,
   Send,
@@ -52,7 +53,7 @@ export const AdminNotificationPanel: React.FC<AdminNotificationPanelProps> = ({ 
   const [message, setMessage] = useState('');
   const [recipientRole, setRecipientRole] = useState<'all' | 'worker' | 'supervisor' | 'specific'>('all');
   const [selectedWorkerId, setSelectedWorkerId] = useState<string>('');
-  const [notifType, setNotifType] = useState<NotificationType>('system');
+  const [notifType, setNotifType] = useState<NotificationType | ''>('');
   const [sending, setSending] = useState(false);
   const [sentSuccess, setSentSuccess] = useState(false);
 
@@ -89,6 +90,10 @@ export const AdminNotificationPanel: React.FC<AdminNotificationPanelProps> = ({ 
   const handleBroadcast = (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !message.trim()) return;
+    if (!notifType) {
+      SwalService.warning('Kategori Belum Dipilih', 'Silakan pilih kategori notifikasi terlebih dahulu.');
+      return;
+    }
 
     setSending(true);
 
@@ -126,6 +131,8 @@ export const AdminNotificationPanel: React.FC<AdminNotificationPanelProps> = ({ 
     setSentSuccess(true);
     setTitle('');
     setMessage('');
+    setNotifType('');
+    setSelectedWorkerId('');
     reloadData();
 
     setTimeout(() => {
@@ -398,39 +405,37 @@ export const AdminNotificationPanel: React.FC<AdminNotificationPanelProps> = ({ 
                     <span>Pilih Pekerja Penerima Khusus *</span>
                     {selectedWorkerId && <span className="text-[10px] text-emerald-400">Target terpilih</span>}
                   </label>
-                  <select
+                  <SearchableSelect
                     value={selectedWorkerId}
-                    onChange={(e) => setSelectedWorkerId(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-amber-500 font-semibold"
-                    required
-                  >
-                    <option value="" disabled>-- Pilih Pekerja / NIK --</option>
-                    {workers.map((w) => (
-                      <option key={w.id} value={w.id} className="bg-zinc-900 text-white">
-                        {w.name} ({w.employeeId}) — {w.division} / {w.role}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setSelectedWorkerId}
+                    placeholder="-- Pilih Pekerja / NIK --"
+                    searchPlaceholder="Cari nama, NIP, atau divisi..."
+                    options={workers.map((w): SelectOption => ({
+                      value: w.id,
+                      label: `${w.name} (${w.employeeId})`,
+                      sublabel: `${w.division} / ${w.role}`,
+                    }))}
+                  />
                 </div>
               )}
 
               {/* Type Selector */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-zinc-400">Kategori Pesan:</label>
-                <select
+                <SearchableSelect
                   value={notifType}
-                  onChange={(e) => setNotifType(e.target.value as any)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-xs text-zinc-200 focus:outline-none focus:border-amber-500 font-medium"
-                  required
-                >
-                  <option value="" disabled>-- Pilih Kategori Notifikasi --</option>
-                  <option value="system">Pengumuman Sistem / Operasional</option>
-                  <option value="license">Lisensi SIO & Alat Berat (MHE)</option>
-                  <option value="incident">Safety Alert / K3 Darurat</option>
-                  <option value="quiz">Kuis K3 / Checkpoint</option>
-                  <option value="reward">Reward & Prestasi</option>
-                  <option value="audit">Audit & Kepatuhan</option>
-                </select>
+                  onChange={(v) => setNotifType(v as any)}
+                  placeholder="-- Pilih Kategori Notifikasi --"
+                  searchPlaceholder="Cari kategori..."
+                  options={[
+                    { value: 'system', label: 'Pengumuman Sistem / Operasional' },
+                    { value: 'license', label: 'Lisensi SIO & Alat Berat (MHE)' },
+                    { value: 'incident', label: 'Safety Alert / K3 Darurat' },
+                    { value: 'quiz', label: 'Kuis K3 / Checkpoint' },
+                    { value: 'reward', label: 'Reward & Prestasi' },
+                    { value: 'audit', label: 'Audit & Kepatuhan' },
+                  ]}
+                />
               </div>
 
               {/* Title Input */}

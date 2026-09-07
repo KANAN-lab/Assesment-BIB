@@ -262,11 +262,11 @@ export class SystemConfigService {
    */
   public static generateDocumentNumber(
     type: DocumentType,
-    context?: { id?: string; code?: string; division?: string }
+    context?: { id?: string; code?: string; division?: string; year?: string | number }
   ): string {
     const config = this.getConfig();
     const now = new Date();
-    const year = now.getFullYear().toString();
+    const year = context?.year ? String(context.year) : now.getFullYear().toString();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     const day = String(now.getDate()).padStart(2, '0');
     const random = Math.floor(1000 + Math.random() * 9000).toString();

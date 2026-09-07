@@ -97,7 +97,7 @@ export async function uploadFileToGoogleDrive(
   let moduleCategory: GDriveModuleCategory = 'General_Uploads';
   let customFilename: string | undefined = undefined;
   let rootFolderId = legacyFolderId;
-  let compressImage = false;
+  let compressImage = file.type.startsWith('image/');
 
   if (typeof optionsOrFilename === 'string') {
     customFilename = optionsOrFilename;
@@ -133,20 +133,20 @@ export async function uploadFileToGoogleDrive(
     const effectiveRootId =
       rootFolderId || config.gdriveTargetFolderId || DEFAULT_GDRIVE_ROOT_FOLDER_ID;
     const webhookUrl =
-      config.gdriveWebhookUrl || import.meta.env.VITE_GDRIVE_UPLOAD_WEBHOOK || GDRIVE_WEBHOOK_URL;
+      config.gdriveWebhookUrl || GDRIVE_WEBHOOK_URL;
 
-    const payload = JSON.stringify({
-      rootFolderId: effectiveRootId,
-      folderId: effectiveRootId,
-      workerId,
-      workerName,
-      moduleCategory,
-      filename,
-      mimeType: file.type || 'image/jpeg',
-      base64Data,
-    });
+    // Unggah via Apps Script Webhook
+    if (webhookUrl && webhookUrl.startsWith('https://script.google.com')) {
+      const payload = JSON.stringify({
+        folderId: effectiveRootId,
+        fileName: filename,
+        mimeType: file.type || 'application/octet-stream',
+        base64Data,
+        workerId,
+        workerName,
+        moduleCategory,
+      });
 
-    if (webhookUrl && webhookUrl.startsWith('http')) {
       // Mengirimkan POST ke Google Apps Script WebApp dengan header text/plain (CORS safe)
       const response = await fetch(webhookUrl, {
         method: 'POST',
@@ -170,7 +170,7 @@ export async function uploadFileToGoogleDrive(
           const webViewLink =
             parsed.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
           const directUrl =
-            parsed.directUrl || `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`;
+            parsed.directUrl || `https://lh3.googleusercontent.com/d/${fileId}=w1600`;
 
           return {
             success: true,
@@ -203,8 +203,8 @@ export async function uploadFileToGoogleDrive(
 }
 
 /**
- * Mengonversi link Google Drive (view, open, sharing, lh3) menjadi thumbnail/image URL
- * yang valid dan kompatibel secara native dengan tag <img> HTML.
+ * Mengonversi link Google Drive (view, open, sharing, lh3) menjadi URL CDN gambar
+ * berkecepatan tinggi yang bebas hambatan cookie pihak ketiga.
  */
 export function formatGoogleDriveImageUrl(url?: string): string {
   if (!url || typeof url !== 'string') return '';
@@ -225,10 +225,40 @@ export function formatGoogleDriveImageUrl(url?: string): string {
   const fileId = matchFileD?.[1] || matchIdParam?.[1] || matchLh3?.[1] || matchThumbnail?.[1];
 
   if (fileId) {
-    // Thumbnail CDN resolusi tinggi (w1600) paling stabil dan tidak terhalang auth cookie Google
-    return `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`;
+    // CDN lh3 Google User Content paling cepat, stabil dan bebas dari pemblokiran cookie / 429
+    return `https://lh3.googleusercontent.com/d/${fileId}=w1600`;
   }
 
   return trimmed;
 }
 
+/**
+ * Menyediakan daftar URL alternatif (Multi-CDN Fallback) untuk tag <img>
+ * Jika URL utama gagal/timeout, tag <img> dapat beralih ke URL alternatif berikutnya.
+ */
+export function getGoogleDriveImageFallbackUrls(url?: string): string[] {
+  if (!url || typeof url !== 'string') return [];
+  const trimmed = url.trim();
+  if (!trimmed) return [];
+
+  if (trimmed.startsWith('data:') || trimmed.startsWith('blob:')) {
+    return [trimmed];
+  }
+
+  const matchFileD = trimmed.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  const matchIdParam = trimmed.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  const matchLh3 = trimmed.match(/googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
+  const matchThumbnail = trimmed.match(/\/thumbnail\?id=([a-zA-Z0-9_-]+)/);
+
+  const fileId = matchFileD?.[1] || matchIdParam?.[1] || matchLh3?.[1] || matchThumbnail?.[1];
+
+  if (fileId) {
+    return [
+      `https://lh3.googleusercontent.com/d/${fileId}=w1600`,
+      `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`,
+      `https://drive.google.com/uc?export=view&id=${fileId}`,
+    ];
+  }
+
+  return [trimmed];
+}

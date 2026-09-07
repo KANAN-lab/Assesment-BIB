@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend, CartesianGrid, Cell
@@ -153,16 +154,18 @@ export const CompetencyGapAnalysisModal: React.FC<CompetencyGapAnalysisModalProp
 
           <div className="flex items-center gap-3">
             {/* Division Filter */}
-            <select
-              value={selectedDiv}
-              onChange={(e) => setSelectedDiv(e.target.value)}
-              className="bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium"
-            >
-              <option value="Semua">Semua Divisi ({opWorkers.length} Staf)</option>
-              {availableDivisions.map((div) => (
-                <option key={div} value={div}>{div}</option>
-              ))}
-            </select>
+            <div className="w-56">
+              <SearchableSelect
+                value={selectedDiv}
+                onChange={setSelectedDiv}
+                placeholder="Pilih Divisi"
+                searchPlaceholder="Cari divisi..."
+                options={[
+                  { value: 'Semua', label: `Semua Divisi (${opWorkers.length} Staf)` },
+                  ...availableDivisions.map((div) => ({ value: div, label: div })),
+                ]}
+              />
+            </div>
 
             <button
               onClick={onClose}

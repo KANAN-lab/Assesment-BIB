@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import {
   Sparkles,
   Award,
@@ -982,58 +983,56 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
                 <label className="block text-xs font-bold text-zinc-300 mb-1">
                   Tipe Wilayah <span className="text-rose-400">*</span>
                 </label>
-                <select
+                <SearchableSelect
                   value={newZoneType}
-                  onChange={(e) => setNewZoneType(e.target.value as ZoneType)}
-                  required
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-teal-500 font-semibold"
-                >
-                  <option value="" disabled>-- Pilih Tipe Wilayah --</option>
-                  <option value="loading_dock">Loading & Unloading Dock</option>
-                  <option value="racking_aisle">Lorong Racking Rak</option>
-                  <option value="charging_bay">Ruang Charging MHE</option>
-                  <option value="staging_area">Area Staging / Buffer</option>
-                  <option value="weighbridge_pos">Pos Timbangan</option>
-                  <option value="office_area">Ruang Administrasi</option>
-                  <option value="other">Wilayah Lainnya</option>
-                </select>
+                  onChange={(v) => setNewZoneType(v as ZoneType)}
+                  placeholder="-- Pilih Tipe Wilayah --"
+                  searchPlaceholder="Cari tipe wilayah..."
+                  options={[
+                    { value: 'loading_dock', label: 'Loading & Unloading Dock' },
+                    { value: 'racking_aisle', label: 'Lorong Racking Rak' },
+                    { value: 'charging_bay', label: 'Ruang Charging MHE' },
+                    { value: 'staging_area', label: 'Area Staging / Buffer' },
+                    { value: 'weighbridge_pos', label: 'Pos Timbangan' },
+                    { value: 'office_area', label: 'Ruang Administrasi' },
+                    { value: 'other', label: 'Wilayah Lainnya' },
+                  ]}
+                />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-zinc-300 mb-1">
                   Divisi Penanggung Jawab <span className="text-rose-400">*</span>
                 </label>
-                <select
+                <SearchableSelect
                   value={newZoneDivision}
-                  onChange={(e) => setNewZoneDivision(e.target.value)}
-                  required
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-teal-500 font-semibold"
-                >
-                  <option value="" disabled>-- Pilih Divisi --</option>
-                  {divisions.map((d) => (
-                    <option key={d} value={d}>Divisi {d}</option>
-                  ))}
-                </select>
+                  onChange={setNewZoneDivision}
+                  placeholder="-- Pilih Divisi --"
+                  searchPlaceholder="Cari divisi..."
+                  options={divisions.map((d): SelectOption => ({
+                    value: d,
+                    label: `Divisi ${d}`,
+                  }))}
+                />
               </div>
 
               <div className="sm:col-span-2">
                 <label className="block text-xs font-bold text-zinc-300 mb-1">
                   PIC Personel Penanggung Jawab 5R
                 </label>
-                <select
+                <SearchableSelect
                   value={newZonePicId}
-                  onChange={(e) => setNewZonePicId(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-teal-500 font-semibold"
-                >
-                  <option value="">-- Pilih PIC Pekerja (Opsional) --</option>
-                  {workers
+                  onChange={setNewZonePicId}
+                  placeholder="-- Pilih PIC Pekerja (Opsional) --"
+                  searchPlaceholder="Cari nama, NIP, atau divisi..."
+                  options={workers
                     .filter((w) => w.division.toUpperCase() !== 'SYSTEM')
-                    .map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name} ({w.employeeId}) — {w.division}
-                      </option>
-                    ))}
-                </select>
+                    .map((w): SelectOption => ({
+                      value: w.id,
+                      label: `${w.name} (${w.employeeId})`,
+                      sublabel: w.division,
+                    }))}
+                />
               </div>
             </div>
 

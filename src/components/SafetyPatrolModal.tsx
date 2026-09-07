@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import { useIdempotentSubmit } from '../hooks/useIdempotentSubmit';
 import { createPortal } from 'react-dom';
 import {
@@ -32,7 +33,7 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
   onClose,
   onSuccess,
 }) => {
-  const [selectedZoneId, setSelectedZoneId] = useState(WAREHOUSE_PATROL_ZONES[0].id);
+  const [selectedZoneId, setSelectedZoneId] = useState('');
   const [findingType, setFindingType] = useState<FindingType>('Unsafe Condition');
   const [severity, setSeverity] = useState<PatrolSeverity>('Medium');
   const [description, setDescription] = useState('');
@@ -49,7 +50,7 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
   });
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  const selectedZone = WAREHOUSE_PATROL_ZONES.find((z) => z.id === selectedZoneId) || WAREHOUSE_PATROL_ZONES[0];
+  const selectedZone = WAREHOUSE_PATROL_ZONES.find((z) => z.id === selectedZoneId);
 
   // Handle Photo input (File or Camera)
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,6 +68,10 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!selectedZoneId || !selectedZone) {
+      setErrorMsg('Pilih area / zona gudang terlebih dahulu.');
+      return;
+    }
     if (!description.trim()) {
       setErrorMsg('Deskripsi observasi temuan harus diisi.');
       return;
@@ -216,18 +221,18 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-bold text-zinc-300 mb-1">2. Area / Zona Gudang *</label>
-              <select
+              <SearchableSelect
                 value={selectedZoneId}
-                onChange={(e) => setSelectedZoneId(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500"
-              >
-                {WAREHOUSE_PATROL_ZONES.map((zone) => (
-                  <option key={zone.id} value={zone.id}>
-                    [{zone.division}] {zone.name}
-                  </option>
-                ))}
-              </select>
-              <p className="text-[10px] text-zinc-500 mt-1">{selectedZone.description}</p>
+                onChange={setSelectedZoneId}
+                placeholder="-- Pilih Area / Zona Gudang --"
+                searchPlaceholder="Cari zona gudang..."
+                options={WAREHOUSE_PATROL_ZONES.map((zone): SelectOption => ({
+                  value: zone.id,
+                  label: zone.name,
+                  sublabel: `[${zone.division}] ${zone.description ?? ''}`,
+                }))}
+              />
+              {selectedZone && <p className="text-[10px] text-zinc-500 mt-1">{selectedZone.description}</p>}
             </div>
 
             <div>
@@ -312,20 +317,19 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
                 <label className="block text-xs font-bold text-zinc-300 mb-1">
                   6. Tugaskan PIC Tindak Lanjut
                 </label>
-                <select
+                <SearchableSelect
                   value={assignedPicId}
-                  onChange={(e) => setAssignedPicId(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-orange-500"
-                >
-                  <option value="">-- Pilih Staf Operasional / PIC --</option>
-                  {workers
+                  onChange={setAssignedPicId}
+                  placeholder="-- Pilih Staf Operasional / PIC --"
+                  searchPlaceholder="Cari nama, role, atau divisi..."
+                  options={workers
                     .filter((w) => w.role !== 'System Administrator')
-                    .map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name} ({w.role} - {w.division})
-                      </option>
-                    ))}
-                </select>
+                    .map((w): SelectOption => ({
+                      value: w.id,
+                      label: w.name,
+                      sublabel: `${w.role} - ${w.division}`,
+                    }))}
+                />
               </div>
 
               <div>

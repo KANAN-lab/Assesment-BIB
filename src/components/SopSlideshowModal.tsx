@@ -1,5 +1,5 @@
 // src/components/SopSlideshowModal.tsx
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import {
   X,
@@ -22,9 +22,157 @@ import {
   RotateCcw,
   Check,
   FileText,
+  Image as ImageIcon,
+  ExternalLink,
 } from 'lucide-react';
 import { SopModule, SopSlide } from '../types/sop';
-import { formatGoogleDriveImageUrl } from '../lib/googleDriveService';
+import { formatGoogleDriveImageUrl, getGoogleDriveImageFallbackUrls } from '../lib/googleDriveService';
+
+interface SopInteractiveImageCanvasProps {
+  imageUrl?: string;
+  alt: string;
+  onClick?: (e: React.MouseEvent<HTMLDivElement>) => void;
+  cursorClass?: string;
+  maxHeightClass?: string;
+  minHeightClass?: string;
+  children?: React.ReactNode;
+  fallbackUnsplash?: string;
+}
+
+/**
+ * Komponen Kanvas Gambar Interaktif & Resilien Modul SOP:
+ * 1. Multi-CDN Fallback berantai (lh3 Google CDN -> drive thumbnail -> drive direct view -> unsplash)
+ * 2. Skeleton Shimmer & Spinner informatif saat mengunduh gambar beresolusi tinggi (anti layar hitam kolaps 0px)
+ * 3. Graceful Error Boundary & Tombol Muat Ulang (Retry)
+ * 4. Menjamin koordinat hitbox simulator & hotspot akurat setelah gambar selesai dirender
+ */
+const SopInteractiveImageCanvas: React.FC<SopInteractiveImageCanvasProps> = ({
+  imageUrl,
+  alt,
+  onClick,
+  cursorClass = 'cursor-default',
+  maxHeightClass = 'max-h-[560px]',
+  minHeightClass = 'min-h-[280px]',
+  children,
+  fallbackUnsplash = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80',
+}) => {
+  const [loadStatus, setLoadStatus] = useState<'loading' | 'loaded' | 'error'>('loading');
+  const [fallbackIndex, setFallbackIndex] = useState<number>(0);
+  const [retrySeed, setRetrySeed] = useState<number>(0);
+
+  const candidateUrls = useMemo(() => {
+    if (!imageUrl) return [fallbackUnsplash];
+    const urls = getGoogleDriveImageFallbackUrls(imageUrl);
+    if (!urls.includes(fallbackUnsplash)) {
+      urls.push(fallbackUnsplash);
+    }
+    return urls;
+  }, [imageUrl, fallbackUnsplash, retrySeed]);
+
+  useEffect(() => {
+    setLoadStatus('loading');
+    setFallbackIndex(0);
+  }, [imageUrl, retrySeed]);
+
+  const activeSrc = candidateUrls[fallbackIndex] || fallbackUnsplash;
+
+  const handleImageError = () => {
+    if (fallbackIndex + 1 < candidateUrls.length) {
+      console.warn(
+        `[SOP Image] CDN #${fallbackIndex} gagal/lambat, mencoba fallback #${fallbackIndex + 1}:`,
+        candidateUrls[fallbackIndex + 1]
+      );
+      setFallbackIndex((prev) => prev + 1);
+    } else {
+      console.error('[SOP Image] Seluruh URL alternatif gambar gagal dimuat:', candidateUrls);
+      setLoadStatus('error');
+    }
+  };
+
+  const handleImageLoad = () => {
+    setLoadStatus('loaded');
+  };
+
+  const handleRetry = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setLoadStatus('loading');
+    setFallbackIndex(0);
+    setRetrySeed((prev) => prev + 1);
+  };
+
+  return (
+    <div
+      className={`w-full bg-zinc-950/90 border border-zinc-800 rounded-2xl p-2.5 flex items-center justify-center overflow-hidden ${minHeightClass} max-h-[620px] shadow-2xl relative select-none`}
+    >
+      {/* 1. Skeleton Shimmer & Loading State */}
+      {loadStatus === 'loading' && (
+        <div className="absolute inset-0 bg-gradient-to-r from-zinc-950 via-zinc-900 to-zinc-950 animate-pulse flex flex-col items-center justify-center gap-3 p-6 text-center z-10">
+          <div className="relative">
+            <div className="w-12 h-12 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+            <ImageIcon className="w-5 h-5 text-indigo-400 absolute inset-0 m-auto" />
+          </div>
+          <div className="space-y-1">
+            <p className="text-xs font-bold text-zinc-300">Memuat Visual Modul SOP...</p>
+            <p className="text-[10px] text-zinc-500">Mengunduh gambar resolusi tinggi melalui Google CDN</p>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Error State dengan Tombol Retry */}
+      {loadStatus === 'error' && (
+        <div className="flex flex-col items-center justify-center p-6 text-center space-y-3 z-20 my-auto">
+          <div className="w-12 h-12 rounded-full bg-rose-950/50 border border-rose-500/40 flex items-center justify-center text-rose-400">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <div>
+            <h5 className="text-xs font-bold text-white mb-0.5">Gambar Panduan Belum Muncul</h5>
+            <p className="text-[11px] text-zinc-400 max-w-xs">
+              Koneksi internet lambat atau berkas Google Drive sedang membatasi request.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={handleRetry}
+              className="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold flex items-center gap-1.5 transition shadow-md shadow-indigo-900/40"
+            >
+              <RotateCcw className="w-3.5 h-3.5" />
+              <span>Coba Muat Ulang</span>
+            </button>
+            {imageUrl && !imageUrl.startsWith('blob:') && !imageUrl.startsWith('data:') && (
+              <a
+                href={imageUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="px-2.5 py-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 text-zinc-300 text-xs font-medium transition flex items-center gap-1"
+              >
+                <ExternalLink className="w-3 h-3" />
+                <span>Buka Berkas</span>
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 3. Rendered Image & Interactive Hitbox Layer */}
+      <div
+        onClick={loadStatus === 'loaded' ? onClick : undefined}
+        className={`relative inline-block max-w-full rounded-xl overflow-hidden shadow-2xl group transition-opacity duration-300 ${cursorClass} ${
+          loadStatus === 'loaded' ? 'opacity-100' : 'opacity-0 absolute pointer-events-none'
+        }`}
+      >
+        <img
+          src={activeSrc}
+          alt={alt}
+          className={`${maxHeightClass} w-auto max-w-full block pointer-events-none object-contain`}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
+        />
+        {loadStatus === 'loaded' && children}
+      </div>
+    </div>
+  );
+};
 
 interface SopSlideshowModalProps {
   module: SopModule;
@@ -275,6 +423,23 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
       if (speakTimer) clearTimeout(speakTimer);
     };
   }, [currentSlideIndex, isAlreadyCompleted, currentSlide, voiceoverMode, stopSpeech, speakSlide]);
+
+  // Smart Background Preloader untuk mengunduh gambar slide berikutnya & sebelumnya ke memory cache browser
+  useEffect(() => {
+    const indicesToPreload = [currentSlideIndex + 1, currentSlideIndex + 2, currentSlideIndex - 1];
+    indicesToPreload.forEach((idx) => {
+      if (idx >= 0 && idx < totalSlides) {
+        const targetSlide = effectiveSlides[idx];
+        if (targetSlide && targetSlide.imageUrl) {
+          const fallbackUrls = getGoogleDriveImageFallbackUrls(targetSlide.imageUrl);
+          if (fallbackUrls.length > 0) {
+            const prefetchImg = new Image();
+            prefetchImg.src = fallbackUrls[0];
+          }
+        }
+      }
+    });
+  }, [currentSlideIndex, totalSlides, effectiveSlides]);
 
   // Spot-the-mistake countdown timer
   useEffect(() => {
@@ -553,6 +718,21 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
             )}
           </div>
 
+          {/* Visual Illustration Banner untuk slide standar (jika admin menyertakan gambar pendukung) */}
+          {currentSlide.imageUrl &&
+            !['interactive_simulator', 'spot_the_mistake', 'interactive_hotspot', 'document_reader'].includes(
+              currentSlide.slideType
+            ) && (
+              <div className="mb-2">
+                <SopInteractiveImageCanvas
+                  imageUrl={currentSlide.imageUrl}
+                  alt={currentSlide.title}
+                  maxHeightClass="max-h-[360px]"
+                  minHeightClass="min-h-[220px]"
+                />
+              </div>
+            )}
+
           {/* ─── FORMAT 1: step_instruction ─── */}
           {currentSlide.slideType === 'step_instruction' && currentSlide.steps && (
             <div className="space-y-2.5">
@@ -649,37 +829,31 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
           {currentSlide.slideType === 'interactive_hotspot' && currentSlide.hotspots && (
             <div className="space-y-3">
               {currentSlide.imageUrl && (
-                <div className="w-full bg-zinc-950/80 border border-zinc-800 rounded-2xl p-2 flex items-center justify-center overflow-hidden min-h-[260px] max-h-[550px] shadow-xl">
-                  <div className="relative inline-block max-w-full select-none rounded-xl overflow-hidden shadow-2xl">
-                    <img
-                      src={formatGoogleDriveImageUrl(currentSlide.imageUrl)}
-                      alt={currentSlide.title}
-                      className="max-h-[500px] w-auto max-w-full block object-contain pointer-events-none"
-                      onError={(e) => {
-                        const target = e.currentTarget as HTMLImageElement;
-                        target.src = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80';
-                      }}
-                    />
-                    {currentSlide.hotspots.map((hs) => (
-                      <button
-                        key={hs.id}
-                        onClick={() => setActiveHotspotId(activeHotspotId === hs.id ? null : hs.id)}
-                        style={{ left: `${hs.xPercent}%`, top: `${hs.yPercent}%` }}
-                        className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 flex items-center justify-center p-1.5 rounded-full transition-all duration-300 shadow-lg cursor-pointer ${
-                          activeHotspotId === hs.id
-                            ? 'bg-purple-500 ring-4 ring-purple-400/50 scale-125'
-                            : hs.status === 'critical'
-                            ? 'bg-rose-500 hover:scale-110 animate-bounce'
-                            : hs.status === 'check'
-                            ? 'bg-amber-500 hover:scale-110 animate-pulse'
-                            : 'bg-emerald-500 hover:scale-110'
-                        }`}
-                      >
-                        <span className="w-2.5 h-2.5 rounded-full bg-white block" />
-                      </button>
-                    ))}
-                  </div>
-                </div>
+                <SopInteractiveImageCanvas
+                  imageUrl={currentSlide.imageUrl}
+                  alt={currentSlide.title}
+                  maxHeightClass="max-h-[500px]"
+                  minHeightClass="min-h-[260px]"
+                >
+                  {currentSlide.hotspots.map((hs) => (
+                    <button
+                      key={hs.id}
+                      onClick={() => setActiveHotspotId(activeHotspotId === hs.id ? null : hs.id)}
+                      style={{ left: `${hs.xPercent}%`, top: `${hs.yPercent}%` }}
+                      className={`absolute -translate-x-1/2 -translate-y-1/2 z-20 flex items-center justify-center p-1.5 rounded-full transition-all duration-300 shadow-lg cursor-pointer ${
+                        activeHotspotId === hs.id
+                          ? 'bg-purple-500 ring-4 ring-purple-400/50 scale-125'
+                          : hs.status === 'critical'
+                          ? 'bg-rose-500 hover:scale-110 animate-bounce'
+                          : hs.status === 'check'
+                          ? 'bg-amber-500 hover:scale-110 animate-pulse'
+                          : 'bg-emerald-500 hover:scale-110'
+                      }`}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full bg-white block" />
+                    </button>
+                  ))}
+                </SopInteractiveImageCanvas>
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
@@ -739,54 +913,46 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
               </div>
 
               {/* Interactive Screenshot Click Canvas */}
-              <div className="w-full bg-zinc-950/90 border border-zinc-800 rounded-2xl p-2.5 flex items-center justify-center overflow-hidden min-h-[280px] max-h-[620px] shadow-2xl">
+              <SopInteractiveImageCanvas
+                imageUrl={currentSlide.imageUrl}
+                alt="WMS Simulation Screen"
+                onClick={handleSimulatorScreenClick}
+                cursorClass="cursor-crosshair"
+                maxHeightClass="max-h-[560px]"
+                minHeightClass="min-h-[300px]"
+              >
+                {/* Target Hit Box (With Pulsing Guide) */}
                 <div
-                  onClick={handleSimulatorScreenClick}
-                  className="relative inline-block max-w-full cursor-crosshair select-none rounded-xl overflow-hidden shadow-2xl group transition-all"
+                  style={{
+                    left: `${currentSlide.simulatorConfig.targetXPercent}%`,
+                    top: `${currentSlide.simulatorConfig.targetYPercent}%`,
+                    width: `${currentSlide.simulatorConfig.targetWidthPercent}%`,
+                    height: `${currentSlide.simulatorConfig.targetHeightPercent}%`,
+                  }}
+                  className={`absolute z-20 rounded-xl border-2 transition-all flex items-center justify-center p-1 pointer-events-none ${
+                    simSuccess
+                      ? 'border-emerald-400 bg-emerald-500/30 shadow-[0_0_25px_rgba(16,185,129,0.7)] scale-105'
+                      : 'border-emerald-400/80 bg-emerald-500/15 animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                  }`}
                 >
-                  <img
-                    src={formatGoogleDriveImageUrl(currentSlide.imageUrl) || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
-                    alt="WMS Simulation Screen"
-                    className="max-h-[560px] w-auto max-w-full block pointer-events-none object-contain"
-                    onError={(e) => {
-                      const target = e.currentTarget as HTMLImageElement;
-                      target.src = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80';
-                    }}
-                  />
-
-                  {/* Target Hit Box (With Pulsing Guide) */}
-                  <div
-                    style={{
-                      left: `${currentSlide.simulatorConfig.targetXPercent}%`,
-                      top: `${currentSlide.simulatorConfig.targetYPercent}%`,
-                      width: `${currentSlide.simulatorConfig.targetWidthPercent}%`,
-                      height: `${currentSlide.simulatorConfig.targetHeightPercent}%`,
-                    }}
-                    className={`absolute z-20 rounded-xl border-2 transition-all flex items-center justify-center p-1 pointer-events-none ${
-                      simSuccess
-                        ? 'border-emerald-400 bg-emerald-500/30 shadow-[0_0_25px_rgba(16,185,129,0.7)] scale-105'
-                        : 'border-emerald-400/80 bg-emerald-500/15 animate-pulse shadow-[0_0_15px_rgba(16,185,129,0.3)]'
-                    }`}
-                  >
-                    <span className="text-[10px] font-black text-emerald-300 bg-black/80 px-2 py-0.5 rounded shadow">
-                      {simSuccess ? '✓ TEPAT!' : (currentSlide.simulatorConfig.highlightLabel || 'KLIK DI SINI')}
-                    </span>
-                  </div>
-
-                  {/* Success Overlay Banner */}
-                  {simSuccess && (
-                    <div className="absolute inset-0 bg-emerald-950/40 backdrop-blur-[2px] z-30 flex flex-col items-center justify-center p-4 text-center animate-fade-in pointer-events-none">
-                      <div className="w-12 h-12 rounded-full bg-emerald-500 text-black flex items-center justify-center font-black text-xl mb-2 shadow-xl animate-bounce">
-                        ✓
-                      </div>
-                      <h4 className="text-sm font-black text-white mb-1">
-                        {currentSlide.simulatorConfig.successMessage || 'Langkah Berhasil Diselesaikan!'}
-                      </h4>
-                      <p className="text-xs text-emerald-300">Beralih ke langkah berikutnya...</p>
-                    </div>
-                  )}
+                  <span className="text-[10px] font-black text-emerald-300 bg-black/80 px-2 py-0.5 rounded shadow">
+                    {simSuccess ? '✓ TEPAT!' : (currentSlide.simulatorConfig.highlightLabel || 'KLIK DI SINI')}
+                  </span>
                 </div>
-              </div>
+
+                {/* Success Overlay Banner */}
+                {simSuccess && (
+                  <div className="absolute inset-0 bg-emerald-950/40 backdrop-blur-[2px] z-30 flex flex-col items-center justify-center p-4 text-center animate-fade-in pointer-events-none">
+                    <div className="w-12 h-12 rounded-full bg-emerald-500 text-black flex items-center justify-center font-black text-xl mb-2 shadow-xl animate-bounce">
+                      ✓
+                    </div>
+                    <h4 className="text-sm font-black text-white mb-1">
+                      {currentSlide.simulatorConfig.successMessage || 'Langkah Berhasil Diselesaikan!'}
+                    </h4>
+                    <p className="text-xs text-emerald-300">Beralih ke langkah berikutnya...</p>
+                  </div>
+                )}
+              </SopInteractiveImageCanvas>
 
               {/* Error / Hint Feedback Toast */}
               {simHint && !simSuccess && (
@@ -814,39 +980,31 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
               </div>
 
               {/* Photo Anomaly Click Area */}
-              <div className="w-full bg-zinc-950/90 border border-zinc-800 rounded-2xl p-2.5 flex items-center justify-center overflow-hidden min-h-[280px] max-h-[620px] shadow-2xl">
-                <div
-                  onClick={handleSpotMistakeClick}
-                  className="relative inline-block max-w-full cursor-crosshair select-none rounded-xl overflow-hidden shadow-2xl group transition-all"
-                >
-                  <img
-                    src={formatGoogleDriveImageUrl(currentSlide.imageUrl) || 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80'}
-                    alt="Spot the mistake field photo"
-                    className="max-h-[560px] w-auto max-w-full block pointer-events-none object-contain"
-                    onError={(e) => {
-                      const target = e.currentTarget as HTMLImageElement;
-                      target.src = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80';
+              <SopInteractiveImageCanvas
+                imageUrl={currentSlide.imageUrl}
+                alt="Spot the mistake field photo"
+                onClick={handleSpotMistakeClick}
+                cursorClass="cursor-crosshair"
+                maxHeightClass="max-h-[560px]"
+                minHeightClass="min-h-[300px]"
+              >
+                {/* Revealed Hazard Highlight */}
+                {spotRevealed && (
+                  <div
+                    style={{
+                      left: `${currentSlide.spotMistakeConfig.targetXPercent}%`,
+                      top: `${currentSlide.spotMistakeConfig.targetYPercent}%`,
+                      width: `${(currentSlide.spotMistakeConfig.toleranceRadiusPercent || 15) * 2}%`,
+                      height: `${(currentSlide.spotMistakeConfig.toleranceRadiusPercent || 15) * 2}%`,
                     }}
-                  />
-
-                  {/* Revealed Hazard Highlight */}
-                  {spotRevealed && (
-                    <div
-                      style={{
-                        left: `${currentSlide.spotMistakeConfig.targetXPercent}%`,
-                        top: `${currentSlide.spotMistakeConfig.targetYPercent}%`,
-                        width: `${(currentSlide.spotMistakeConfig.toleranceRadiusPercent || 15) * 2}%`,
-                        height: `${(currentSlide.spotMistakeConfig.toleranceRadiusPercent || 15) * 2}%`,
-                      }}
-                      className="absolute -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none animate-fade-in flex items-center justify-center"
-                    >
-                      <div className="w-full h-full rounded-full border-4 border-rose-500 bg-rose-500/30 animate-pulse shadow-[0_0_30px_rgba(244,63,94,0.8)] flex items-center justify-center">
-                        <span className="text-xl">⚠️</span>
-                      </div>
+                    className="absolute -translate-x-1/2 -translate-y-1/2 z-20 pointer-events-none animate-fade-in flex items-center justify-center"
+                  >
+                    <div className="w-full h-full rounded-full border-4 border-rose-500 bg-rose-500/30 animate-pulse shadow-[0_0_30px_rgba(244,63,94,0.8)] flex items-center justify-center">
+                      <span className="text-xl">⚠️</span>
                     </div>
-                  )}
-                </div>
-              </div>
+                  </div>
+                )}
+              </SopInteractiveImageCanvas>
 
               {/* Result Explanation Card */}
               {spotRevealed ? (
@@ -890,17 +1048,12 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
               </div>
 
               {currentSlide.imageUrl && (
-                <div className="rounded-xl overflow-hidden border border-zinc-800 bg-zinc-950">
-                  <img
-                    src={formatGoogleDriveImageUrl(currentSlide.imageUrl)}
-                    alt="Document page"
-                    className="w-full object-contain max-h-80 mx-auto"
-                    onError={(e) => {
-                      const target = e.currentTarget as HTMLImageElement;
-                      target.src = 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=1200&q=80';
-                    }}
-                  />
-                </div>
+                <SopInteractiveImageCanvas
+                  imageUrl={currentSlide.imageUrl}
+                  alt={currentSlide.documentConfig?.fileName || 'Document page'}
+                  maxHeightClass="max-h-80"
+                  minHeightClass="min-h-[220px]"
+                />
               )}
 
               {currentSlide.content && (

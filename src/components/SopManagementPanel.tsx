@@ -1,5 +1,6 @@
 // src/components/SopManagementPanel.tsx
 import React, { useState, useEffect, useRef } from 'react';
+import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import {
   BookOpen,
@@ -47,7 +48,7 @@ import {
 import { fetchAllSopModules } from '../lib/sopService';
 import { supabase } from '../lib/supabaseClient';
 import { SopSlideshowModal } from './SopSlideshowModal';
-import { uploadFileToGoogleDrive, formatGoogleDriveImageUrl } from '../lib/googleDriveService';
+import { uploadFileToGoogleDrive, formatGoogleDriveImageUrl, compressImageIfAppropriate } from '../lib/googleDriveService';
 import { safeLocalStorageSetItem, sanitizeDataForStorage } from '../lib/storageSanitizer';
 import { SwalService } from '../domain/SwalService';
 
@@ -79,8 +80,8 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
   const [formCode, setFormCode] = useState('');
   const [formTitle, setFormTitle] = useState('');
   const [formDesc, setFormDesc] = useState('');
-  const [formCategory, setFormCategory] = useState<SopCategory>('K3 & Safety');
-  const [formDifficulty, setFormDifficulty] = useState<SopDifficulty>('Beginner');
+  const [formCategory, setFormCategory] = useState<SopCategory | ''>('');
+  const [formDifficulty, setFormDifficulty] = useState<SopDifficulty | ''>('');
   const [formTargetDivs, setFormTargetDivs] = useState<string[]>(['ALL']);
   const [formTargetRoles, setFormTargetRoles] = useState<string[]>(['ALL']);
   const [formEstMinutes, setFormEstMinutes] = useState(3);
@@ -504,19 +505,32 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
       return;
     }
 
-    // 1. Tampilkan preview instan di UI menggunakan Blob URL (0 byte storage overhead)
-    const blobPreviewUrl = URL.createObjectURL(file);
-    handleUpdateActiveSlide({ imageUrl: blobPreviewUrl });
-
-    // 2. Unggah otomatis ke Google Drive di folder Administrator / Dokumen_SOP
     setIsUploadingImage(true);
+    let blobPreviewUrl = '';
+
     try {
-      if (onToast) onToast('Mengunggah gambar slide ke Google Drive resmi...');
-      const uploadRes = await uploadFileToGoogleDrive(file, {
-        workerId: 'SYS-ADMIN',
-        workerName: 'System Administrator',
-        moduleCategory: 'Dokumen_SOP',
-      });
+      if (onToast) onToast('Mengompresi & mengoptimalkan gambar slide...');
+      // 1. Kompresi di sisi klien secara instan (mengurangi beban dari 5-15MB menjadi ~150-300KB WebP/HD)
+      const optimizedFile = file.type.startsWith('image/')
+        ? await compressImageIfAppropriate(file)
+        : file;
+
+      // Tampilkan preview instan dari hasil kompresi
+      blobPreviewUrl = URL.createObjectURL(optimizedFile);
+      handleUpdateActiveSlide({ imageUrl: blobPreviewUrl });
+
+      // 2. Unggah otomatis ke Google Drive di folder Administrator / Dokumen_SOP
+      if (onToast) onToast('Mengunggah gambar slide terkompresi ke Google Drive resmi...');
+      const uploadRes = await uploadFileToGoogleDrive(
+        optimizedFile instanceof File ? optimizedFile : file,
+        {
+          workerId: 'SYS-ADMIN',
+          workerName: 'System Administrator',
+          moduleCategory: 'Dokumen_SOP',
+          compressImage: false, // Sudah dikompresi di tahap 1
+        }
+      );
+
       if (uploadRes.success && (uploadRes.directUrl || uploadRes.webViewLink)) {
         const finalUrl = uploadRes.directUrl || uploadRes.webViewLink;
         handleUpdateActiveSlide({ imageUrl: finalUrl });
@@ -707,8 +721,8 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
     setFormCode('');
     setFormTitle('');
     setFormDesc('');
-    setFormCategory('K3 & Safety');
-    setFormDifficulty('Beginner');
+    setFormCategory('');
+    setFormDifficulty('');
     setFormFormat('micro_deck');
     setFormTargetDivs(['ALL']);
     setFormTargetRoles(['ALL']);
@@ -768,6 +782,14 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
       setFormError('Kode SOP dan Judul Modul wajib diisi.');
       return;
     }
+    if (!formCategory) {
+      setFormError('Silakan pilih Kategori SOP terlebih dahulu.');
+      return;
+    }
+    if (!formDifficulty) {
+      setFormError('Silakan pilih Tingkat Kesulitan SOP terlebih dahulu.');
+      return;
+    }
     if (editingSlides.length === 0) {
       setFormError('Modul harus memiliki minimal 1 slide.');
       return;
@@ -801,6 +823,15 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
           setActiveSlideIndex(i);
           return;
         }
+      }
+
+      // Cegah penyimpanan URL lokal sementara (blob:) yang akan menjadi broken link setelah reload
+      if (sl.imageUrl && sl.imageUrl.startsWith('blob:')) {
+        setFormError(
+          `Slide #${i + 1} masih menggunakan berkas lokal sementara (blob:) atau proses unggah Google Drive belum selesai. Harap tunggu hingga unggahan selesai atau unggah ulang gambar.`
+        );
+        setActiveSlideIndex(i);
+        return;
       }
     }
 
@@ -1321,33 +1352,37 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
                     <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                       <div>
                         <label className="block text-[11px] text-zinc-400 mb-1">Kategori</label>
-                        <select
+                        <SearchableSelect
                           value={formCategory}
-                          onChange={(e) => setFormCategory(e.target.value as SopCategory)}
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                        >
-                          <option value="K3 & Safety">K3 & Safety</option>
-                          <option value="Operasional MHE">Operasional MHE</option>
-                          <option value="Warehouse & Staging">Warehouse & Staging</option>
-                          <option value="Inbound & Timbangan">Inbound & Timbangan</option>
-                          <option value="Outbound & Ekspedisi">Outbound & Ekspedisi</option>
-                          <option value="5S & Continuous Improvement">5S & Continuous Improvement</option>
-                          <option value="Tanggap Darurat & Lingkungan">Tanggap Darurat & Lingkungan</option>
-                        </select>
+                          onChange={(v) => setFormCategory(v as SopCategory)}
+                          placeholder="Pilih Kategori"
+                          searchPlaceholder="Cari kategori..."
+                          options={[
+                            { value: 'K3 & Safety', label: 'K3 & Safety' },
+                            { value: 'Operasional MHE', label: 'Operasional MHE' },
+                            { value: 'Warehouse & Staging', label: 'Warehouse & Staging' },
+                            { value: 'Inbound & Timbangan', label: 'Inbound & Timbangan' },
+                            { value: 'Outbound & Ekspedisi', label: 'Outbound & Ekspedisi' },
+                            { value: '5S & Continuous Improvement', label: '5S & Continuous Improvement' },
+                            { value: 'Tanggap Darurat & Lingkungan', label: 'Tanggap Darurat & Lingkungan' },
+                          ]}
+                        />
                       </div>
 
                       <div>
                         <label className="block text-[11px] text-zinc-400 mb-1">Tingkat Kesulitan</label>
-                        <select
+                        <SearchableSelect
                           value={formDifficulty}
-                          onChange={(e) => setFormDifficulty(e.target.value as SopDifficulty)}
-                          className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-1.5 text-xs text-white"
-                        >
-                          <option value="Beginner">Beginner</option>
-                          <option value="Intermediate">Intermediate</option>
-                          <option value="Advanced">Advanced</option>
-                          <option value="Mandatory Compliance">Mandatory Compliance</option>
-                        </select>
+                          onChange={(v) => setFormDifficulty(v as SopDifficulty)}
+                          placeholder="Pilih Kesulitan"
+                          searchPlaceholder="Cari tingkat kesulitan..."
+                          options={[
+                            { value: 'Beginner', label: 'Beginner' },
+                            { value: 'Intermediate', label: 'Intermediate' },
+                            { value: 'Advanced', label: 'Advanced' },
+                            { value: 'Mandatory Compliance', label: 'Mandatory Compliance' },
+                          ]}
+                        />
                       </div>
 
                       <div>

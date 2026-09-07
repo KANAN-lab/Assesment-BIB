@@ -26,7 +26,13 @@ import {
   Calendar,
   MapPin,
   UserCheck,
-  Download
+  Download,
+  Coins,
+  TrendingUp,
+  TrendingDown,
+  ArrowUpRight,
+  ArrowDownRight,
+  Filter,
 } from 'lucide-react';
 import { KaizenService } from '../lib/kaizenService';
 import { fetchIncidentReports, fetchRedemptionHistory } from '../lib/supabaseService';
@@ -38,6 +44,7 @@ import {
   CATEGORY_META,
 } from '../lib/disciplinaryService';
 import { fetchAllSopModules, fetchWorkerSopProgress } from '../lib/sopService';
+import { supabase } from '../lib/supabaseClient';
 import { KaizenSuggestionEntity, KaizenCategory, KaizenStatus } from '../types/kaizen';
 import { IncidentReport, RewardHistory } from '../types/assessment';
 import { ShiftHandoverEntity } from '../types/handover';
@@ -45,12 +52,25 @@ import { KudoEntity } from '../types/kudos';
 import { DisciplinaryActionEntity, SanctionStatus } from '../types/disciplinary';
 import { SopModule, WorkerSopProgress } from '../types/sop';
 
+export interface PointMutationEntry {
+  id: string;
+  date: string;
+  title: string;
+  description: string;
+  amount: number; // Positif (+) untuk perolehan, Negatif (-) untuk potongan
+  category: string;
+  source: 'disciplinary' | 'rewards' | 'sop' | 'kaizen' | 'kudos' | 'activity';
+  badge: string;
+  badgeCls: string;
+  docRef?: string;
+}
+
 interface WorkerHistoryCenterModalProps {
   isOpen: boolean;
   onClose: () => void;
   workerId: string;
   workerName: string;
-  initialTab?: 'kaizen' | 'incidents' | 'disciplinary' | 'handovers' | 'kudos' | 'rewards' | 'sop';
+  initialTab?: 'ledger' | 'kaizen' | 'incidents' | 'disciplinary' | 'handovers' | 'kudos' | 'rewards' | 'sop';
 }
 
 const INCIDENT_STATUS_META: Record<string, { label: string; cls: string }> = {
@@ -72,12 +92,14 @@ export function WorkerHistoryCenterModal({
   onClose,
   workerId,
   workerName,
-  initialTab = 'kaizen'
+  initialTab = 'ledger'
 }: WorkerHistoryCenterModalProps) {
-  const [activeTab, setActiveTab] = useState<'kaizen' | 'incidents' | 'disciplinary' | 'handovers' | 'kudos' | 'rewards' | 'sop'>(initialTab);
+  const [activeTab, setActiveTab] = useState<'ledger' | 'kaizen' | 'incidents' | 'disciplinary' | 'handovers' | 'kudos' | 'rewards' | 'sop'>(initialTab);
   const [loading, setLoading] = useState(false);
 
   // Data states
+  const [ledgerEntries, setLedgerEntries] = useState<PointMutationEntry[]>([]);
+  const [ledgerFilter, setLedgerFilter] = useState<'all' | 'income' | 'expense'>('all');
   const [kaizens, setKaizens] = useState<KaizenSuggestionEntity[]>([]);
   const [incidents, setIncidents] = useState<IncidentReport[]>([]);
   const [disciplinaryActions, setDisciplinaryActions] = useState<DisciplinaryActionEntity[]>([]);
@@ -86,10 +108,188 @@ export function WorkerHistoryCenterModal({
   const [rewards, setRewards] = useState<RewardHistory[]>([]);
   const [completedSops, setCompletedSops] = useState<{ sop: SopModule; progress: WorkerSopProgress }[]>([]);
 
+  // Update activeTab jika prop initialTab berganti saat modal dibuka
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab, isOpen]);
+
   const loadTabData = async () => {
     setLoading(true);
     try {
-      if (activeTab === 'kaizen') {
+      if (activeTab === 'ledger') {
+        const entries: PointMutationEntry[] = [];
+
+        // 1. Sanksi Disiplin K3 (- PTS)
+        const discData = DisciplinaryService.getActionsByWorkerId(workerId);
+        setDisciplinaryActions(discData);
+        discData.forEach((action) => {
+          if (action.pointDeduction && action.pointDeduction > 0) {
+            const levelMeta = VIOLATION_META[action.violationLevel];
+            const catMeta = CATEGORY_META[action.violationCategory];
+            entries.push({
+              id: `disc_${action.id}`,
+              date: action.incidentDate || action.issuedAt,
+              title: `Penalti Sanksi: ${levelMeta?.label || 'Sanksi K3'}`,
+              description: action.description || catMeta?.label || 'Pelanggaran Operasional K3',
+              amount: -Math.abs(action.pointDeduction),
+              category: 'Disiplin & Sanksi K3',
+              source: 'disciplinary',
+              badge: levelMeta?.label || 'Sanksi K3',
+              badgeCls: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
+              docRef: action.documentRefNumber,
+            });
+          }
+        });
+
+        // 2. Klaim Katalog Reward (- PTS)
+        const rewData = await fetchRedemptionHistory(workerId);
+        setRewards(rewData);
+        rewData.forEach((r) => {
+          if (r.pointsSpent && r.pointsSpent > 0) {
+            const isCancelled = r.status === 'cancelled';
+            entries.push({
+              id: `rew_${r.id}`,
+              date: r.redeemedAt,
+              title: isCancelled ? `Klaim Reward (Dibatalkan): ${r.itemTitle}` : `Klaim Reward: ${r.itemTitle}`,
+              description: `Kode: ${r.redemptionCode} · Status: ${
+                isCancelled ? 'Dibatalkan (Poin Dikembalikan)' : r.status === 'completed' ? 'Selesai' : 'Diproses'
+              }`,
+              amount: isCancelled ? 0 : -Math.abs(r.pointsSpent),
+              category: 'Penukaran Reward',
+              source: 'rewards',
+              badge: isCancelled ? 'Dibatalkan' : 'Katalog Reward',
+              badgeCls: isCancelled
+                ? 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                : 'bg-rose-500/10 text-rose-400 border-rose-500/30',
+              docRef: r.redemptionCode,
+            });
+          }
+        });
+
+        // 3. Modul SOP K3 Selesai (+ PTS)
+        const [allMods, progMap] = await Promise.all([
+          fetchAllSopModules(),
+          fetchWorkerSopProgress(workerId),
+        ]);
+        const completed = allMods
+          .filter((m) => progMap[m.id]?.isCompleted)
+          .map((m) => ({ sop: m, progress: progMap[m.id] }));
+        setCompletedSops(completed);
+        completed.forEach(({ sop: m, progress: p }) => {
+          entries.push({
+            id: `sop_${m.id}`,
+            date: p.completedAt || new Date().toISOString(),
+            title: `Selesai Modul SOP: ${m.title}`,
+            description: `Kode: ${m.code} · ${m.category} · Kuis: ${p.quizScore || 100}%`,
+            amount: +(m.pointsReward || 50),
+            category: 'Pustaka SOP K3',
+            source: 'sop',
+            badge: 'SOP Deck',
+            badgeCls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+            docRef: m.code,
+          });
+        });
+
+        // 4. Inovasi Kaizen Disetujui (+ PTS)
+        const kzData = await KaizenService.getSuggestionsByWorker(workerId);
+        setKaizens(kzData);
+        kzData.forEach((item) => {
+          if ((item.status === 'Approved' || item.status === 'Implemented') && item.reward_points > 0) {
+            entries.push({
+              id: `kz_${item.id}`,
+              date: item.created_at,
+              title: `Reward Kaizen: ${item.title}`,
+              description: `Kategori: ${item.category} · ${item.reviewer_feedback || 'Disetujui Supervisor'}`,
+              amount: +item.reward_points,
+              category: 'Inovasi Kaizen',
+              source: 'kaizen',
+              badge: 'Kaizen Disetujui',
+              badgeCls: 'bg-amber-500/10 text-amber-400 border-amber-500/30',
+            });
+          }
+        });
+
+        // 5. Kudo Diterima (+ PTS)
+        const kdData = await KudoService.getRecentKudos(50);
+        const receivedKudos = kdData.filter((k) => k.receiver_id === workerId);
+        setKudos(receivedKudos);
+        receivedKudos.forEach((k) => {
+          entries.push({
+            id: `kd_${k.id}`,
+            date: k.created_at,
+            title: `Kudo dari ${k.sender_name || 'Rekan Kerja'}`,
+            description: `"${k.message}" · Kategori: ${k.category}`,
+            amount: +(k.points_awarded || 10),
+            category: 'Kudo Apresiasi',
+            source: 'kudos',
+            badge: 'Kudo Apresiasi',
+            badgeCls: 'bg-sky-500/10 text-sky-400 border-sky-500/30',
+          });
+        });
+
+        // 6. Activity Log (Kuis Harian, Pre-Shift Checklist, SIO Mandiri)
+        try {
+          const { data: actLogs } = await supabase
+            .from('activity_log')
+            .select('*')
+            .eq('worker_id', workerId)
+            .order('created_at', { ascending: false })
+            .limit(40);
+
+          if (actLogs) {
+            actLogs.forEach((l: any) => {
+              const act = String(l.action || '');
+              if (act.includes('quiz') || act.includes('checklist') || act.includes('sio') || act.includes('refund')) {
+                let pts = 0;
+                let title = 'Aktivitas Kepatuhan Operasional';
+                let category = 'Kepatuhan Operasional';
+                let badge = 'Daily Ops';
+                let badgeCls = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30';
+
+                if (act.includes('quiz')) {
+                  pts = 10;
+                  title = 'Kuis Keselamatan K3 Harian';
+                } else if (act.includes('checklist')) {
+                  pts = 15;
+                  title = 'Pre-Shift Inspection Checklist';
+                } else if (act.includes('sio')) {
+                  pts = 100;
+                  title = 'Reward Unggah Sertifikasi SIO Mandiri';
+                } else if (act.includes('refund')) {
+                  const match = String(l.detail || '').match(/\+(\d+)\s*PTS/i);
+                  pts = match ? parseInt(match[1], 10) : 100;
+                  title = 'Pemulihan Poin (Sanksi K3 Dibatalkan)';
+                  category = 'Pemulihan Disiplin K3';
+                  badge = 'Poin Dipulihkan';
+                  badgeCls = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+                }
+
+                if (pts > 0) {
+                  entries.push({
+                    id: `act_${l.id}`,
+                    date: l.created_at,
+                    title,
+                    description: l.detail || 'Kepatuhan Operasional Lapangan',
+                    amount: pts,
+                    category,
+                    source: 'activity',
+                    badge,
+                    badgeCls,
+                  });
+                }
+              }
+            });
+          }
+        } catch {
+          // Fallback offline
+        }
+
+        // Urutkan mutasi dari yang paling baru
+        entries.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        setLedgerEntries(entries);
+      } else if (activeTab === 'kaizen') {
         const data = await KaizenService.getSuggestionsByWorker(workerId);
         setKaizens(data);
       } else if (activeTab === 'sop') {
@@ -133,6 +333,7 @@ export function WorkerHistoryCenterModal({
   if (!isOpen) return null;
 
   const tabs = [
+    { key: 'ledger', label: 'Buku Kas Poin', icon: Coins, count: ledgerEntries.length },
     { key: 'kaizen', label: 'Ide Kaizen', icon: Lightbulb, count: kaizens.length },
     { key: 'sop', label: 'SOP & K3 Academy', icon: BookOpen, count: completedSops.length },
     { key: 'incidents', label: 'Insiden K3', icon: ShieldAlert, count: incidents.length },
@@ -214,6 +415,227 @@ export function WorkerHistoryCenterModal({
             </div>
           ) : (
             <>
+              {/* TAB 0: BUKU KAS & MUTASI POIN TERPADU */}
+              {activeTab === 'ledger' && (
+                <div className="space-y-4 animate-fade-in">
+                  {/* Summary Metric Header Strip */}
+                  {(() => {
+                    const totalEarned = ledgerEntries
+                      .filter((e) => e.amount > 0)
+                      .reduce((acc, e) => acc + e.amount, 0);
+                    const totalDeducted = ledgerEntries
+                      .filter((e) => e.amount < 0)
+                      .reduce((acc, e) => acc + Math.abs(e.amount), 0);
+                    const netPoints = totalEarned - totalDeducted;
+                    const incomeCount = ledgerEntries.filter((e) => e.amount > 0).length;
+                    const expenseCount = ledgerEntries.filter((e) => e.amount < 0).length;
+
+                    const filteredEntries = ledgerEntries.filter((e) => {
+                      if (ledgerFilter === 'income') return e.amount > 0;
+                      if (ledgerFilter === 'expense') return e.amount < 0;
+                      return true;
+                    });
+
+                    return (
+                      <>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                          {/* Total Masuk */}
+                          <div className="bg-zinc-900/90 border border-emerald-500/30 rounded-2xl p-3.5 relative overflow-hidden">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Total Poin Masuk</span>
+                              <div className="w-6 h-6 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                                <TrendingUp className="w-3.5 h-3.5" />
+                              </div>
+                            </div>
+                            <div className="text-xl font-black text-emerald-400 mt-1">
+                              +{totalEarned.toLocaleString()} <span className="text-xs text-emerald-500 font-normal">PTS</span>
+                            </div>
+                            <span className="text-[10px] text-zinc-500 block mt-0.5">{incomeCount} Transaksi reward</span>
+                          </div>
+
+                          {/* Total Keluar / Potongan */}
+                          <div className="bg-zinc-900/90 border border-rose-500/30 rounded-2xl p-3.5 relative overflow-hidden">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Total Terpotong / Klaim</span>
+                              <div className="w-6 h-6 rounded-lg bg-rose-500/20 text-rose-400 flex items-center justify-center">
+                                <TrendingDown className="w-3.5 h-3.5" />
+                              </div>
+                            </div>
+                            <div className="text-xl font-black text-rose-400 mt-1">
+                              -{totalDeducted.toLocaleString()} <span className="text-xs text-rose-500 font-normal">PTS</span>
+                            </div>
+                            <span className="text-[10px] text-zinc-500 block mt-0.5">{expenseCount} Sanksi / belanja</span>
+                          </div>
+
+                          {/* Net Akumulasi Mutasi */}
+                          <div className="bg-zinc-900/90 border border-amber-500/30 rounded-2xl p-3.5 relative overflow-hidden">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Akumulasi Bersih</span>
+                              <div className="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                                <Coins className="w-3.5 h-3.5" />
+                              </div>
+                            </div>
+                            <div className={`text-xl font-black mt-1 ${netPoints >= 0 ? 'text-amber-300' : 'text-rose-400'}`}>
+                              {netPoints >= 0 ? `+${netPoints.toLocaleString()}` : netPoints.toLocaleString()} <span className="text-xs text-zinc-400 font-normal">PTS</span>
+                            </div>
+                            <span className="text-[10px] text-zinc-500 block mt-0.5">Selisih arus kas poin</span>
+                          </div>
+                        </div>
+
+                        {/* Filter Bar */}
+                        <div className="flex items-center justify-between gap-2 pt-1 border-t border-zinc-800/80">
+                          <div className="flex items-center gap-1.5 overflow-x-auto">
+                            <button
+                              onClick={() => setLedgerFilter('all')}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                                ledgerFilter === 'all'
+                                  ? 'bg-zinc-800 text-white border border-zinc-700 shadow-sm'
+                                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-850'
+                              }`}
+                            >
+                              <span>Semua</span>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-zinc-700/80 text-zinc-300">
+                                {ledgerEntries.length}
+                              </span>
+                            </button>
+                            <button
+                              onClick={() => setLedgerFilter('income')}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                                ledgerFilter === 'income'
+                                  ? 'bg-emerald-950/60 text-emerald-300 border border-emerald-500/40 shadow-sm'
+                                  : 'text-zinc-400 hover:text-emerald-400 hover:bg-emerald-950/20'
+                              }`}
+                            >
+                              <ArrowUpRight className="w-3.5 h-3.5 text-emerald-400" />
+                              <span>Pemasukan (+)</span>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-emerald-900/60 text-emerald-300">
+                                {incomeCount}
+                              </span>
+                            </button>
+                            <button
+                              onClick={() => setLedgerFilter('expense')}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 ${
+                                ledgerFilter === 'expense'
+                                  ? 'bg-rose-950/60 text-rose-300 border border-rose-500/40 shadow-sm'
+                                  : 'text-zinc-400 hover:text-rose-400 hover:bg-rose-950/20'
+                              }`}
+                            >
+                              <ArrowDownRight className="w-3.5 h-3.5 text-rose-400" />
+                              <span>Pengurangan (-)</span>
+                              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-rose-900/60 text-rose-300">
+                                {expenseCount}
+                              </span>
+                            </button>
+                          </div>
+
+                          <span className="text-[10px] text-zinc-500 hidden sm:inline">
+                            Diurutkan dari transaksi terbaru
+                          </span>
+                        </div>
+
+                        {/* List Mutasi Poin */}
+                        {filteredEntries.length === 0 ? (
+                          <div className="py-16 text-center text-zinc-500 space-y-2.5 bg-zinc-900/40 rounded-2xl border border-zinc-800/80">
+                            <Coins className="w-10 h-10 mx-auto text-zinc-700 opacity-60" />
+                            <p className="text-sm font-bold text-zinc-400">Belum Ada Riwayat Mutasi Poin</p>
+                            <p className="text-xs text-zinc-500 max-w-sm mx-auto">
+                              {ledgerFilter === 'income'
+                                ? 'Belum ada perolehan poin dari kuis, SOP, atau inovasi.'
+                                : ledgerFilter === 'expense'
+                                ? 'Tidak ada catatan pemotongan poin atau penukaran reward.'
+                                : 'Selesaikan kuis, pelajari modul SOP, atau ajukan kaizen untuk mengumpulkan poin!'}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2.5">
+                            {filteredEntries.map((item) => {
+                              const isPositive = item.amount > 0;
+                              const dateObj = new Date(item.date);
+                              const formattedDate = !isNaN(dateObj.getTime())
+                                ? dateObj.toLocaleDateString('id-ID', {
+                                    day: 'numeric',
+                                    month: 'short',
+                                    year: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })
+                                : item.date;
+
+                              return (
+                                <div
+                                  key={item.id}
+                                  className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-3.5 sm:p-4 hover:border-zinc-700 transition flex items-start justify-between gap-3 shadow-sm"
+                                >
+                                  {/* Left: Icon & Details */}
+                                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                                    <div
+                                      className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 mt-0.5 border ${
+                                        isPositive
+                                          ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400'
+                                          : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
+                                      }`}
+                                    >
+                                      {isPositive ? (
+                                        <ArrowUpRight className="w-4 h-4" />
+                                      ) : (
+                                        <ArrowDownRight className="w-4 h-4" />
+                                      )}
+                                    </div>
+
+                                    <div className="min-w-0 space-y-1">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <h4 className="font-bold text-xs sm:text-sm text-white truncate">
+                                          {item.title}
+                                        </h4>
+                                        <span
+                                          className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${item.badgeCls}`}
+                                        >
+                                          {item.badge}
+                                        </span>
+                                        {item.docRef && (
+                                          <span className="text-[9px] font-mono text-zinc-500 bg-zinc-800/80 px-1.5 py-0.5 rounded">
+                                            {item.docRef}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <p className="text-[11px] text-zinc-400 leading-relaxed line-clamp-2">
+                                        {item.description}
+                                      </p>
+
+                                      <div className="flex items-center gap-2 text-[10px] text-zinc-500 font-mono">
+                                        <Clock className="w-3 h-3 text-zinc-600" />
+                                        <span>{formattedDate}</span>
+                                        <span>·</span>
+                                        <span className="font-sans text-zinc-400">{item.category}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* Right: Amount Badge */}
+                                  <div className="text-right shrink-0">
+                                    <span
+                                      className={`text-sm sm:text-base font-black flex items-center gap-0.5 justify-end ${
+                                        isPositive ? 'text-emerald-400' : 'text-rose-400'
+                                      }`}
+                                    >
+                                      {isPositive ? `+${item.amount}` : item.amount} PTS
+                                    </span>
+                                    <span className="text-[10px] text-zinc-500 block">
+                                      {isPositive ? 'Reward Masuk' : 'Potongan / Klaim'}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+                </div>
+              )}
+
               {/* TAB 1: KAIZEN */}
               {activeTab === 'kaizen' && (
                 <div className="space-y-3">

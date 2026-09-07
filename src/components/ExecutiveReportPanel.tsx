@@ -24,6 +24,7 @@ import { ExecutivePDFReportGenerator, ReportSigningConfig } from '../lib/pdfRepo
 import { LicenseService } from '../lib/licenseService';
 import { PpeService } from '../lib/ppeService';
 import { RoleEntity } from '../domain/RoleEntity';
+import { DivisionEntity } from '../domain/DivisionEntity';
 import { SystemConfigService } from '../domain/SystemConfigService';
 
 interface ExecutiveReportPanelProps {
@@ -108,20 +109,70 @@ export const ExecutiveReportPanel: React.FC<ExecutiveReportPanelProps> = ({
   // Selected Report
   const [selectedReportType, setSelectedReportType] = useState<ReportType>('competency_matrix');
 
-  // Form State with Placeholders
-  const [period, setPeriod] = useState('Tahun Berjalan 2026');
+  // Year and Period Controls
+  const currentYear = new Date().getFullYear();
+  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
+  const [periodCycle, setPeriodCycle] = useState<string>('annual');
+  const [specificMonth, setSpecificMonth] = useState<number>(() => new Date().getMonth() + 1);
+  const [customPeriodText, setCustomPeriodText] = useState<string>('');
+  const [issueDate, setIssueDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+
+  // Available Years: 3 years back to 3 years ahead
+  const availableYears = useMemo(() => {
+    const years: number[] = [];
+    for (let y = currentYear - 3; y <= currentYear + 3; y++) {
+      years.push(y);
+    }
+    return years;
+  }, [currentYear]);
+
+  // Computed period label
+  const period = useMemo(() => {
+    switch (periodCycle) {
+      case 'annual':
+        return `Tahun Penuh ${selectedYear} (Annual)`;
+      case 'semester_1':
+        return `Semester I (Jan - Jun ${selectedYear})`;
+      case 'semester_2':
+        return `Semester II (Jul - Des ${selectedYear})`;
+      case 'q1':
+        return `Triwulan I (Q1 ${selectedYear})`;
+      case 'q2':
+        return `Triwulan II (Q2 ${selectedYear})`;
+      case 'q3':
+        return `Triwulan III (Q3 ${selectedYear})`;
+      case 'q4':
+        return `Triwulan IV (Q4 ${selectedYear})`;
+      case 'current_month':
+        return `Bulan Berjalan (${new Date().toLocaleString('id-ID', { month: 'long', year: 'numeric' })})`;
+      case 'specific_month': {
+        const monthNames = [
+          'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+          'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+        ];
+        return `Bulan ${monthNames[specificMonth - 1] || ''} ${selectedYear}`;
+      }
+      case 'all_time':
+        return 'Seluruh Arsip (All-Time)';
+      case 'custom':
+        return customPeriodText.trim() || `Periode Khusus ${selectedYear}`;
+      default:
+        return `Tahun Berjalan ${selectedYear}`;
+    }
+  }, [periodCycle, selectedYear, specificMonth, customPeriodText]);
+
   const [selectedDivision, setSelectedDivision] = useState('all');
   const [supervisorName, setSupervisorName] = useState(currentUserName || 'Supervisor Logistik & K3');
   const [supervisorTitle, setSupervisorTitle] = useState('Supervisor Operasional & HSE');
   const [managerName, setManagerName] = useState('Head of Operations & HSE Manager');
   const [managerTitle, setManagerTitle] = useState('PT. DAYA ANUGRAH MULYA Management');
   const [documentNumber, setDocumentNumber] = useState(() =>
-    SystemConfigService.generateDocumentNumber('competency_matrix')
+    SystemConfigService.generateDocumentNumber('competency_matrix', { year: currentYear })
   );
 
   React.useEffect(() => {
-    setDocumentNumber(SystemConfigService.generateDocumentNumber(selectedReportType));
-  }, [selectedReportType]);
+    setDocumentNumber(SystemConfigService.generateDocumentNumber(selectedReportType, { year: selectedYear }));
+  }, [selectedReportType, selectedYear]);
 
   // Live Domain Data
   const licenses = useMemo(() => LicenseService.getAllLicenses(), []);
@@ -138,13 +189,16 @@ export const ExecutiveReportPanel: React.FC<ExecutiveReportPanelProps> = ({
     return list;
   }, [workers, selectedDivision]);
 
-  // Unique Divisions
+  // Unique Divisions from Workers and Default Master Divisions
   const divisions = useMemo(() => {
     const set = new Set<string>();
+    DivisionEntity.createDefaultDivisions().forEach((d) => {
+      if (d.name && d.name.toUpperCase() !== 'SYSTEM') set.add(d.name);
+    });
     workers.forEach((w) => {
       if (w.division && w.division.toUpperCase() !== 'SYSTEM') set.add(w.division);
     });
-    return Array.from(set);
+    return Array.from(set).sort();
   }, [workers]);
 
   // Config object for generator
@@ -156,6 +210,7 @@ export const ExecutiveReportPanel: React.FC<ExecutiveReportPanelProps> = ({
     managerName,
     managerTitle,
     divisionFilter: selectedDivision === 'all' ? 'Semua Divisi' : selectedDivision,
+    issueDate,
   };
 
   // Handlers for PDF Generation
@@ -341,23 +396,110 @@ export const ExecutiveReportPanel: React.FC<ExecutiveReportPanelProps> = ({
           </div>
 
           <div className="space-y-3.5">
-            {/* Periode */}
+            {/* Periode Waktu Laporan: Tahun & Siklus */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-zinc-300">Periode Waktu Laporan</label>
+              <div className="grid grid-cols-5 gap-2">
+                {/* Selector Tahun (2 kolom) */}
+                <div className="col-span-2">
+                  <label className="block text-[10px] text-zinc-500 font-semibold mb-0.5">Tahun</label>
+                  <select
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(Number(e.target.value))}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono font-bold"
+                  >
+                    {availableYears.map((y) => (
+                      <option key={y} value={y}>
+                        {y} {y === currentYear ? '(Berjalan)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Selector Siklus/Rentang (3 kolom) */}
+                <div className="col-span-3">
+                  <label className="block text-[10px] text-zinc-500 font-semibold mb-0.5">Siklus Rentang</label>
+                  <select
+                    value={periodCycle}
+                    onChange={(e) => setPeriodCycle(e.target.value)}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
+                  >
+                    <option value="annual">Tahun Penuh (Annual)</option>
+                    <option value="semester_1">Semester I (Jan - Jun)</option>
+                    <option value="semester_2">Semester II (Jul - Des)</option>
+                    <option value="q1">Triwulan I (Q1)</option>
+                    <option value="q2">Triwulan II (Q2)</option>
+                    <option value="q3">Triwulan III (Q3)</option>
+                    <option value="q4">Triwulan IV (Q4)</option>
+                    <option value="current_month">Bulan Berjalan</option>
+                    <option value="specific_month">Bulan Spesifik...</option>
+                    <option value="all_time">Seluruh Arsip (All-Time)</option>
+                    <option value="custom">Kustom / Teks Bebas...</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Conditional Input: Specific Month */}
+              {periodCycle === 'specific_month' && (
+                <div className="pt-1">
+                  <label className="block text-[10px] text-zinc-500 font-semibold mb-0.5">Pilih Bulan</label>
+                  <select
+                    value={specificMonth}
+                    onChange={(e) => setSpecificMonth(Number(e.target.value))}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-2 text-xs text-white focus:outline-none focus:border-indigo-500"
+                  >
+                    {[
+                      { val: 1, name: 'Januari' },
+                      { val: 2, name: 'Februari' },
+                      { val: 3, name: 'Maret' },
+                      { val: 4, name: 'April' },
+                      { val: 5, name: 'Mei' },
+                      { val: 6, name: 'Juni' },
+                      { val: 7, name: 'Juli' },
+                      { val: 8, name: 'Agustus' },
+                      { val: 9, name: 'September' },
+                      { val: 10, name: 'Oktober' },
+                      { val: 11, name: 'November' },
+                      { val: 12, name: 'Desember' },
+                    ].map((m) => (
+                      <option key={m.val} value={m.val}>
+                        {m.name} {selectedYear}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Conditional Input: Custom Period */}
+              {periodCycle === 'custom' && (
+                <div className="pt-1">
+                  <label className="block text-[10px] text-zinc-500 font-semibold mb-0.5">Label Kustom Periode</label>
+                  <input
+                    type="text"
+                    value={customPeriodText}
+                    onChange={(e) => setCustomPeriodText(e.target.value)}
+                    placeholder={`Contoh: Audit Eksternal ISO ${selectedYear}...`}
+                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-2.5 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              )}
+
+              {/* Preview badge */}
+              <div className="flex items-center gap-1.5 text-[10px] text-zinc-400 bg-zinc-900/80 px-2.5 py-1 rounded-lg border border-zinc-800/60 font-mono">
+                <span className="text-zinc-500">Hasil:</span>
+                <span className="text-indigo-300 font-bold truncate">{period}</span>
+              </div>
+            </div>
+
+            {/* Tanggal Terbit Dokumen */}
             <div>
-              <label className="block text-xs font-bold text-zinc-300 mb-1">Periode Waktu Laporan</label>
-              <select
-                value={period}
-                onChange={(e) => setPeriod(e.target.value)}
-                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-semibold"
-              >
-                <option value="" disabled>-- Pilih Periode Laporan --</option>
-                <option value="Bulan Ini">Bulan Ini ({new Date().toLocaleString('id-ID', { month: 'long', year: 'numeric' })})</option>
-                <option value="Triwulan I (Q1 2026)">Triwulan I (Q1 2026)</option>
-                <option value="Triwulan II (Q2 2026)">Triwulan II (Q2 2026)</option>
-                <option value="Triwulan III (Q3 2026)">Triwulan III (Q3 2026)</option>
-                <option value="Triwulan IV (Q4 2026)">Triwulan IV (Q4 2026)</option>
-                <option value="Tahun Berjalan 2026">Tahun Berjalan 2026 (Annual)</option>
-                <option value="Seluruh Arsip (All-Time)">Seluruh Arsip (All-Time)</option>
-              </select>
+              <label className="block text-xs font-bold text-zinc-300 mb-1">Tanggal Terbit Dokumen</label>
+              <input
+                type="date"
+                value={issueDate}
+                onChange={(e) => setIssueDate(e.target.value)}
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500 font-mono"
+              />
             </div>
 
             {/* Divisi */}
@@ -383,7 +525,7 @@ export const ExecutiveReportPanel: React.FC<ExecutiveReportPanelProps> = ({
                 <label className="block text-xs font-bold text-zinc-300">Nomor Registrasi Dokumen (SK)</label>
                 <button
                   type="button"
-                  onClick={() => setDocumentNumber(SystemConfigService.generateDocumentNumber(selectedReportType))}
+                  onClick={() => setDocumentNumber(SystemConfigService.generateDocumentNumber(selectedReportType, { year: selectedYear }))}
                   className="text-[10px] text-indigo-400 hover:text-indigo-300 font-bold underline transition"
                   title="Generate nomor baru sesuai template Administrator"
                 >
@@ -398,27 +540,41 @@ export const ExecutiveReportPanel: React.FC<ExecutiveReportPanelProps> = ({
               />
             </div>
 
-            {/* Verifikator Kiri */}
-            <div>
-              <label className="block text-xs font-bold text-zinc-300 mb-1">Nama Petugas Pembuat / Verifikator</label>
+            {/* Verifikator Kiri: Nama & Jabatan */}
+            <div className="space-y-1.5 pt-1 border-t border-zinc-800/80">
+              <label className="block text-xs font-bold text-zinc-300">Petugas Pembuat / Verifikator</label>
               <input
                 type="text"
                 value={supervisorName}
                 onChange={(e) => setSupervisorName(e.target.value)}
-                placeholder="Nama Pengawas / Supervisor..."
+                placeholder="Nama Pengawas / Verifikator..."
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
+              />
+              <input
+                type="text"
+                value={supervisorTitle}
+                onChange={(e) => setSupervisorTitle(e.target.value)}
+                placeholder="Jabatan Pembuat (contoh: Supervisor Operasional & HSE)..."
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-[11px] text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
               />
             </div>
 
-            {/* Penyetuju Kanan */}
-            <div>
-              <label className="block text-xs font-bold text-zinc-300 mb-1">Nama Pejabat Penyetuju (Manager/Head)</label>
+            {/* Penyetuju Kanan: Nama & Jabatan */}
+            <div className="space-y-1.5 pt-1 border-t border-zinc-800/80">
+              <label className="block text-xs font-bold text-zinc-300">Pejabat Penyetuju (Manager / Head)</label>
               <input
                 type="text"
                 value={managerName}
                 onChange={(e) => setManagerName(e.target.value)}
                 placeholder="Nama Manager Operasional / HSE..."
                 className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
+              />
+              <input
+                type="text"
+                value={managerTitle}
+                onChange={(e) => setManagerTitle(e.target.value)}
+                placeholder="Jabatan Penyetuju (contoh: PT. DAYA ANUGRAH MULYA Management)..."
+                className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-1.5 text-[11px] text-zinc-300 placeholder-zinc-600 focus:outline-none focus:border-indigo-500"
               />
             </div>
           </div>
@@ -450,8 +606,16 @@ export const ExecutiveReportPanel: React.FC<ExecutiveReportPanelProps> = ({
                   </p>
                 </div>
                 <div className="text-right">
-                  <div className="text-[10px] text-zinc-500">Tanggal Cetak:</div>
-                  <div className="text-xs font-bold text-white">{new Date().toLocaleDateString('id-ID')}</div>
+                  <div className="text-[10px] text-zinc-500">Tanggal Terbit Dokumen:</div>
+                  <div className="text-xs font-bold text-white">
+                    {issueDate
+                      ? new Date(issueDate + 'T00:00:00').toLocaleDateString('id-ID', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                        })
+                      : new Date().toLocaleDateString('id-ID')}
+                  </div>
                 </div>
               </div>
 

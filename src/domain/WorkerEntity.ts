@@ -7,6 +7,15 @@ export class WorkerEntity {
     return tierConfig.name as TierType;
   }
 
+  public static resolveHigherTier(tierA?: string, tierB?: string): TierType {
+    const levelA = SystemConfigService.getTierLevel(tierA);
+    const levelB = SystemConfigService.getTierLevel(tierB);
+    if (levelA >= levelB && tierA) {
+      return tierA as TierType;
+    }
+    return (tierB || 'Bronze') as TierType;
+  }
+
   public static getStreakMultiplier(streakDays: number): number {
     if (streakDays >= 30) return 2.0;
     if (streakDays >= 14) return 1.5;

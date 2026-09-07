@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import SearchableSelect, { SelectOption } from '../ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import {
   UserCheck, Search, ChevronDown, Download, Upload, ArrowRightLeft,
@@ -606,28 +607,30 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
             <form onSubmit={handleExecuteMutation} className="space-y-3 pt-1">
               <div>
                 <label className="block text-xs font-bold text-zinc-300 mb-1">1. Divisi Baru</label>
-                <select
+                <SearchableSelect
                   value={targetMutatedDivision}
-                  onChange={(e) => handleMutationDivisionChange(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                >
-                  {divisions.map((d) => (
-                    <option key={d.id} value={d.code}>{d.code} — {d.name}</option>
-                  ))}
-                </select>
+                  onChange={handleMutationDivisionChange}
+                  placeholder="-- Pilih Divisi Baru --"
+                  searchPlaceholder="Cari divisi..."
+                  options={divisions.map((d): SelectOption => ({
+                    value: d.code,
+                    label: `${d.code} — ${d.name}`,
+                  }))}
+                />
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-zinc-300 mb-1">2. Role Baru (Spesifik Divisi)</label>
-                <select
+                <SearchableSelect
                   value={targetMutatedRole}
-                  onChange={(e) => setTargetMutatedRole(e.target.value)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                >
-                  {availableRolesForMutation.map((r) => (
-                    <option key={r.id} value={r.name}>{r.name}</option>
-                  ))}
-                </select>
+                  onChange={setTargetMutatedRole}
+                  placeholder="-- Pilih Role Baru --"
+                  searchPlaceholder="Cari role..."
+                  options={availableRolesForMutation.map((r): SelectOption => ({
+                    value: r.name,
+                    label: r.name,
+                  }))}
+                />
               </div>
 
               <div>

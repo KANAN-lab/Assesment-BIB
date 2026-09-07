@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import {
   Shield,
@@ -140,7 +141,7 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
   const [damageDescription, setDamageDescription] = useState('');
 
   // Review Form
-  const [reviewAction, setReviewAction] = useState<PpeDamageAction>('replacement_issued');
+  const [reviewAction, setReviewAction] = useState<PpeDamageAction | ''>('');
   const [reviewNotes, setReviewNotes] = useState('');
   const [autoIssueReplacement, setAutoIssueReplacement] = useState(true);
 
@@ -381,6 +382,10 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
   const handleSubmitReview = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedReportForReview) return;
+    if (!reviewAction) {
+      SwalService.warning('Pilih Keputusan', 'Silakan tentukan keputusan review penggantian APD terlebih dahulu.');
+      return;
+    }
 
     try {
       PpeService.processDamageReport({
@@ -949,51 +954,33 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
               {/* Select Worker */}
               <div>
                 <label className="block text-xs font-bold text-zinc-300 mb-1">Pekerja / Operator Penerima *</label>
-                <select
+                <SearchableSelect
                   value={distWorkerId}
-                  onChange={(e) => setDistWorkerId(e.target.value)}
-                  className={`w-full bg-zinc-950 border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-500 font-semibold ${
-                    !distWorkerId ? 'text-zinc-500 border-zinc-800' : 'text-white border-amber-500/50'
-                  }`}
-                  required
-                >
-                  <option value="" disabled>
-                    -- Pilih Pekerja / Penerima APD --
-                  </option>
-                  {workers.map((w) => (
-                    <option key={w.id} value={w.id} className="text-white bg-zinc-900">
-                      {w.name} ({w.employeeId}) — {w.division} / {w.role}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setDistWorkerId}
+                  placeholder="-- Pilih Pekerja / Penerima APD --"
+                  searchPlaceholder="Cari nama, NIP, atau divisi..."
+                  options={workers.map((w): SelectOption => ({
+                    value: w.id,
+                    label: `${w.name} (${w.employeeId})`,
+                    sublabel: `${w.division} / ${w.role}`,
+                  }))}
+                />
               </div>
 
               {/* Select Master PPE */}
               <div>
                 <label className="block text-xs font-bold text-zinc-300 mb-1">Pilih Jenis APD dari Stok *</label>
-                <select
+                <SearchableSelect
                   value={distPpeItemId}
-                  onChange={(e) => setDistPpeItemId(e.target.value)}
-                  className={`w-full bg-zinc-950 border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-500 font-semibold ${
-                    !distPpeItemId ? 'text-zinc-500 border-zinc-800' : 'text-white border-amber-500/50'
-                  }`}
-                  required
-                >
-                  <option value="" disabled>
-                    -- Pilih Jenis APD dari Stok Gudang --
-                  </option>
-                  {masterItems.map((item) => (
-                    <option
-                      key={item.id}
-                      value={item.id}
-                      disabled={item.stockAvailable <= 0}
-                      className="text-white bg-zinc-900"
-                    >
-                      {item.name} — Tersedia: {item.stockAvailable} {item.unit}{' '}
-                      {item.stockAvailable <= 0 ? '(STOK KOSONG)' : ''}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setDistPpeItemId}
+                  placeholder="-- Pilih Jenis APD dari Stok Gudang --"
+                  searchPlaceholder="Cari nama APD..."
+                  options={masterItems.map((item): SelectOption => ({
+                    value: item.id,
+                    label: item.name,
+                    sublabel: item.stockAvailable <= 0 ? 'STOK KOSONG' : `Tersedia: ${item.stockAvailable} ${item.unit}`,
+                  }))}
+                />
               </div>
 
               {/* Size & Qty */}
@@ -1152,23 +1139,16 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
                     </button>
                   </div>
                 ) : (
-                  <select
+                  <SearchableSelect
                     value={masterCategory}
-                    onChange={(e) => setMasterCategory(e.target.value as PpeCategory)}
-                    className={`w-full bg-zinc-950 border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-amber-500 font-semibold ${
-                      !masterCategory ? 'text-zinc-500 border-zinc-800' : 'text-white border-amber-500/50'
-                    }`}
-                    required
-                  >
-                    <option value="" disabled>
-                      -- Pilih Kategori APD --
-                    </option>
-                    {Object.entries(categoryMap).map(([key, item]) => (
-                      <option key={key} value={key} className="text-white bg-zinc-900">
-                        {item.icon} {item.label}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(v) => setMasterCategory(v as PpeCategory)}
+                    placeholder="-- Pilih Kategori APD --"
+                    searchPlaceholder="Cari kategori APD..."
+                    options={Object.entries(categoryMap).map(([key, item]): SelectOption => ({
+                      value: key,
+                      label: `${item.icon} ${item.label}`,
+                    }))}
+                  />
                 )}
               </div>
 
@@ -1300,23 +1280,16 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-zinc-300 mb-1">Penyebab Kerusakan / Status *</label>
-                <select
+                <SearchableSelect
                   value={damageReason}
-                  onChange={(e) => setDamageReason(e.target.value as PpeDamageReason)}
-                  className={`w-full bg-zinc-950 border rounded-xl px-3 py-2 text-xs focus:outline-none focus:border-rose-500 font-semibold ${
-                    !damageReason ? 'text-zinc-500 border-zinc-800' : 'text-white border-rose-500/50'
-                  }`}
-                  required
-                >
-                  <option value="" disabled>
-                    -- Pilih Alasan Kerusakan / Penggantian --
-                  </option>
-                  {Object.entries(DAMAGE_REASON_LABELS).map(([key, label]) => (
-                    <option key={key} value={key} className="text-white bg-zinc-900">
-                      {label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setDamageReason(v as PpeDamageReason)}
+                  placeholder="-- Pilih Alasan Kerusakan / Penggantian --"
+                  searchPlaceholder="Cari alasan..."
+                  options={Object.entries(DAMAGE_REASON_LABELS).map(([key, label]): SelectOption => ({
+                    value: key,
+                    label: label,
+                  }))}
+                />
               </div>
 
               <div>
@@ -1392,16 +1365,17 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-zinc-300 mb-1">Tindakan K3 / Keputusan *</label>
-                <select
+                <SearchableSelect
                   value={reviewAction}
-                  onChange={(e) => setReviewAction(e.target.value as PpeDamageAction)}
-                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-bold"
-                  required
-                >
-                  <option value="replacement_issued">Setujui & Terbitkan APD Pengganti Baru</option>
-                  <option value="repaired">Telah Diperbaiki (Tidak Perlu Unit Baru)</option>
-                  <option value="rejected">Tolak Permohonan</option>
-                </select>
+                  onChange={(v) => setReviewAction(v as PpeDamageAction)}
+                  placeholder="-- Pilih Tindakan K3 --"
+                  searchPlaceholder="Cari tindakan..."
+                  options={[
+                    { value: 'replacement_issued', label: 'Setujui & Terbitkan APD Pengganti Baru' },
+                    { value: 'repaired', label: 'Telah Diperbaiki', sublabel: 'Tidak perlu unit baru' },
+                    { value: 'rejected', label: 'Tolak Permohonan' },
+                  ]}
+                />
               </div>
 
               {reviewAction === 'replacement_issued' && (

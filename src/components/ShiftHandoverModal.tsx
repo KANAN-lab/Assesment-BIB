@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
+import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import { useIdempotentSubmit } from '../hooks/useIdempotentSubmit';
 import { X, Save, AlertTriangle, User, Loader2, Package, SearchCheck, CheckSquare, Settings2, Trash2, ShieldAlert, Sparkles, HelpCircle } from 'lucide-react';
 import { HandoverManager } from '../lib/handoverService';
@@ -150,16 +151,17 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId }: ShiftHa
               <label className="text-xs font-bold text-zinc-400">Target Penerima (Opsional)</label>
               <div className="relative">
                 <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500" />
-                <select
+                <SearchableSelect
                   value={nextSupervisorId}
-                  onChange={(e) => setNextSupervisorId(e.target.value)}
-                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-9 pr-4 py-3 text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none appearance-none"
-                >
-                  <option value="">-- Semua Tim / General --</option>
-                  {workers.map((w: WorkerProfile) => (
-                    <option key={w.id} value={w.id}>{w.name} ({w.role})</option>
-                  ))}
-                </select>
+                  onChange={setNextSupervisorId}
+                  placeholder="-- Semua Tim / General --"
+                  searchPlaceholder="Cari nama atau role..."
+                  options={workers.map((w: WorkerProfile): SelectOption => ({
+                    value: w.id,
+                    label: w.name,
+                    sublabel: w.role,
+                  }))}
+                />
               </div>
             </div>
 

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import { RewardItem, RewardHistory, TierType } from '../types/assessment';
 import { RewardEntity, TIER_LEVEL_MAP } from '../domain/RewardEntity';
@@ -89,13 +90,13 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
 
   // Form states for Add/Edit
   const [formTitle, setFormTitle] = useState('');
-  const [formCategory, setFormCategory] = useState<string>('E-Wallet');
+  const [formCategory, setFormCategory] = useState<string>('');
   const [formPointsRequired, setFormPointsRequired] = useState<number>(500);
   const [formIconName, setFormIconName] = useState<string>('Wallet');
   const [formDescription, setFormDescription] = useState('');
   const [formAvailableStock, setFormAvailableStock] = useState<number>(20);
   const [formMonthlyLimit, setFormMonthlyLimit] = useState<number>(25);
-  const [formMinTier, setFormMinTier] = useState<string>('Novice Operational');
+  const [formMinTier, setFormMinTier] = useState<string>('');
   const [formMaxClaims, setFormMaxClaims] = useState<number>(1);
   const [formBadgeTag, setFormBadgeTag] = useState('');
   const [restockAmount, setRestockAmount] = useState<number>(10);
@@ -271,13 +272,13 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
   const handleOpenCreateModal = () => {
     setEditingItem(null);
     setFormTitle('');
-    setFormCategory('Produk Wings (Home Care)');
+    setFormCategory('');
     setFormPointsRequired(300);
     setFormIconName('ShoppingBag');
     setFormDescription('');
     setFormAvailableStock(20);
     setFormMonthlyLimit(25);
-    setFormMinTier('Novice Operational');
+    setFormMinTier('');
     setFormMaxClaims(1);
     setFormBadgeTag('');
     setFormError(null);
@@ -310,6 +311,15 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
   const handleSaveReward = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+
+    if (!formCategory) {
+      setFormError('Silakan pilih kategori reward terlebih dahulu.');
+      return;
+    }
+    if (!formMinTier) {
+      setFormError('Silakan pilih syarat minimal tier.');
+      return;
+    }
 
     const payloadData: Omit<RewardItem, 'id'> = {
       title: formTitle,
@@ -999,17 +1009,16 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-zinc-400 mb-1">Kategori *</label>
-                  <select
+                  <SearchableSelect
                     value={formCategory}
-                    onChange={(e) => setFormCategory(e.target.value as RewardItem['category'])}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                    required
-                  >
-                    <option value="" disabled>-- Pilih Kategori Reward --</option>
-                    {categories.filter((c) => c !== 'Semua').map((cat) => (
-                      <option key={cat} value={cat}>{cat}</option>
-                    ))}
-                  </select>
+                    onChange={(v) => setFormCategory(v as RewardItem['category'])}
+                    placeholder="-- Pilih Kategori Reward --"
+                    searchPlaceholder="Cari kategori..."
+                    options={categories.filter((c) => c !== 'Semua').map((cat): SelectOption => ({
+                      value: cat,
+                      label: cat,
+                    }))}
+                  />
                 </div>
 
                 <div>
@@ -1028,17 +1037,16 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-zinc-400 mb-1">Syarat Minimal Tier</label>
-                  <select
+                  <SearchableSelect
                     value={formMinTier}
-                    onChange={(e) => setFormMinTier(e.target.value as TierType)}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500 font-medium"
-                  >
-                    {SystemConfigService.getTierConfigs().map((t, idx) => (
-                      <option key={t.id || t.name} value={t.name}>
-                        {t.name} {idx === 0 ? '(Semua Pekerja)' : ''}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(v) => setFormMinTier(v as TierType)}
+                    placeholder="-- Pilih Minimal Tier --"
+                    searchPlaceholder="Cari tier..."
+                    options={SystemConfigService.getTierConfigs().map((t, idx): SelectOption => ({
+                      value: t.name,
+                      label: `${t.name}${idx === 0 ? ' (Semua Pekerja)' : ''}`,
+                    }))}
+                  />
                 </div>
 
                 <div>
@@ -1084,18 +1092,20 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs text-zinc-400 mb-1">Ikon Tampilan</label>
-                  <select
+                  <SearchableSelect
                     value={formIconName}
-                    onChange={(e) => setFormIconName(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-purple-500"
-                  >
-                    <option value="Wallet">Wallet (Dompet)</option>
-                    <option value="CreditCard">CreditCard (Kartu/Topup)</option>
-                    <option value="Wifi">Wifi (Paket Data)</option>
-                    <option value="ShieldCheck">ShieldCheck (Safety APD)</option>
-                    <option value="Award">Award (Penghargaan)</option>
-                    <option value="ShoppingBag">ShoppingBag (Voucher)</option>
-                  </select>
+                    onChange={setFormIconName}
+                    placeholder="Pilih Ikon"
+                    searchPlaceholder="Cari nama ikon..."
+                    options={[
+                      { value: 'Wallet', label: 'Wallet', sublabel: 'Dompet / Tunai' },
+                      { value: 'CreditCard', label: 'CreditCard', sublabel: 'Kartu / Topup' },
+                      { value: 'Wifi', label: 'Wifi', sublabel: 'Paket Data Internet' },
+                      { value: 'ShieldCheck', label: 'ShieldCheck', sublabel: 'Safety & APD' },
+                      { value: 'Award', label: 'Award', sublabel: 'Penghargaan & Piagam' },
+                      { value: 'ShoppingBag', label: 'ShoppingBag', sublabel: 'Voucher Belanja' },
+                    ]}
+                  />
                 </div>
 
                 <div>

@@ -103,7 +103,8 @@ interface RedemptionRow {
 // ─── Mappers ─────────────────────────────────────────────────────────────────
 
 function rowToWorkerProfile(row: WorkerRow): WorkerProfile {
-  const dynamicTier = WorkerEntity.calculateTier(row.total_points);
+  const calculatedTier = WorkerEntity.calculateTier(row.total_points);
+  const finalTier = WorkerEntity.resolveHigherTier(row.tier, calculatedTier);
   return {
     id: row.id,
     userId: row.user_id ?? undefined,
@@ -115,7 +116,7 @@ function rowToWorkerProfile(row: WorkerRow): WorkerProfile {
     avatar: row.avatar,
     streakDays: row.streak_days,
     totalPoints: row.total_points,
-    tier: dynamicTier,
+    tier: finalTier,
     bibScores: {
       behavior: row.bib_behavior,
       integrity: row.bib_integrity,
@@ -141,7 +142,8 @@ function rowToWorkerProfile(row: WorkerRow): WorkerProfile {
 }
 
 function rowToLeaderboardEntry(row: WorkerRow, index: number): LeaderboardEntry {
-  const dynamicTier = WorkerEntity.calculateTier(row.total_points);
+  const calculatedTier = WorkerEntity.calculateTier(row.total_points);
+  const finalTier = WorkerEntity.resolveHigherTier(row.tier, calculatedTier);
   return {
     rank: index + 1,
     workerId: row.id,
@@ -151,7 +153,7 @@ function rowToLeaderboardEntry(row: WorkerRow, index: number): LeaderboardEntry 
     avatar: row.avatar,
     totalScore: row.bib_total_score,
     streakDays: row.streak_days,
-    tier: dynamicTier,
+    tier: finalTier,
     totalPoints: row.total_points,
   };
 }
@@ -594,6 +596,83 @@ export async function fulfillRedemption(redemptionId: string, adminWorkerId: str
       })
       .eq('id', redemptionId);
     if (updateErr) throw updateErr;
+  }
+}
+
+/**
+ * Membatalkan penukaran reward, merefund poin pekerja, dan memulihkan stok item.
+ */
+export async function cancelAndRefundRedemption(
+  redemptionId: string,
+  adminWorkerId: string,
+  reason?: string
+): Promise<void> {
+  // 1. Ambil data redemption
+  const { data: record, error: fetchErr } = await supabase
+    .from('redemption_history')
+    .select('*')
+    .eq('id', redemptionId)
+    .single();
+
+  if (fetchErr || !record) {
+    throw new Error('Data penukaran reward tidak ditemukan.');
+  }
+
+  if (record.status === 'cancelled') {
+    throw new Error('Penukaran ini sudah dibatalkan sebelumnya.');
+  }
+
+  // 2. Update status redemption menjadi cancelled
+  const { error: updateErr } = await supabase
+    .from('redemption_history')
+    .update({
+      status: 'cancelled',
+      fulfilled_at: new Date().toISOString(),
+      fulfilled_by: adminWorkerId,
+    })
+    .eq('id', redemptionId);
+
+  if (updateErr) throw updateErr;
+
+  // 3. Pulihkan poin pekerja
+  const pointsSpent = Number(record.points_spent || 0);
+  if (pointsSpent > 0 && record.worker_id) {
+    const refundReason = reason || `Pembatalan Penukaran Voucher: ${record.item_title || 'Reward'}`;
+    await refundWorkerPoints(record.worker_id, pointsSpent, refundReason);
+  }
+
+  // 4. Kembalikan stok item katalog jika ada
+  if (record.item_title) {
+    try {
+      const { data: catItems } = await supabase
+        .from('reward_catalog')
+        .select('*')
+        .eq('title', record.item_title)
+        .limit(1);
+      if (catItems && catItems.length > 0) {
+        const item = catItems[0];
+        await supabase
+          .from('reward_catalog')
+          .update({
+            available_stock: (Number(item.available_stock) || 0) + 1,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('id', item.id);
+      }
+    } catch {
+      // Fallback
+    }
+  }
+
+  // 5. Kirim notifikasi ke pekerja
+  if (record.worker_id) {
+    NotificationEngine.addNotification({
+      recipientId: record.worker_id,
+      recipientRole: 'worker',
+      type: 'reward',
+      title: `↩️ Penukaran Reward Dibatalkan (+${pointsSpent} PTS)`,
+      message: `Klaim voucher "${record.item_title}" (${record.redemption_code}) telah dibatalkan oleh Admin. ${pointsSpent} Poin telah dikembalikan penuh ke saldo Anda.`,
+    });
   }
 }
 
@@ -2552,4 +2631,96 @@ export async function deductWorkerPoints(
     return { success: false };
   }
 }
+
+/**
+ * Mengembalikan / merefund poin pekerja (misal saat arsip sanksi dihapus, banding disetujui, atau voucher ditolak).
+ * Mentrigger event gappy_points_awarded agar UI React langsung bertambah realtime dan tercatat di Buku Kas.
+ */
+export async function refundWorkerPoints(
+  workerId: string,
+  pointsToRefund: number,
+  reason?: string
+): Promise<{ success: boolean; newTotalPoints?: number }> {
+  if (!workerId || pointsToRefund <= 0) {
+    return { success: false };
+  }
+
+  try {
+    let rpcSuccess = false;
+    try {
+      const { error: rpcErr } = await supabase.rpc('award_worker_points', {
+        p_worker_id: workerId,
+        p_points: pointsToRefund,
+      });
+      if (!rpcErr) {
+        rpcSuccess = true;
+      }
+    } catch (err: any) {
+      console.warn('[supabaseService] RPC award_worker_points fallback exception:', err?.message);
+    }
+
+    // Lookup worker untuk verifikasi dan sinkronisasi state
+    let worker: WorkerRow | null = null;
+    const res1 = await supabase.from('workers').select('*').eq('id', workerId).maybeSingle();
+    worker = res1.data as WorkerRow | null;
+
+    if (!worker) {
+      const res2 = await supabase.from('workers').select('*').eq('employee_id', workerId).maybeSingle();
+      worker = res2.data as WorkerRow | null;
+    }
+
+    if (!worker) {
+      const res3 = await supabase.from('workers').select('*').eq('name', workerId).maybeSingle();
+      worker = res3.data as WorkerRow | null;
+    }
+
+    if (worker) {
+      const currentPts = Number(worker.total_points || 0);
+      const newTotalPoints = rpcSuccess ? currentPts : (currentPts + pointsToRefund);
+      const newTier = WorkerEntity.calculateTier(newTotalPoints);
+
+      // Eksekusi update langsung ke tabel workers jika RPC fallback atau untuk sync tier
+      await supabase
+        .from('workers')
+        .update({
+          total_points: newTotalPoints,
+          tier: newTier,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', worker.id);
+
+      // Snapshot riwayat tren skor
+      await insertScoreHistory(worker.id, Number(worker.bib_total_score || 0), newTotalPoints).catch(() => {});
+
+      // Catat ke activity_log agar tercatat di audit trail & Buku Kas Poin
+      await logActivity(
+        worker.id,
+        worker.name,
+        'points_refunded',
+        reason || `Pemulihan Poin K3: +${pointsToRefund} PTS`
+      ).catch(() => {});
+
+      // Dispatch event realtime ke React memory
+      window.dispatchEvent(
+        new CustomEvent('gappy_points_awarded', {
+          detail: {
+            workerId: worker.id,
+            employeeId: worker.employee_id,
+            newTotalPoints,
+            pointsEarned: pointsToRefund,
+          },
+        })
+      );
+
+      console.info(`[supabaseService] Poin pekerja ${worker.name} (${worker.employee_id}) dipulihkan +${pointsToRefund} PTS. Total baru: ${newTotalPoints} PTS.`);
+      return { success: true, newTotalPoints };
+    }
+
+    return { success: true };
+  } catch (err: any) {
+    console.warn('[supabaseService] Gagal memulihkan poin pekerja:', err?.message);
+    return { success: false };
+  }
+}
+
 

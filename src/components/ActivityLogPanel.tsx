@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, LogIn, LogOut, Key, Shield, BookOpen, CheckCircle2, ShieldAlert, User, RefreshCw, Award, ArrowRightLeft, BookMarked, ShieldCheck, UserCheck } from 'lucide-react';
+import { Activity, LogIn, LogOut, Key, Shield, BookOpen, CheckCircle2, ShieldAlert, User, RefreshCw, Award, ArrowRightLeft, BookMarked, ShieldCheck, UserCheck, RotateCcw, XCircle } from 'lucide-react';
 import type { ActivityLog, ActivityAction } from '../types/assessment';
 
 interface ActivityLogPanelProps {
@@ -26,6 +26,8 @@ const ACTION_CONFIG: Record<ActivityAction, { icon: React.ReactNode; label: stri
   role_mutated:         { icon: <ArrowRightLeft className="w-3.5 h-3.5" />, label: 'Mutasi Role',      color: 'text-cyan-400 bg-cyan-500/10' },
   admin_created:        { icon: <ShieldCheck className="w-3.5 h-3.5" />, label: 'Admin Baru',       color: 'text-purple-400 bg-purple-500/10' },
   admin_status_toggled: { icon: <UserCheck className="w-3.5 h-3.5" />,   label: 'Status Admin',     color: 'text-rose-400 bg-rose-500/10' },
+  points_refunded:      { icon: <RotateCcw className="w-3.5 h-3.5" />,   label: 'Pemulihan Poin',   color: 'text-emerald-400 bg-emerald-500/10' },
+  redemption_rejected:  { icon: <XCircle className="w-3.5 h-3.5" />,     label: 'Reward Dibatalkan',color: 'text-rose-400 bg-rose-500/10' },
 };
 
 function formatTimeAgo(iso: string): string {

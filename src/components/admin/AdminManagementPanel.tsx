@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import SearchableSelect, { SelectOption } from '../ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import {
   ShieldCheck, UserPlus, KeyRound, Search, Copy, Check,
@@ -854,19 +855,17 @@ export const AdminManagementPanel: React.FC<AdminManagementPanelProps> = ({
                   <label className="block text-zinc-300 font-semibold mb-1">
                     Pilih Pegawai <span className="text-rose-400">*</span>
                   </label>
-                  <select
-                    required
+                  <SearchableSelect
                     value={selectedPromoteWorkerId}
-                    onChange={(e) => setSelectedPromoteWorkerId(e.target.value)}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-purple-500"
-                  >
-                    <option value="">-- Pilih Pegawai --</option>
-                    {nonAdminWorkers.map((w) => (
-                      <option key={w.id} value={w.id}>
-                        {w.name} ({w.employeeId}) · {w.role} - {w.division}
-                      </option>
-                    ))}
-                  </select>
+                    onChange={setSelectedPromoteWorkerId}
+                    placeholder="-- Pilih Pegawai --"
+                    searchPlaceholder="Cari nama, NIP, atau divisi..."
+                    options={nonAdminWorkers.map((w): SelectOption => ({
+                      value: w.id,
+                      label: `${w.name} (${w.employeeId})`,
+                      sublabel: `${w.role} - ${w.division}`,
+                    }))}
+                  />
                 </div>
 
                 <div>

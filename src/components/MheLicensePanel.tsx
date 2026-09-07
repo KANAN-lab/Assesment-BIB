@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
+import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import {
   Truck,
@@ -828,40 +829,36 @@ export const MheLicensePanel: React.FC<MheLicensePanelProps> = ({ workers }) => 
                     </span>
                   )}
                 </div>
-                <select
+                <SearchableSelect
                   value={formWorkerId}
-                  onChange={(e) => handleWorkerSelect(e.target.value)}
-                  className={`w-full bg-zinc-900 border rounded-xl p-2.5 text-xs focus:outline-none focus:border-amber-500 font-bold ${!formWorkerId ? 'text-zinc-500 border-zinc-800' : 'text-white border-amber-500/50'
-                    }`}
-                  required
-                >
-                  <option value="" disabled>-- Pilih Pekerja / Operator Terdaftar --</option>
-                  {workers.map((w) => (
-                    <option key={w.id} value={w.id} className="text-white bg-zinc-900">
-                      {w.name} ({w.employeeId}) — {w.role} [{w.division}]
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => handleWorkerSelect(v)}
+                  placeholder="-- Pilih Pekerja / Operator Terdaftar --"
+                  searchPlaceholder="Cari nama, NIP, atau divisi..."
+                  options={workers.map((w): SelectOption => ({
+                    value: w.id,
+                    label: `${w.name} (${w.employeeId})`,
+                    sublabel: `${w.role} [${w.division}]`,
+                  }))}
+                />
               </div>
 
               {/* Jenis Lisensi */}
               <div className="space-y-1">
                 <label className="text-xs font-bold text-zinc-300">Jenis Sertifikasi / SIO:</label>
-                <select
+                <SearchableSelect
                   value={formLicenseType}
-                  onChange={(e) => setFormLicenseType(e.target.value as any)}
-                  className={`w-full bg-zinc-900 border rounded-xl p-2.5 text-xs focus:outline-none focus:border-amber-500 font-semibold ${!formLicenseType ? 'text-zinc-500 border-zinc-800' : 'text-white border-amber-500/50'
-                    }`}
-                  required
-                >
-                  <option value="" disabled>-- Pilih Jenis Sertifikasi / SIO --</option>
-                  <option value="SIO Forklift (Kelas II)" className="text-white bg-zinc-900">SIO Forklift (Kelas II - Operator Forklift)</option>
-                  <option value="SIO Reach Truck (Kelas I)" className="text-white bg-zinc-900">SIO Reach Truck (Kelas I - High-Rack)</option>
-                  <option value="SIM B2 Umum (Ekspedisi)" className="text-white bg-zinc-900">SIM B2 Umum (Driver Wingbox/Ekspedisi)</option>
-                  <option value="Ahli K3 Umum Kemenaker" className="text-white bg-zinc-900">Ahli K3 Umum Kemenaker</option>
-                  <option value="Petugas P3K (First Aid)" className="text-white bg-zinc-900">Petugas P3K (First Aid)</option>
-                  <option value="Auditor SMK3 / 5S" className="text-white bg-zinc-900">Auditor SMK3 / 5S</option>
-                </select>
+                  onChange={(v) => setFormLicenseType(v as any)}
+                  placeholder="-- Pilih Jenis Sertifikasi / SIO --"
+                  searchPlaceholder="Cari jenis lisensi..."
+                  options={[
+                    { value: 'SIO Forklift (Kelas II)', label: 'SIO Forklift (Kelas II)', sublabel: 'Operator Forklift' },
+                    { value: 'SIO Reach Truck (Kelas I)', label: 'SIO Reach Truck (Kelas I)', sublabel: 'High-Rack Operator' },
+                    { value: 'SIM B2 Umum (Ekspedisi)', label: 'SIM B2 Umum (Ekspedisi)', sublabel: 'Driver Wingbox / Ekspedisi' },
+                    { value: 'Ahli K3 Umum Kemenaker', label: 'Ahli K3 Umum Kemenaker' },
+                    { value: 'Petugas P3K (First Aid)', label: 'Petugas P3K (First Aid)' },
+                    { value: 'Auditor SMK3 / 5S', label: 'Auditor SMK3 / 5S' },
+                  ]}
+                />
               </div>
 
               {/* Nomor SIO & Lembaga Penerbit */}

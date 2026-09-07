@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import {
   Award, Plus, Edit2, Trash2, Loader2, CheckCircle2, X, ShieldCheck,
@@ -93,7 +94,7 @@ const emptyForm = (): BadgeFormData => ({
   description: '',
   icon: '🏆',
   color: '#fbbf24',
-  condition: 'streak_days',
+  condition: '',
   threshold: 7,
 });
 
@@ -143,7 +144,14 @@ export const BadgeManagementPanel: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.name.trim() || !form.condition) return;
+    if (!form.name.trim()) {
+      showToast('Nama badge wajib diisi.');
+      return;
+    }
+    if (!form.condition) {
+      showToast('Silakan pilih jenis kondisi pencapaian badge.');
+      return;
+    }
     setSubmitting(true);
     try {
       if (editingId) {
@@ -370,17 +378,16 @@ export const BadgeManagementPanel: React.FC = () => {
                 </div>
                 <div className="col-span-2">
                   <label className="text-[11px] text-zinc-400 font-bold mb-1 block">Kondisi</label>
-                  <select
+                  <SearchableSelect
                     value={form.condition}
-                    onChange={e => setForm(f => ({ ...f, condition: e.target.value }))}
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
-                    required
-                  >
-                    <option value="" disabled>-- Pilih Kondisi Pencapaian Badge --</option>
-                    {CONDITION_OPTIONS.map(opt => (
-                      <option key={opt.value} value={opt.value}>{opt.label}</option>
-                    ))}
-                  </select>
+                    onChange={v => setForm(f => ({ ...f, condition: v }))}
+                    placeholder="-- Pilih Kondisi Pencapaian Badge --"
+                    searchPlaceholder="Cari kondisi..."
+                    options={CONDITION_OPTIONS.map((opt): SelectOption => ({
+                      value: opt.value,
+                      label: opt.label,
+                    }))}
+                  />
                 </div>
                 <div className="col-span-2">
                   <label className="text-[11px] text-zinc-400 font-bold mb-1 block">

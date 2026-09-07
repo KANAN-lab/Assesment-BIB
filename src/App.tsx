@@ -109,6 +109,7 @@ export const App: React.FC = () => {
   const [showShiftHandoverModal, setShowShiftHandoverModal] = useState(false);
   const [showKaizenModal, setShowKaizenModal] = useState(false);
   const [showHistoryCenterModal, setShowHistoryCenterModal] = useState(false);
+  const [historyCenterInitialTab, setHistoryCenterInitialTab] = useState<'ledger' | 'kaizen' | 'incidents' | 'disciplinary' | 'handovers' | 'kudos' | 'rewards' | 'sop'>('ledger');
   const [showDigitalIdModal, setShowDigitalIdModal] = useState(false);
   const [showWorkerSioModal, setShowWorkerSioModal] = useState(false);
   const [workerLicense, setWorkerLicense] = useState<MheLicenseEntity | undefined>(() =>
@@ -345,12 +346,14 @@ export const App: React.FC = () => {
   useEffect(() => {
     const handlePointsAwarded = (e: Event) => {
       const customEvt = e as CustomEvent;
-      const { workerId, employeeId, newTotalPoints } = customEvt.detail || {};
+      const { workerId, employeeId, newTotalPoints, pointsEarned } = customEvt.detail || {};
 
       if (currentWorker && (currentWorker.id === workerId || currentWorker.employeeId === employeeId || currentWorker.id === employeeId)) {
         setCurrentWorker((prev) => {
           if (!prev) return null;
-          const updatedPts = newTotalPoints || (prev.totalPoints + 50);
+          const updatedPts = typeof newTotalPoints === 'number'
+            ? newTotalPoints
+            : (prev.totalPoints + (typeof pointsEarned === 'number' ? pointsEarned : 50));
           return {
             ...prev,
             totalPoints: updatedPts,
@@ -938,12 +941,22 @@ export const App: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="bg-zinc-900/90 border border-zinc-800 px-3.5 py-2 sm:py-2.5 rounded-xl text-center lg:text-left flex flex-col lg:flex-row items-center gap-2 lg:gap-3 min-w-[95px] sm:min-w-[115px]">
-                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0">
+                  <div
+                    onClick={() => {
+                      setHistoryCenterInitialTab('ledger');
+                      setShowHistoryCenterModal(true);
+                    }}
+                    className="bg-zinc-900/90 border border-zinc-800 hover:border-emerald-500/50 hover:bg-zinc-850 cursor-pointer transition px-3.5 py-2 sm:py-2.5 rounded-xl text-center lg:text-left flex flex-col lg:flex-row items-center gap-2 lg:gap-3 min-w-[95px] sm:min-w-[115px] group"
+                    title="Klik untuk membuka Buku Kas & Mutasi Poin saya"
+                  >
+                    <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 group-hover:bg-emerald-500/20 flex items-center justify-center text-emerald-400 shrink-0 transition">
                       <Coins className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
                     </div>
                     <div>
-                      <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Poin</div>
+                      <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider group-hover:text-emerald-400 transition flex items-center gap-1">
+                        <span>Poin</span>
+                        <span className="text-[8px] bg-emerald-950/80 text-emerald-300 px-1 rounded border border-emerald-800/60 hidden sm:inline">Mutasi</span>
+                      </div>
                       <div className="text-xs sm:text-sm font-black text-emerald-400 leading-tight">
                         {currentWorker.totalPoints.toLocaleString()} <span className="text-[10px] font-normal text-zinc-500">PTS</span>
                       </div>
@@ -1062,9 +1075,12 @@ export const App: React.FC = () => {
 
                   {/* 8. Riwayat & Arsip */}
                   <button
-                    onClick={() => setShowHistoryCenterModal(true)}
+                    onClick={() => {
+                      setHistoryCenterInitialTab('ledger');
+                      setShowHistoryCenterModal(true);
+                    }}
                     className="h-10 sm:h-11 px-2.5 rounded-xl font-bold text-xs bg-zinc-900 hover:bg-zinc-850 border border-zinc-700 text-zinc-300 transition flex items-center justify-center gap-1.5 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
-                    title="Pusat Riwayat Terpadu: Kaizen, Insiden, Handover, Kudo, & Reward"
+                    title="Pusat Riwayat Terpadu: Mutasi Poin, Kaizen, Insiden, Handover, Kudo, & Reward"
                   >
                     <History className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
                     <span className="truncate">Riwayat</span>
@@ -1252,6 +1268,7 @@ export const App: React.FC = () => {
             onClose={() => setShowHistoryCenterModal(false)}
             workerId={currentWorker.id}
             workerName={currentWorker.name}
+            initialTab={historyCenterInitialTab}
           />
         )}
 

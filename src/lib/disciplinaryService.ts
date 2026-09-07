@@ -8,7 +8,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { safeLocalStorageSetItem } from './storageSanitizer';
 import { supabase } from './supabaseClient';
-import { deductWorkerPoints } from './supabaseService';
+import { deductWorkerPoints, refundWorkerPoints } from './supabaseService';
 
 const STORAGE_KEY = 'gappy_disciplinary_actions_v2';
 const EVENT_UPDATED = 'gappy_disciplinary_updated';
@@ -230,15 +230,21 @@ export class DisciplinaryService {
     return true;
   }
 
-  public static updateActionStatus(actionId: string, status: SanctionStatus, resolutionNotes?: string): boolean {
+  public static updateActionStatus(
+    actionId: string,
+    status: SanctionStatus,
+    resolutionNotes?: string,
+    refundPoints: boolean = false
+  ): boolean {
     const items = this.load();
     const idx = items.findIndex((a) => a.id === actionId);
     if (idx === -1) return false;
 
+    const action = items[idx];
     items[idx] = {
-      ...items[idx],
+      ...action,
       status,
-      resolutionNotes: resolutionNotes ?? items[idx].resolutionNotes,
+      resolutionNotes: resolutionNotes ?? action.resolutionNotes,
     };
 
     this.save(items);
@@ -247,21 +253,56 @@ export class DisciplinaryService {
       .from('disciplinary_actions')
       .update({
         status,
-        resolution_notes: resolutionNotes ?? items[idx].resolutionNotes,
+        resolution_notes: resolutionNotes ?? action.resolutionNotes,
         updated_at: new Date().toISOString(),
       })
       .eq('id', actionId)
       .then(() => {}, () => {});
+
+    // Jika refundPoints diminta dan ada pointDeduction > 0
+    if (refundPoints && action.pointDeduction && action.pointDeduction > 0) {
+      const reason = `Pemulihan Poin: Banding Sanksi ${action.documentRefNumber} Diterima (${status})`;
+      refundWorkerPoints(action.workerId, action.pointDeduction, reason).catch((err) => {
+        console.warn('[DisciplinaryService] Gagal memulihkan poin banding sanksi:', err);
+      });
+
+      NotificationEngine.addNotification({
+        recipientId: action.workerId,
+        recipientRole: 'worker',
+        type: 'system',
+        title: `✅ Banding Disetujui: Pemulihan Poin (+${action.pointDeduction} PTS)`,
+        message: `Banding untuk sanksi ${action.documentRefNumber} telah disetujui. Penalti ${action.pointDeduction} Poin telah dipulihkan kembali ke akun Anda.`,
+      });
+    }
 
     return true;
   }
 
   public static deleteAction(actionId: string): boolean {
     const items = this.load();
+    const target = items.find((a) => a.id === actionId);
+    if (!target) return false;
+
     const filtered = items.filter((a) => a.id !== actionId);
-    if (filtered.length === items.length) return false;
     this.save(filtered);
     supabase.from('disciplinary_actions').delete().eq('id', actionId).then(() => {}, () => {});
+
+    // Jika sanksi memiliki penalti poin, pulihkan kembali poin pekerja secara otomatis!
+    if (target.pointDeduction && target.pointDeduction > 0) {
+      const reason = `Pemulihan Poin K3: Pembatalan Arsip ${target.documentRefNumber}`;
+      refundWorkerPoints(target.workerId, target.pointDeduction, reason).catch((err) => {
+        console.warn('[DisciplinaryService] Gagal memulihkan poin pembatalan sanksi:', err);
+      });
+
+      NotificationEngine.addNotification({
+        recipientId: target.workerId,
+        recipientRole: 'worker',
+        type: 'system',
+        title: `✅ Pemulihan Poin Sanksi K3 (+${target.pointDeduction} PTS)`,
+        message: `Arsip sanksi ${target.documentRefNumber} telah dihapus/dibatalkan. Penalti -${target.pointDeduction} Poin Anda telah dipulihkan kembali ke saldo akun.`,
+      });
+    }
+
     return true;
   }
 

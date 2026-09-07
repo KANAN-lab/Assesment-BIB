@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import SearchableSelect, { SelectOption } from '../ui/SearchableSelect';
 import {
   Megaphone,
   Plus,
@@ -37,7 +38,7 @@ export const AdminAnnouncementPanel: React.FC<AdminAnnouncementPanelProps> = ({
   // Form states
   const [newAnnTitle, setNewAnnTitle] = useState('');
   const [newAnnContent, setNewAnnContent] = useState('');
-  const [newAnnPriority, setNewAnnPriority] = useState<Announcement['priority']>('info');
+  const [newAnnPriority, setNewAnnPriority] = useState<Announcement['priority'] | ''>('');
 
   // Friendly Start & End Scheduling states
   const [startMode, setStartMode] = useState<'immediate' | 'scheduled'>('immediate');
@@ -68,6 +69,10 @@ export const AdminAnnouncementPanel: React.FC<AdminAnnouncementPanelProps> = ({
   const handleCreateAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAnnTitle.trim() || !newAnnContent.trim()) return;
+    if (!newAnnPriority) {
+      showToast('Silakan pilih tingkat prioritas pengumuman.');
+      return;
+    }
 
     const now = new Date();
     const finalStartsAt =
@@ -102,6 +107,7 @@ export const AdminAnnouncementPanel: React.FC<AdminAnnouncementPanelProps> = ({
       setAnnouncements((prev) => [ann, ...prev.filter((a) => a.id !== ann.id)]);
       setNewAnnTitle('');
       setNewAnnContent('');
+      setNewAnnPriority('');
       setNewAnnStartsAt('');
       setNewAnnExpiry('');
       setStartMode('immediate');
@@ -231,15 +237,17 @@ export const AdminAnnouncementPanel: React.FC<AdminAnnouncementPanelProps> = ({
               <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
                 Tingkat Prioritas
               </label>
-              <select
+              <SearchableSelect
                 value={newAnnPriority}
-                onChange={(e) => setNewAnnPriority(e.target.value as Announcement['priority'])}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-medium"
-              >
-                <option value="info">🔵 Informasi (Biru Standar)</option>
-                <option value="normal">🟡 Normal (Amber Perhatian)</option>
-                <option value="urgent">🔴 Urgent (Merah Peringatan Kritis)</option>
-              </select>
+                onChange={(v) => setNewAnnPriority(v as Announcement['priority'])}
+                placeholder="Pilih Prioritas"
+                searchPlaceholder="Cari tingkat prioritas..."
+                options={[
+                  { value: 'info', label: '🔵 Informasi', sublabel: 'Biru Standar' },
+                  { value: 'normal', label: '🟡 Normal', sublabel: 'Amber Perhatian' },
+                  { value: 'urgent', label: '🔴 Urgent', sublabel: 'Merah Peringatan Kritis' },
+                ]}
+              />
             </div>
 
             {/* 2. Waktu Mulai Tayang (Start Window) */}

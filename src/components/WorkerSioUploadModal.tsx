@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import {
   X, Truck, Sparkles, UploadCloud, Loader2, ScanLine,
@@ -35,7 +36,7 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
   const [extractedMeta, setExtractedMeta] = useState<ExtractedSioData | null>(null);
 
   // Form Fields
-  const [formLicenseType, setFormLicenseType] = useState<LicenseType>('SIO Forklift (Kelas II)');
+  const [formLicenseType, setFormLicenseType] = useState<LicenseType | ''>('');
   const [formLicenseNumber, setFormLicenseNumber] = useState('');
   const [formAuthority, setFormAuthority] = useState('Kementerian Ketenagakerjaan RI');
   const [formIssuedDate, setFormIssuedDate] = useState('');
@@ -111,10 +112,10 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!formLicenseNumber.trim() || !formIssuedDate || !formExpiryDate) {
+    if (!formLicenseType || !formLicenseNumber.trim() || !formIssuedDate || !formExpiryDate) {
       SwalService.warning(
         'Data Belum Lengkap',
-        'Mohon lengkapi Nomor SIO, Tanggal Diterbitkan, dan Tanggal Kedaluwarsa lisensi.'
+        'Mohon pilih Jenis Sertifikasi / SIO, lengkapi Nomor SIO, Tanggal Diterbitkan, dan Tanggal Kedaluwarsa lisensi.'
       );
       return;
     }
@@ -340,19 +341,20 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
         <form onSubmit={handleSubmit} className="space-y-3 text-xs">
           <div className="space-y-1">
             <label className="font-bold text-zinc-300">Jenis Sertifikasi / SIO:</label>
-            <select
+            <SearchableSelect
               value={formLicenseType}
-              onChange={(e) => setFormLicenseType(e.target.value as LicenseType)}
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-white font-semibold focus:outline-none focus:border-amber-500"
-              required
-            >
-              <option value="SIO Forklift (Kelas II)">SIO Forklift (Kelas II - Operator Forklift)</option>
-              <option value="SIO Reach Truck (Kelas I)">SIO Reach Truck (Kelas I - High-Rack)</option>
-              <option value="SIM B2 Umum (Ekspedisi)">SIM B2 Umum (Driver Wingbox/Ekspedisi)</option>
-              <option value="Ahli K3 Umum Kemenaker">Ahli K3 Umum Kemenaker</option>
-              <option value="Petugas P3K (First Aid)">Petugas P3K (First Aid)</option>
-              <option value="Auditor SMK3 / 5S">Auditor SMK3 / 5S</option>
-            </select>
+              onChange={(v) => setFormLicenseType(v as LicenseType)}
+              placeholder="-- Pilih Jenis Sertifikasi / SIO --"
+              searchPlaceholder="Cari jenis lisensi..."
+              options={[
+                { value: 'SIO Forklift (Kelas II)', label: 'SIO Forklift (Kelas II)', sublabel: 'Operator Forklift' },
+                { value: 'SIO Reach Truck (Kelas I)', label: 'SIO Reach Truck (Kelas I)', sublabel: 'High-Rack Operator' },
+                { value: 'SIM B2 Umum (Ekspedisi)', label: 'SIM B2 Umum (Ekspedisi)', sublabel: 'Driver Wingbox / Ekspedisi' },
+                { value: 'Ahli K3 Umum Kemenaker', label: 'Ahli K3 Umum Kemenaker' },
+                { value: 'Petugas P3K (First Aid)', label: 'Petugas P3K (First Aid)' },
+                { value: 'Auditor SMK3 / 5S', label: 'Auditor SMK3 / 5S' },
+              ]}
+            />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
