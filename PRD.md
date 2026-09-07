@@ -5,7 +5,7 @@
 
 | Metadata | Detail |
 | :--- | :--- |
-| **Document Version** | 4.6.0 (Full Enterprise Logistics, Multi-Role RBAC & Specialized Consoles Suite) |
+| **Document Version** | 4.7.0 (Universal Cloud Persistence, Shift Handover Lifecycle & SQL Audit Integrity) |
 | **Status** | Production Ready / Active Enterprise Specification |
 | **Author** | Antigravity AI & Engineering Team |
 | **Target User** | Staff Logistik (Operator Forklift, Reach Truck, Checker, PIC Area, Driver, Supervisor/Pengawas, Ops Manager, HSE Officer, GA Officer, HR Specialist, System Administrator) |
@@ -790,6 +790,43 @@ Modul pembelajaran interaktif multi-format (*Gamified Micro-Learning*) untuk mem
 
 - **Navigasi Dinamis & Role Switcher (`Navbar.tsx`)**:
   - Dropdown navigasi 6 mode peran dengan warna aksen, ikon representatif, dan pembatasan switch berbasis hak akun karyawan.
+
+---
+
+## 33. Dynamic Tier Standardization & Reward Real-Time Accounting
+
+- **Standardisasi Level Tier Dinamis Terpusat**:
+  - Seluruh verifikasi eligibility penukaran reward di frontend dan backend kini menggunakan `SystemConfigService.getTierLevel(worker.total_points, config)` untuk menjamin konsistensi mutlak terhadap ambang batas kustomisasi tier (Bronze, Silver, Gold, Platinum).
+- **Otomasi Audit Trail & Notifikasi Multi-Channel**:
+  - Penyiaran pengumuman oleh Administrator otomatis dicatat ke tabel `activity_log` (`action: 'notification_broadcast'`).
+  - Pencairan dan pemenuhan penukaran reward (`fulfillRedemption`) secara instan memancarkan audit trail `action: 'badge_awarded'` dan notifikasi apresiasi langsung ke pekerja.
+- **Poin Insiden Dinamis & Insentif Kaizen Inovatif**:
+  - Nilai reward pelaporan insiden near-miss (75 PTS) dan hazard valid (50 PTS) disesuaikan secara dinamis dari `SystemConfig`.
+  - Proposal Kaizen inovasi dilengkapi notifikasi reaktif ke author saat status berubah dan ke supervisor saat ada usulan baru, dengan event `gappy_points_awarded` real-time.
+- **Aksesibilitas & Streak Multiplier Pre-Shift Checklist**:
+  - Modal Pre-Shift Checklist mendukung kalkulasi poin streak dinamis (`calculateStreakBonusPoints`), auto-focus tombol tutup, listener tombol `Escape`, dan background scroll lock.
+
+---
+
+## 34. Universal Cloud Persistence, Shift Handover Lifecycle & SQL Audit Integrity
+
+- **Sinkronisasi Cloud Modul Disiplin K3 (`DisciplinaryService`)**:
+  - Implementasi metode `fetchActionsFromSupabase(): Promise<DisciplinaryActionEntity[]>` yang mengambil data riwayat sanksi dan konseling dari tabel `disciplinary_actions`.
+  - Dilengkapi mekanisme safe local cache update dan otomatis dipanggil saat inisialisasi `DisciplinaryPanel.tsx` agar sinkron lintas perangkat dan sesi pengawas.
+- **Persistensi Cloud Distribusi APD & Laporan Kerusakan (`PpeService`)**:
+  - Transaksi penyerahan APD baru (`distributePpe`) secara otomatis melakukan background write ke tabel `ppe_distributions`.
+  - Pelaporan APD rusak / hilang (`submitDamageReport`) menyimpan tiket ke tabel `ppe_damage_reports` serta memperbarui status distribusi terkait menjadi `damaged_lost`.
+  - Persetujuan / penolakan penggantian unit APD (`processDamageReport`) menyinkronkan status review (`replaced`, `verified`, `rejected`) ke Supabase.
+  - Pengambilan data cloud via `fetchDistributionsFromSupabase()` dan `fetchDamageReportsFromSupabase()` diintegrasikan ke `PpeManagementPanel.tsx`.
+- **Siklus Hidup Serah Terima Shift Handover (`HandoverManager`)**:
+  - Pencatatan otomatis ke tabel `activity_log` (`action: 'shift_handover'`) saat log serah terima diajukan dan saat serah terima di-acknowledge.
+  - Pengiriman notifikasi real-time via `NotificationEngine` ke supervisor penerima (`nextSupervisorId`) atau supervisor operasional.
+  - Pengiriman notifikasi konfirmasi otomatis ke pembuat serah terima (`author_id`) saat log berhasil dibaca dan diterima oleh shift berikutnya.
+- **Standardisasi Semantik Audit Trail & Penyelarasan Constraint Database**:
+  - Koreksi stored procedure `rpc_complete_sop_module` pada `supabase_setup.sql:1086` dari aksi yang salah `'checklist_completed'` menjadi `'sop_completed'`.
+  - Standardisasi aksi audit log penyelesaian temuan hazard Safety Patrol di `SafetyPatrolService.ts:230` dari `'points_refunded'` menjadi `'audit_5s_completed'`.
+  - Penyelarasan definisi CHECK constraint `activity_log_action_check` di `supabase_setup.sql` Section 27 agar mencakup seluruh 27 aksi legal yang identik dengan Section 33.
+
 
 
 
