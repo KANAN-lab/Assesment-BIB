@@ -1,9 +1,15 @@
--- ============================================================
--- BIB Logistics Assessment Platform — Supabase Schema Setup
+-- ==============================================================================
+-- BIB Logistics Assessment Platform — Supabase All-in-One Master Setup
+-- Single Source of Truth — 100% Run & Go (Idempotent: Safe to Re-Run Anytime)
 -- Project: sekmjwrbohjmlxpgydqx
--- Optimized Production Schema with Auto-Triggers & Performance Indexes
--- Run this in Supabase SQL Editor (Dashboard > SQL Editor)
--- ============================================================
+--
+-- CARA PENGGUNAAN:
+-- 1. Buka Supabase Dashboard (https://supabase.com/dashboard/project/sekmjwrbohjmlxpgydqx)
+-- 2. Pilih menu "SQL Editor" > klik "New query"
+-- 3. Salin (copy) SELURUH isi file ini (Ctrl+A, Ctrl+C), lalu paste ke editor
+-- 4. Klik tombol "Run" (Ctrl+Enter)
+-- 5. Selesai! Seluruh 33 tabel, kolom, RLS policies, trigger, dan RPC mutakhir aktif.
+-- ==============================================================================
 
 -- ─── 0. Helper Functions & Extensions ─────────────────────────
 
@@ -768,11 +774,7 @@ CREATE TABLE IF NOT EXISTS activity_log (
   id          TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   worker_id   TEXT REFERENCES workers(id) ON DELETE CASCADE,
   worker_name TEXT,
-  action      TEXT NOT NULL CHECK (action IN (
-    'login', 'logout', 'password_reset', 'profile_update', 'badge_awarded',
-    'quiz_completed', 'checklist_completed', 'incident_reported',
-    'kudo_sent', 'kudo_received', 'shift_handover', 'sop_completed'
-  )),
+  action      TEXT NOT NULL,
   detail      TEXT,
   ip_hint     TEXT,  -- optional, from browser hints
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -1580,12 +1582,9 @@ BEGIN
     p_mandatory_sop_title, false
   );
 
-  -- Deduct Points from Worker balance if deduction > 0
+  -- Deduct Points from Worker balance if deduction > 0 (Smart Auto-Deduct Dual-Wallet)
   IF p_point_deduction > 0 THEN
-    UPDATE workers
-    SET total_points = GREATEST(0, total_points - p_point_deduction),
-        updated_at = now()
-    WHERE id = p_worker_id;
+    PERFORM deduct_worker_points(p_worker_id, p_point_deduction);
   END IF;
 
   INSERT INTO activity_log (worker_id, action, detail)
@@ -2217,7 +2216,7 @@ BEGIN
   FROM workers
   WHERE operational_points > 0;
 
-  INSERT INTO activity_log (worker_id, worker_name, action, details, created_at)
+  INSERT INTO activity_log (worker_id, worker_name, action, detail, created_at)
   SELECT 
     id, 
     name, 
@@ -2235,57 +2234,6 @@ BEGIN
   WHERE operational_points > 0;
 
   RETURN QUERY SELECT v_affected, v_total_expired;
-END;
-$$;
-
--- RPC & Trigger Dual-Wallet Consistency Functions
-CREATE OR REPLACE FUNCTION increment_worker_points(p_worker_id TEXT, p_points INTEGER)
-RETURNS void LANGUAGE plpgsql AS $$
-BEGIN
-  UPDATE workers
-  SET total_points = total_points + p_points,
-      prestige_points = COALESCE(prestige_points, 0) + p_points,
-      updated_at = now()
-  WHERE id = p_worker_id OR employee_id = p_worker_id;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION increment_worker_streak_and_points(p_worker_id TEXT, p_points INTEGER)
-RETURNS void LANGUAGE plpgsql AS $$
-BEGIN
-  UPDATE workers SET
-    streak_days = streak_days + 1,
-    total_points = total_points + p_points,
-    operational_points = COALESCE(operational_points, 0) + p_points,
-    updated_at = now()
-  WHERE id = p_worker_id OR employee_id = p_worker_id;
-END;
-$$;
-
-CREATE OR REPLACE FUNCTION deduct_worker_points(p_worker_id TEXT, p_points INTEGER)
-RETURNS void LANGUAGE plpgsql AS $$
-DECLARE
-  v_op INTEGER;
-  v_pr INTEGER;
-  v_deduct_op INTEGER;
-  v_deduct_pr INTEGER;
-BEGIN
-  SELECT COALESCE(operational_points, 0), COALESCE(prestige_points, 0)
-  INTO v_op, v_pr
-  FROM workers
-  WHERE id = p_worker_id OR employee_id = p_worker_id FOR UPDATE;
-
-  IF FOUND THEN
-    v_deduct_op := LEAST(v_op, p_points);
-    v_deduct_pr := LEAST(v_pr, p_points - v_deduct_op);
-
-    UPDATE workers SET
-      operational_points = GREATEST(0, v_op - v_deduct_op),
-      prestige_points = GREATEST(0, v_pr - v_deduct_pr),
-      total_points = GREATEST(0, (v_op - v_deduct_op) + (v_pr - v_deduct_pr)),
-      updated_at = now()
-    WHERE id = p_worker_id OR employee_id = p_worker_id;
-  END IF;
 END;
 $$;
 

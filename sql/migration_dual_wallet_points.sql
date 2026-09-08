@@ -44,7 +44,7 @@ BEGIN
   WHERE operational_points > 0;
 
   -- Catat riwayat audit log bagi pekerja yang poinnya hangus
-  INSERT INTO activity_log (worker_id, worker_name, action, details, created_at)
+  INSERT INTO activity_log (worker_id, worker_name, action, detail, created_at)
   SELECT 
     id, 
     name, 

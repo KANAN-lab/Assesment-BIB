@@ -1221,6 +1221,24 @@
   - [x] Jalankan `python checker.py` (59/59 checks passed).
   - [x] Verifikasi visual di browser (screenshot `reward_deduct_modal_1788907939269.png`).
 
+---
+
+## Phase 14: All-in-One Supabase Master Setup Unification & Critical Bug Fixes ("Run & Go")
+
+- [x] **1. Unifikasi All-in-One Single Source of Truth**:
+  - [x] Integrasikan seluruh skema, migrasi dual-wallet, resign/offboarding, idempotency key, dan pruning function ke dalam satu file tunggal [`supabase_setup.sql`](file:///d:/Coding%20Session/Komar/supabase_setup.sql) yang bersifat *idempotent* (aman dijalankan ulang kapan saja).
+  - [x] Hilangkan keharusan menjalankan script terpisah-pisah, cukup copy-paste satu file `supabase_setup.sql` di Supabase Dashboard SQL Editor ("Run & Go").
+- [x] **2. Perbaikan Bug Kritis & Logika**:
+  - [x] **Fix Typo Kolom Reset Poin**: Ganti `details` menjadi `detail` pada fungsi `rpc_process_monthly_points_reset` di [`supabase_setup.sql`](file:///d:/Coding%20Session/Komar/supabase_setup.sql) dan [`sql/migration_dual_wallet_points.sql`](file:///d:/Coding%20Session/Komar/sql/migration_dual_wallet_points.sql) (menghilangkan error 42703).
+  - [x] **Fix Dual-Wallet Disciplinary Sync**: Perbarui `rpc_issue_disciplinary_action` agar memanggil `deduct_worker_points(p_worker_id, p_point_deduction)` sehingga pemotongan sanksi K3 menerapkan Smart Auto-Deduct dan menjaga sinkronisasi saldo total, operasional, dan prestasi.
+  - [x] **Fix Constraint Activity Log**: Hapus inline CHECK constraint sempit di pembuatan tabel awal dan terapkan universal constraint sinkron yang mencakup seluruh domain event log operasional.
+  - [x] **Eliminasi Redundansi**: Hapus definisi duplikat fungsi RPC poin di akhir file setup.
+- [x] **3. Verification & Quality Gates**:
+  - [x] Verifikasi sintaks SQL: Pasangan dollar quote `$$` seimbang (52 quote, 26 blok).
+  - [x] Validasi typecheck `npx tsc --noEmit` bebas error (0 error).
+  - [x] Jalankan `python checker.py` (59/59 checks passed).
+
+
 
 
 
