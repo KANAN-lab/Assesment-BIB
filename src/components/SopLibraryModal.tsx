@@ -25,6 +25,7 @@ import {
   completeSopModule,
   calculateSopCompliance,
 } from '../lib/sopService';
+import { SystemConfigService } from '../domain/SystemConfigService';
 import { SopSlideshowModal } from './SopSlideshowModal';
 
 interface SopLibraryModalProps {
@@ -70,8 +71,21 @@ export const SopLibraryModal: React.FC<SopLibraryModalProps> = ({
   };
 
   useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
     loadData();
-  }, [workerId, workerDivision, workerRole]);
+
+    return () => {
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [workerId, workerDivision, workerRole, onClose]);
 
   // Handle completion callback from slideshow reader
   const handleCompleteModule = async (sopId: string, timeSpentSeconds: number, quizScore: number) => {
@@ -159,7 +173,7 @@ export const SopLibraryModal: React.FC<SopLibraryModalProps> = ({
                 </span>
               </h2>
               <p className="text-[11px] text-zinc-400 mt-0.5">
-                Pelajari standar operasional & kaidah K3 dalam slide mikro 3 menit dan klaim <strong>+50 PTS</strong> per modul
+                Pelajari standar operasional & kaidah K3 dalam slide mikro 3 menit dan klaim <strong>+{SystemConfigService.getConfig().sopCompletionDefaultPoints || 50} PTS</strong> per modul
               </p>
             </div>
           </div>

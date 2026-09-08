@@ -32,13 +32,18 @@ export interface WorkerProfile {
   avatar: string;
   streakDays: number;
   totalPoints: number;
+  operationalPoints?: number;
+  prestigePoints?: number;
   tier: TierType;
   bibScores: BibScores;
   dailyQuizCompleted: boolean;
   preShiftChecklistDone: boolean;
   lastActivityDate?: string;
   mustChangePassword?: boolean;
-  status?: 'active' | 'inactive' | 'pending_approval' | 'rejected';
+  status?: 'active' | 'inactive' | 'pending_approval' | 'rejected' | 'resigned';
+  resignedAt?: string;
+  resignationReason?: string;
+  settlementStatus?: 'pending' | 'settled';
   accountType?: SystemRole;
   competencyAuditScores?: Record<string, number>;
   pointsExpiryWarning?: {
@@ -118,6 +123,8 @@ export interface RewardHistory {
   id: string;
   itemTitle: string;
   pointsSpent: number;
+  deductedOperational?: number;
+  deductedPrestige?: number;
   redeemedAt: string;
   redemptionCode: string;
   status?: 'pending' | 'completed' | 'cancelled';
@@ -125,6 +132,7 @@ export interface RewardHistory {
   fulfilledAt?: string;
   fulfilledBy?: string;
   fulfilledByName?: string;
+  createdAt?: string;
 }
 
 export interface LeaderboardEntry {
@@ -239,7 +247,9 @@ export type ActivityAction =
   | 'admin_status_toggled'
   | 'points_refunded'
   | 'points_expired'
-  | 'redemption_rejected';
+  | 'redemption_rejected'
+  | 'worker_offboarded'
+  | 'worker_reactivated';
 
 export interface WorkerRoleMutation {
   id: string;

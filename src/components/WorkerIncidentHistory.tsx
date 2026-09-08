@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { X, ShieldAlert, Loader2, AlertCircle, CheckCircle2, Clock, Search } from 'lucide-react';
 import { IncidentReport } from '../types/assessment';
 import { fetchIncidentReports } from '../lib/supabaseService';
+import { SystemConfigService } from '../domain/SystemConfigService';
 
 interface WorkerIncidentHistoryProps {
   workerId: string;
@@ -134,6 +135,9 @@ export const WorkerIncidentHistory: React.FC<WorkerIncidentHistoryProps> = ({
               const sevMeta = SEVERITY_META[inc.severity] ?? SEVERITY_META.low;
               const statusMeta = STATUS_META[inc.status] ?? STATUS_META.open;
               const StatusIcon = statusMeta.Icon;
+              const incRewardPts = inc.incidentType === 'near_miss'
+                ? (SystemConfigService.getConfig().nearMissRewardPoints || 75)
+                : (SystemConfigService.getConfig().incidentValidRewardPoints || 50);
               return (
                 <div key={inc.id} className="bg-zinc-950 border border-zinc-800 rounded-xl p-4 space-y-2.5">
                   <div className="flex items-start justify-between gap-3">
@@ -160,11 +164,11 @@ export const WorkerIncidentHistory: React.FC<WorkerIncidentHistoryProps> = ({
                   <div className="flex items-center gap-2">
                     {inc.status === 'open' ? (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
-                        ⏳ +50 PTS Pending (Menunggu Validasi Supervisor)
+                        ⏳ +{incRewardPts} PTS Pending (Menunggu Validasi Supervisor)
                       </span>
                     ) : (
                       <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1">
-                        ✅ +50 PTS Terverifikasi Valid (Poin Ditambahkan)
+                        ✅ +{incRewardPts} PTS Terverifikasi Valid (Poin Ditambahkan)
                       </span>
                     )}
                   </div>

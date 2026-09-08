@@ -29,16 +29,33 @@ export const QrBadgeScannerModal: React.FC<QrBadgeScannerModalProps> = ({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // Auto focus and reset when opened
+  // Auto focus, reset, scroll lock and Escape key listener when opened
   useEffect(() => {
     if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onClose();
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+
       setSearchQuery('');
       setSelectedWorker(null);
       setCameraError(null);
+
+      return () => {
+        document.body.style.overflow = 'unset';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
     } else {
+      document.body.style.overflow = 'unset';
       stopCamera();
     }
-  }, [isOpen]);
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen, onClose]);
 
   const startCamera = async () => {
     try {

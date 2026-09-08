@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Sparkles, ShieldCheck, Zap, Award, BookOpen, ChevronRight, Check, X } from 'lucide-react';
 
@@ -40,6 +40,21 @@ const STEPS = [
 
 export const OnboardingModal: React.FC<OnboardingModalProps> = ({ workerName, onClose }) => {
   const [currentStep, setCurrentStep] = useState(0);
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   const nextStep = () => {
     if (currentStep < STEPS.length - 1) {

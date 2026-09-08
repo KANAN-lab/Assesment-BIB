@@ -43,6 +43,7 @@ import {
   RATING_META,
 } from '../lib/audit5sService';
 import { IdempotencyEngine } from '../domain/IdempotencyEngine';
+import { SystemConfigService } from '../domain/SystemConfigService';
 import { SwalService } from '../domain/SwalService';
 
 interface Audit5sPanelProps {
@@ -56,6 +57,7 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
   currentUserName = 'Petugas HSE & 5R',
   isSupervisor = false,
 }) => {
+  const sysCfg = SystemConfigService.getConfig();
   const [activeSubTab, setActiveSubTab] = useState<'leaderboard' | 'create_audit' | 'manage_zones' | 'history'>('leaderboard');
   const [zones, setZones] = useState<WarehouseZone5s[]>([]);
   const [records, setRecords] = useState<Audit5sRecord[]>([]);
@@ -328,13 +330,13 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
         <div className="card p-3.5 bg-zinc-900/60 border-amber-500/20">
           <div className="text-[10px] text-amber-400/80 font-bold uppercase tracking-wider">Zona Gold (&ge;90%)</div>
           <div className="text-xl font-black text-amber-400 mt-1">{stats.goldZones}</div>
-          <div className="text-[10px] text-zinc-500 mt-0.5">Sangat Unggul (+200 PTS)</div>
+          <div className="text-[10px] text-zinc-500 mt-0.5">Sangat Unggul (+{sysCfg.audit5sGoldRewardPoints} PTS)</div>
         </div>
 
         <div className="card p-3.5 bg-zinc-900/60 border-zinc-700">
           <div className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Zona Silver (&ge;80%)</div>
           <div className="text-xl font-black text-zinc-200 mt-1">{stats.silverZones}</div>
-          <div className="text-[10px] text-zinc-500 mt-0.5">Sesuai SOP (+100 PTS)</div>
+          <div className="text-[10px] text-zinc-500 mt-0.5">Sesuai SOP (+{sysCfg.audit5sSilverRewardPoints} PTS)</div>
         </div>
 
         <div className="card p-3.5 bg-zinc-900/60 border-rose-500/20">

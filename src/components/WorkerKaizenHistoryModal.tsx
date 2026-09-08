@@ -42,9 +42,27 @@ export function WorkerKaizenHistoryModal({
 
   useEffect(() => {
     if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onClose();
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+
       fetchHistory();
+
+      return () => {
+        document.body.style.overflow = 'unset';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = 'unset';
     }
-  }, [isOpen, workerId]);
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen, workerId, onClose]);
 
   if (!isOpen) return null;
 

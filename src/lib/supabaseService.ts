@@ -1,4 +1,5 @@
 import { supabase } from './supabaseClient';
+import { safeLocalStorageSetItem } from './storageSanitizer';
 import { WorkerEntity } from '../domain/WorkerEntity';
 import { NotificationEngine } from '../domain/NotificationEngine';
 import { RewardEntity } from '../domain/RewardEntity';
@@ -37,6 +38,8 @@ interface WorkerRow {
   avatar: string;
   streak_days: number;
   total_points: number;
+  operational_points?: number | null;
+  prestige_points?: number | null;
   tier: string;
   bib_behavior: number;
   bib_integrity: number;
@@ -48,6 +51,9 @@ interface WorkerRow {
   must_change_password?: boolean | null;
   password?: string | null;
   status?: string | null;
+  resigned_at?: string | null;
+  resignation_reason?: string | null;
+  settlement_status?: string | null;
 }
 
 export const FALLBACK_SYSADMIN_ROW: WorkerRow = {
@@ -61,6 +67,8 @@ export const FALLBACK_SYSADMIN_ROW: WorkerRow = {
   avatar: 'https://ui-avatars.com/api/?name=System+Admin&background=6B21A8&color=fff&bold=true',
   streak_days: 100,
   total_points: 0,
+  operational_points: 0,
+  prestige_points: 0,
   tier: 'Novice Operational',
   bib_behavior: 0,
   bib_integrity: 0,
@@ -92,12 +100,15 @@ interface RedemptionRow {
   worker_id: string;
   item_title: string;
   points_spent: number;
+  deducted_operational?: number | null;
+  deducted_prestige?: number | null;
   redeemed_at: string;
   redemption_code: string;
   status?: string | null;
   expiry_date?: string | null;
   fulfilled_at?: string | null;
   fulfilled_by?: string | null;
+  created_at?: string | null;
 }
 
 // ─── Mappers ─────────────────────────────────────────────────────────────────
@@ -117,6 +128,8 @@ function rowToWorkerProfile(row: WorkerRow): WorkerProfile {
     avatar: row.avatar,
     streakDays: row.streak_days,
     totalPoints: row.total_points,
+    operationalPoints: Number(row.operational_points ?? 0),
+    prestigePoints: Number(row.prestige_points ?? (row.total_points || 0)),
     tier: finalTier,
     bibScores: {
       behavior: row.bib_behavior,
@@ -129,6 +142,8 @@ function rowToWorkerProfile(row: WorkerRow): WorkerProfile {
     lastActivityDate: row.last_activity_date ?? undefined,
     mustChangePassword: row.must_change_password !== false,
     status: (() => {
+      if (row.status === 'resigned') return 'resigned';
+      if (row.status === 'inactive') return 'inactive';
       if (row.status === 'pending_approval') return 'pending_approval';
       if (row.status === 'rejected') return 'rejected';
       if (row.status === 'active') return 'active';
@@ -139,6 +154,9 @@ function rowToWorkerProfile(row: WorkerRow): WorkerProfile {
       }
       return 'active';
     })(),
+    resignedAt: row.resigned_at ?? undefined,
+    resignationReason: row.resignation_reason ?? undefined,
+    settlementStatus: (row.settlement_status as 'pending' | 'settled') ?? undefined,
   };
 }
 
@@ -180,12 +198,15 @@ function rowToRewardHistory(row: RedemptionRow): RewardHistory {
     id: row.id,
     itemTitle: row.item_title,
     pointsSpent: row.points_spent,
+    deductedOperational: row.deducted_operational ?? undefined,
+    deductedPrestige: row.deducted_prestige ?? undefined,
     redeemedAt: row.redeemed_at,
     redemptionCode: row.redemption_code,
     status: (row.status as 'pending' | 'completed' | 'cancelled') || 'pending',
     expiryDate: row.expiry_date ?? undefined,
     fulfilledAt: row.fulfilled_at ?? undefined,
     fulfilledBy: row.fulfilled_by ?? undefined,
+    createdAt: row.created_at ?? undefined,
   };
 }
 
@@ -244,19 +265,31 @@ export async function completeWorkerQuiz(
   // Fetch current worker to get streak and current total points
   const { data: worker, error: fetchErr } = await supabase
     .from('workers')
-    .select('streak_days, total_points')
+    .select('streak_days, total_points, operational_points, prestige_points, daily_quiz_completed, tier')
     .eq('id', workerId)
     .single();
 
   if (fetchErr) throw fetchErr;
 
+  // Anti-double credit: jika kuis harian sudah selesai hari ini, hindari kredit poin ganda
+  if (worker.daily_quiz_completed) {
+    return {
+      pointsEarned: 0,
+      tierChanged: false,
+      newTier: (worker.tier || 'Novice Operational') as TierType,
+    };
+  }
+
   const streakDays = worker.streak_days || 1;
   const pointsEarned = WorkerEntity.calculateStreakBonusPoints(streakDays, basePointsEarned);
+  const currentOperational = Number(worker.operational_points || 0);
+  const newOperational = currentOperational + pointsEarned;
   const newTotalPoints = (worker.total_points || 0) + pointsEarned;
   const newTier = WorkerEntity.calculateTier(newTotalPoints);
 
   const updateData: Record<string, any> = {
     daily_quiz_completed: true,
+    operational_points: newOperational,
     total_points: newTotalPoints,
     tier: newTier,
   };
@@ -276,7 +309,7 @@ export async function completeWorkerQuiz(
     await supabase.from('activity_log').insert({
       worker_id: workerId,
       action: 'quiz_completed',
-      detail: `Kuis Keselamatan K3 Harian Selesai: +${pointsEarned} PTS (Streak: ${streakDays} Hari)`,
+      detail: `Kuis Keselamatan K3 Harian Selesai: +${pointsEarned} PTS Operasional (Streak: ${streakDays} Hari)`,
     });
   } catch (logErr) {
     console.warn('[completeWorkerQuiz] Gagal mencatat activity log:', logErr);
@@ -285,12 +318,12 @@ export async function completeWorkerQuiz(
   if (typeof window !== 'undefined' && pointsEarned > 0) {
     window.dispatchEvent(
       new CustomEvent('gappy_points_awarded', {
-        detail: { workerId, pointsEarned },
+        detail: { workerId, pointsEarned, newTotalPoints },
       })
     );
   }
 
-  return { pointsEarned, tierChanged: true, newTier };
+  return { pointsEarned, tierChanged: newTier !== worker.tier, newTier };
 }
 
 export async function completeWorkerChecklist(
@@ -299,20 +332,32 @@ export async function completeWorkerChecklist(
 ): Promise<{ pointsEarned: number; newStreak: number; newTier: TierType }> {
   const { data: worker, error: fetchErr } = await supabase
     .from('workers')
-    .select('streak_days, total_points')
+    .select('streak_days, total_points, operational_points, prestige_points, pre_shift_checklist_done, tier')
     .eq('id', workerId)
     .single();
 
   if (fetchErr) throw fetchErr;
 
+  // Anti-double credit: jika checklist pra-shift sudah diselesaikan hari ini, abaikan duplikasi
+  if (worker.pre_shift_checklist_done) {
+    return {
+      pointsEarned: 0,
+      newStreak: worker.streak_days || 0,
+      newTier: (worker.tier || 'Novice Operational') as TierType,
+    };
+  }
+
   const newStreak = (worker.streak_days || 0) + 1;
   const pointsEarned = WorkerEntity.calculateStreakBonusPoints(newStreak, baseBonusPoints);
+  const currentOperational = Number(worker.operational_points || 0);
+  const newOperational = currentOperational + pointsEarned;
   const newTotalPoints = (worker.total_points || 0) + pointsEarned;
   const newTier = WorkerEntity.calculateTier(newTotalPoints);
 
   const { error } = await supabase.from('workers').update({
     pre_shift_checklist_done: true,
     streak_days: newStreak,
+    operational_points: newOperational,
     total_points: newTotalPoints,
     tier: newTier,
   }).eq('id', workerId);
@@ -442,10 +487,11 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
       .limit(50);
     if (error || !data) return [];
 
-    // Filter secara ketat: Hanya tampilkan pekerja operasional biasa (bukan System Administrator atau Supervisor/Pengawas)
+    // Filter secara ketat: Hanya tampilkan pekerja operasional biasa yang aktif (bukan System Administrator, bukan Supervisor, dan bukan status non-aktif/resigned)
     const employeeOnly = (data as WorkerRow[]).filter((row) => {
       const sysRole = RoleEntity.resolveSystemRole(row.role);
-      return sysRole === 'worker';
+      const isActive = !row.status || row.status === 'active';
+      return sysRole === 'worker' && isActive;
     });
 
     return employeeOnly.map((row, idx) => rowToLeaderboardEntry(row, idx));
@@ -581,39 +627,45 @@ export async function fetchAllRedemptionHistory(): Promise<AdminRedemptionRecord
     .from('redemption_history')
     .select(`
       *,
-      workers (
+      worker:workers!redemption_history_worker_id_fkey (
         name,
         employee_id,
         division
       ),
-      fulfiller:fulfilled_by (
+      fulfiller:workers!redemption_history_fulfilled_by_fkey (
         name
       )
     `)
     .order('created_at', { ascending: false });
 
   if (error) {
-    const { data: rawData, error: rawError } = await supabase
-      .from('redemption_history')
-      .select('*')
-      .order('created_at', { ascending: false });
+    console.warn('[fetchAllRedemptionHistory] Join query failed, falling back to client lookup:', error.message);
+    const [{ data: rawData, error: rawError }, { data: workersList }] = await Promise.all([
+      supabase.from('redemption_history').select('*').order('created_at', { ascending: false }),
+      supabase.from('workers').select('id, name, employee_id, division'),
+    ]);
     if (rawError) throw rawError;
 
-    return (rawData as RedemptionRow[]).map((row) => ({
-      ...rowToRewardHistory(row),
-      workerId: row.worker_id,
-      workerName: 'Staf Terdaftar',
-      workerEmployeeId: '-',
-      workerDivision: '-',
-    }));
+    const workerMap = new Map((workersList || []).map((w: any) => [w.id, w]));
+
+    return (rawData as RedemptionRow[]).map((row) => {
+      const w = workerMap.get(row.worker_id);
+      return {
+        ...rowToRewardHistory(row),
+        workerId: row.worker_id,
+        workerName: w?.name || 'Staf Terdaftar',
+        workerEmployeeId: w?.employee_id || '-',
+        workerDivision: w?.division || '-',
+      };
+    });
   }
 
   return (data as any[]).map((row) => ({
     ...rowToRewardHistory(row as RedemptionRow),
     workerId: row.worker_id,
-    workerName: row.workers?.name || 'Staf Terdaftar',
-    workerEmployeeId: row.workers?.employee_id || '-',
-    workerDivision: row.workers?.division || '-',
+    workerName: row.worker?.name || 'Staf Terdaftar',
+    workerEmployeeId: row.worker?.employee_id || '-',
+    workerDivision: row.worker?.division || '-',
     fulfilledByName: row.fulfiller?.name,
   }));
 }
@@ -702,11 +754,25 @@ export async function cancelAndRefundRedemption(
 
   if (updateErr) throw updateErr;
 
-  // 3. Pulihkan poin pekerja
+  // 3. Pulihkan poin pekerja (Fairness Dual-Wallet Refund)
   const pointsSpent = Number(record.points_spent || 0);
+  const deductedOp = record.deducted_operational !== undefined && record.deducted_operational !== null
+    ? Number(record.deducted_operational)
+    : undefined;
+  const deductedPr = record.deducted_prestige !== undefined && record.deducted_prestige !== null
+    ? Number(record.deducted_prestige)
+    : undefined;
+
   if (pointsSpent > 0 && record.worker_id) {
-    const refundReason = reason || `Pembatalan Penukaran Voucher: ${record.item_title || 'Reward'}`;
-    await refundWorkerPoints(record.worker_id, pointsSpent, refundReason);
+    const refundReason = reason || `Pembatalan Penukaran Voucher: ${record.item_title || 'Reward'} (+${pointsSpent} PTS)`;
+    await refundWorkerPoints(
+      record.worker_id,
+      pointsSpent,
+      refundReason,
+      deductedOp,
+      deductedPr,
+      record.created_at
+    );
   }
 
   // 4. Kembalikan stok item katalog jika ada
@@ -741,6 +807,20 @@ export async function cancelAndRefundRedemption(
       title: `↩️ Penukaran Reward Dibatalkan (+${pointsSpent} PTS)`,
       message: `Klaim voucher "${record.item_title}" (${record.redemption_code}) telah dibatalkan oleh Admin. ${pointsSpent} Poin telah dikembalikan penuh ke saldo Anda.`,
     });
+  }
+
+  // 6. Broadcast event pembatalan agar UI React menyelaraskan status redemption_history secara real-time
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('gappy_redemption_cancelled', {
+        detail: {
+          redemptionId,
+          workerId: record.worker_id,
+          itemTitle: record.item_title,
+          pointsSpent,
+        },
+      })
+    );
   }
 }
 
@@ -884,6 +964,13 @@ export async function signInWithNikOrEmail(identifier: string, password: string)
       await logLoginAttempt(cleanInput, false);
       throw new Error(
         `Akun (${profileCandidate.name}) saat ini dinonaktifkan oleh Administrator. Silakan hubungi IT / Helpdesk.`
+      );
+    }
+
+    if (profileCandidate.status === 'resigned') {
+      await logLoginAttempt(cleanInput, false);
+      throw new Error(
+        `Akun (${profileCandidate.name}) telah dinonaktifkan karena status Resign / Offboard. Silakan hubungi tim HR & HSE PT DAM untuk informasi lebih lanjut.`
       );
     }
 
@@ -1728,7 +1815,7 @@ function saveIncidentPhotoCache(id: string, photoUrl: string, originalSizeKb?: n
   try {
     const cache = getIncidentPhotoCache();
     cache[id] = { photoUrl, originalSizeKb, compressedSizeKb };
-    localStorage.setItem(INCIDENT_PHOTO_CACHE_KEY, JSON.stringify(cache));
+    safeLocalStorageSetItem(INCIDENT_PHOTO_CACHE_KEY, cache);
   } catch (e) {
     console.warn('Gagal menyimpan cache foto insiden:', e);
   }
@@ -1924,7 +2011,7 @@ export async function updateIncidentCapaAndStatus(
   const isValidatedStatus = ['investigating', 'resolved', 'closed'].includes(payload.status);
   const alreadyAwarded = Boolean(incidentRow?.points_awarded);
 
-  // Jika status disetujui & belum pernah mendapat poin (atau force award), aktifkan penambahan poin +50 PTS
+  // Jika status disetujui & belum pernah mendapat poin (atau force award), aktifkan penambahan poin reward dinamis (SystemConfigService)
   if (isValidatedStatus && (!alreadyAwarded || payload.forceAward || !incidentRow)) {
     updatePayload.points_awarded = true;
     pointsAwarded = true;
@@ -2160,7 +2247,7 @@ export function computeDivisionStats(workers: WorkerProfile[]): DivisionStat[] {
 
 export function exportWorkersCSV(workers: WorkerProfile[]): void {
   const headers = [
-    'NIK', 'Nama', 'Divisi', 'Role', 'Total Poin', 'Tier',
+    'NIK', 'Nama', 'Divisi', 'Role', 'Total Poin', 'Poin Operasional (Harian)', 'Poin Prestasi (Abadi)', 'Tier',
     'BIB Behavior', 'BIB Integrity', 'BIB Benchmark', 'BIB Total',
     'Streak', 'Status', 'Email',
   ];
@@ -2170,6 +2257,8 @@ export function exportWorkersCSV(workers: WorkerProfile[]): void {
     w.division,
     `"${w.role}"`,
     w.totalPoints,
+    w.operationalPoints ?? 0,
+    w.prestigePoints ?? Math.max(0, w.totalPoints - (w.operationalPoints ?? 0)),
     w.tier,
     w.bibScores.behavior,
     w.bibScores.integrity,
@@ -2224,6 +2313,8 @@ export async function batchImportWorkers(
         avatar: avatarUrl,
         streak_days: 0,
         total_points: 0,
+        operational_points: 0,
+        prestige_points: 0,
         tier: 'Novice Operational',
         bib_behavior: 0,
         bib_integrity: 0,
@@ -2639,6 +2730,8 @@ export async function createWorkerProfile(input: CreateWorkerProfileInput): Prom
     avatar: avatarUrl,
     streak_days: 1,
     total_points: 100,
+    operational_points: 0,
+    prestige_points: 100,
     tier: 'Novice Operational',
     bib_behavior: 85,
     bib_integrity: 90,
@@ -2845,14 +2938,24 @@ export async function deductWorkerPoints(
 
     if (worker) {
       const currentPts = Number(worker.total_points || 0);
-      const newTotalPoints = rpcSuccess ? currentPts : Math.max(0, currentPts - pointsToDeduct);
+      const currentOp = Number(worker.operational_points || 0);
+      const currentPr = Number(worker.prestige_points || Math.max(0, currentPts - currentOp));
+
+      const deductOp = Math.min(currentOp, pointsToDeduct);
+      const deductPr = Math.min(currentPr, pointsToDeduct - deductOp);
+
+      const newOp = Math.max(0, currentOp - deductOp);
+      const newPr = Math.max(0, currentPr - deductPr);
+      const newTotalPoints = newOp + newPr;
       const newTier = WorkerEntity.calculateTier(newTotalPoints);
 
-      // Eksekusi update langsung ke tabel workers jika RPC fallback atau untuk sync tier
+      // Eksekusi update langsung ke tabel workers untuk memastikan dual-wallet sinkron
       await supabase
         .from('workers')
         .update({
           total_points: newTotalPoints,
+          operational_points: newOp,
+          prestige_points: newPr,
           tier: newTier,
           updated_at: new Date().toISOString(),
         })
@@ -2862,18 +2965,24 @@ export async function deductWorkerPoints(
       await insertScoreHistory(worker.id, Number(worker.bib_total_score || 0), newTotalPoints).catch(() => {});
 
       // Dispatch event realtime ke React memory
-      window.dispatchEvent(
-        new CustomEvent('gappy_points_awarded', {
-          detail: {
-            workerId: worker.id,
-            employeeId: worker.employee_id,
-            newTotalPoints,
-            pointsEarned: -pointsToDeduct,
-          },
-        })
-      );
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('gappy_points_awarded', {
+            detail: {
+              workerId: worker.id,
+              employeeId: worker.employee_id,
+              newTotalPoints,
+              newOperationalPoints: newOp,
+              newPrestigePoints: newPr,
+              deductedOperational: deductOp,
+              deductedPrestige: deductPr,
+              pointsEarned: -pointsToDeduct,
+            },
+          })
+        );
+      }
 
-      console.info(`[supabaseService] Poin pekerja ${worker.name} (${worker.employee_id}) dipotong -${pointsToDeduct} PTS. Sisa: ${newTotalPoints} PTS.`);
+      console.info(`[supabaseService] Poin pekerja ${worker.name} (${worker.employee_id}) dipotong Smart Auto-Deduct: -${deductOp} Op, -${deductPr} Pr. Sisa: ${newTotalPoints} PTS.`);
       return { success: true, newTotalPoints };
     }
 
@@ -2891,27 +3000,17 @@ export async function deductWorkerPoints(
 export async function refundWorkerPoints(
   workerId: string,
   pointsToRefund: number,
-  reason?: string
+  reason?: string,
+  deductedOperational?: number,
+  deductedPrestige?: number,
+  redemptionCreatedAt?: string
 ): Promise<{ success: boolean; newTotalPoints?: number }> {
   if (!workerId || pointsToRefund <= 0) {
     return { success: false };
   }
 
   try {
-    let rpcSuccess = false;
-    try {
-      const { error: rpcErr } = await supabase.rpc('increment_worker_points', {
-        p_worker_id: workerId,
-        p_points: pointsToRefund,
-      });
-      if (!rpcErr) {
-        rpcSuccess = true;
-      }
-    } catch (err: any) {
-      console.warn('[supabaseService] RPC increment_worker_points fallback exception:', err?.message);
-    }
-
-    // Lookup worker untuk verifikasi dan sinkronisasi state
+    // 1. Lookup worker terlebih dahulu untuk sinkronisasi state yang akurat
     let worker: WorkerRow | null = null;
     const res1 = await supabase.from('workers').select('*').eq('id', workerId).maybeSingle();
     worker = res1.data as WorkerRow | null;
@@ -2926,43 +3025,104 @@ export async function refundWorkerPoints(
       worker = res3.data as WorkerRow | null;
     }
 
+    if (!worker) {
+      // Fallback jika worker tidak dapat ditemukan di tabel
+      await supabase.rpc('increment_worker_points', {
+        p_worker_id: workerId,
+        p_points: pointsToRefund,
+      });
+      return { success: true };
+    }
+
     if (worker) {
       const currentPts = Number(worker.total_points || 0);
-      const newTotalPoints = rpcSuccess ? currentPts : (currentPts + pointsToRefund);
+      const currentOp = Number(worker.operational_points || 0);
+      const currentPr = Number(worker.prestige_points || Math.max(0, currentPts - currentOp));
+
+      // Cek apakah bulan saat redemption dibuat sama dengan bulan berjalan
+      const isSameMonth = redemptionCreatedAt
+        ? new Date(redemptionCreatedAt).getMonth() === new Date().getMonth() &&
+          new Date(redemptionCreatedAt).getFullYear() === new Date().getFullYear()
+        : true;
+
+      let refundOp = 0;
+      let refundPr = 0;
+
+      const hasValidDeductionBreakdown =
+        deductedOperational !== undefined &&
+        deductedPrestige !== undefined &&
+        (deductedOperational + deductedPrestige >= pointsToRefund);
+
+      if (hasValidDeductionBreakdown) {
+        if (isSameMonth) {
+          refundOp = deductedOperational;
+          refundPr = deductedPrestige;
+        } else {
+          // Fairness Guarantee: refund setelah pergantian bulan dialihkan penuh ke prestige
+          refundOp = 0;
+          refundPr = pointsToRefund;
+        }
+      } else {
+        refundOp = 0;
+        refundPr = pointsToRefund;
+      }
+
+      const newOperational = currentOp + refundOp;
+      const newPrestige = currentPr + refundPr;
+      const newTotalPoints = newOperational + newPrestige;
       const newTier = WorkerEntity.calculateTier(newTotalPoints);
 
-      // Eksekusi update langsung ke tabel workers jika RPC fallback atau untuk sync tier
-      await supabase
+      // Eksekusi update langsung ke tabel workers untuk sync tier & dual-wallet
+      const { error: updateErr } = await supabase
         .from('workers')
         .update({
+          operational_points: newOperational,
+          prestige_points: newPrestige,
           total_points: newTotalPoints,
           tier: newTier,
           updated_at: new Date().toISOString(),
         })
         .eq('id', worker.id);
 
+      if (updateErr) {
+        // Fallback ke RPC jika direct update gagal
+        await supabase.rpc('increment_worker_points', {
+          p_worker_id: worker.id,
+          p_points: pointsToRefund,
+        });
+      }
+
       // Snapshot riwayat tren skor
       await insertScoreHistory(worker.id, Number(worker.bib_total_score || 0), newTotalPoints).catch(() => {});
 
       // Catat ke activity_log agar tercatat di audit trail & Buku Kas Poin
+      const logDetail = reason
+        ? (reason.includes('PTS') ? reason : `${reason} (+${pointsToRefund} PTS)`)
+        : `Pemulihan Poin: +${pointsToRefund} PTS (Operasional: +${refundOp}, Prestasi: +${refundPr})`;
+
       await logActivity(
         worker.id,
         worker.name,
         'points_refunded',
-        reason || `Pemulihan Poin K3: +${pointsToRefund} PTS`
+        logDetail
       ).catch(() => {});
 
       // Dispatch event realtime ke React memory
-      window.dispatchEvent(
-        new CustomEvent('gappy_points_awarded', {
-          detail: {
-            workerId: worker.id,
-            employeeId: worker.employee_id,
-            newTotalPoints,
-            pointsEarned: pointsToRefund,
-          },
-        })
-      );
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(
+          new CustomEvent('gappy_points_awarded', {
+            detail: {
+              workerId: worker.id,
+              employeeId: worker.employee_id,
+              newTotalPoints,
+              newOperationalPoints: newOperational,
+              newPrestigePoints: newPrestige,
+              pointsEarned: pointsToRefund,
+              walletType: refundOp > 0 ? 'operational' : 'prestige',
+            },
+          })
+        );
+      }
 
       console.info(`[supabaseService] Poin pekerja ${worker.name} (${worker.employee_id}) dipulihkan +${pointsToRefund} PTS. Total baru: ${newTotalPoints} PTS.`);
       return { success: true, newTotalPoints };
@@ -2976,10 +3136,64 @@ export async function refundWorkerPoints(
 }
 
 /**
+ * Helper terpusat untuk menambahkan poin ke dompet tertentu (Operational vs Prestige).
+ * Menjamin sinkronisasi otomatis total_points, tier, dan event bus realtime.
+ */
+export async function creditWorkerPoints(
+  workerId: string,
+  amount: number,
+  walletType: 'operational' | 'prestige',
+  reason: string
+): Promise<{ newTotalPoints: number; newOperationalPoints: number; newPrestigePoints: number }> {
+  const { data: worker, error: fetchErr } = await supabase
+    .from('workers')
+    .select('id, name, total_points, operational_points, prestige_points, tier')
+    .or(`id.eq.${workerId},employee_id.eq.${workerId}`)
+    .maybeSingle();
+
+  if (fetchErr || !worker) throw new Error('Pekerja tidak ditemukan.');
+
+  const currentTotal = Number(worker.total_points || 0);
+  const currentOperational = Number(worker.operational_points || 0);
+  const currentPrestige = Number(worker.prestige_points || Math.max(0, currentTotal - currentOperational));
+
+  const newOperational = walletType === 'operational' ? currentOperational + amount : currentOperational;
+  const newPrestige = walletType === 'prestige' ? currentPrestige + amount : currentPrestige;
+  const newTotal = newOperational + newPrestige;
+  const newTier = WorkerEntity.calculateTier(newTotal);
+
+  const { error: updateErr } = await supabase
+    .from('workers')
+    .update({
+      operational_points: newOperational,
+      prestige_points: newPrestige,
+      total_points: newTotal,
+      tier: newTier,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', worker.id);
+
+  if (updateErr) throw updateErr;
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent('gappy_points_awarded', {
+        detail: { workerId: worker.id, pointsEarned: amount, newTotalPoints: newTotal },
+      })
+    );
+  }
+
+  return { newTotalPoints: newTotal, newOperationalPoints: newOperational, newPrestigePoints: newPrestige };
+}
+
+/**
  * Menghitung estimasi poin yang akan hangus pada akhir bulan berjalan untuk early warning (H-14).
  * Membantu manajemen mengendalikan liabilitas stok reward di gudang.
  */
-export function getPointsExpiryInfo(totalPoints: number): {
+export function getPointsExpiryInfo(
+  totalPoints: number,
+  operationalPoints?: number
+): {
   pointsExpiring: number;
   expiryDate: string;
   daysRemaining: number;
@@ -2993,8 +3207,11 @@ export function getPointsExpiryInfo(totalPoints: number): {
   const msRemaining = endOfMonth.getTime() - now.getTime();
   const daysRemaining = Math.max(0, Math.ceil(msRemaining / (1000 * 3600 * 24)));
 
+  // Dalam sistem Dual-Wallet, poin yang dievaluasi hangus bulanan adalah Poin Operasional
   let pointsExpiring = 0;
-  if (totalPoints > 50) {
+  if (operationalPoints !== undefined) {
+    pointsExpiring = operationalPoints;
+  } else if (totalPoints > 50) {
     pointsExpiring = Math.min(totalPoints, Math.max(15, Math.round(totalPoints * 0.15)));
   }
 
@@ -3026,7 +3243,7 @@ export async function processMonthlyPointsExpiry(
 
     const { data: worker, error: fetchErr } = await supabase
       .from('workers')
-      .select('id, name, employee_id, total_points, tier, bib_total_score')
+      .select('id, name, employee_id, total_points, operational_points, prestige_points, tier, bib_total_score')
       .eq('id', workerId)
       .maybeSingle();
 
@@ -3034,16 +3251,19 @@ export async function processMonthlyPointsExpiry(
       return { success: false };
     }
 
-    const currentPts = Number(worker.total_points || 0);
-    const actualDeduction = Math.min(currentPts, expiredPoints);
-    if (actualDeduction <= 0) return { success: true, newTotalPoints: currentPts };
+    const currentOp = Number(worker.operational_points || 0);
+    const actualDeduction = Math.min(currentOp, expiredPoints);
+    if (actualDeduction <= 0) return { success: true, newTotalPoints: Number(worker.total_points || 0) };
 
-    const newTotalPoints = currentPts - actualDeduction;
+    const newOp = currentOp - actualDeduction;
+    const currentPr = Number(worker.prestige_points || 0);
+    const newTotalPoints = newOp + currentPr;
 
     // Pertahankan tier pekerja agar tidak terdegradasi
     await supabase
       .from('workers')
       .update({
+        operational_points: newOp,
         total_points: newTotalPoints,
         updated_at: new Date().toISOString(),
       })
@@ -3053,7 +3273,7 @@ export async function processMonthlyPointsExpiry(
 
     const auditDetail =
       reason ||
-      `Siklus Expired Poin Bulanan: -${actualDeduction} PTS (Evaluasi Liabilitas Stok). Tier ${worker.tier || 'Novice'} tetap dipertahankan.`;
+      `Siklus Expired Poin Bulanan: -${actualDeduction} PTS Operasional (Evaluasi Liabilitas Stok). Saldo Prestasi (${currentPr} PTS) dan Tier ${worker.tier || 'Novice'} tetap dipertahankan.`;
 
     await logActivity(worker.id, worker.name, 'points_expired', auditDetail).catch(() => {});
 
@@ -3069,7 +3289,7 @@ export async function processMonthlyPointsExpiry(
     );
 
     console.info(
-      `[supabaseService] Poin pekerja ${worker.name} hangus berkala -${actualDeduction} PTS. Total baru: ${newTotalPoints} PTS.`
+      `[supabaseService] Poin operasional pekerja ${worker.name} hangus berkala -${actualDeduction} PTS. Total baru: ${newTotalPoints} PTS.`
     );
     return { success: true, newTotalPoints };
   } catch (err: any) {
@@ -3077,5 +3297,187 @@ export async function processMonthlyPointsExpiry(
     return { success: false };
   }
 }
+
+/**
+ * Eksekusi massal siklus reset bulanan poin operasional seluruh pekerja gudang.
+ */
+export async function processMonthlyOperationalPointsReset(
+  executedBy: string = 'System Automation'
+): Promise<{ affectedWorkers: number; totalExpired: number }> {
+  try {
+    // 1. Coba panggil RPC atomic jika tersedia
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('rpc_process_monthly_points_reset');
+    if (!rpcErr && rpcData && Array.isArray(rpcData) && rpcData.length > 0) {
+      return {
+        affectedWorkers: Number(rpcData[0].affected_workers || 0),
+        totalExpired: Number(rpcData[0].total_points_expired || 0),
+      };
+    }
+
+    // 2. Fallback client-side batch
+    const { data: workersWithPoints, error: fetchErr } = await supabase
+      .from('workers')
+      .select('id, name, operational_points, prestige_points, total_points')
+      .gt('operational_points', 0);
+
+    if (fetchErr || !workersWithPoints || workersWithPoints.length === 0) {
+      return { affectedWorkers: 0, totalExpired: 0 };
+    }
+
+    let totalExpired = 0;
+    for (const w of workersWithPoints) {
+      const expPts = Number(w.operational_points || 0);
+      totalExpired += expPts;
+      const prestigePts = Number(w.prestige_points || 0);
+
+      await supabase
+        .from('workers')
+        .update({
+          operational_points: 0,
+          total_points: prestigePts,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', w.id);
+
+      await logActivity(
+        w.id,
+        w.name,
+        'points_expired',
+        `Siklus Bulanan (${executedBy}): ${expPts} PTS Operasional hangus. Saldo Prestasi (${prestigePts} PTS) tetap aman.`
+      ).catch(() => {});
+    }
+
+    return { affectedWorkers: workersWithPoints.length, totalExpired };
+  } catch (err: any) {
+    console.warn('[processMonthlyOperationalPointsReset] Exception:', err?.message);
+    return { affectedWorkers: 0, totalExpired: 0 };
+  }
+}
+
+// ─── Offboarding & Resignation Management Protocol (Phase 54) ────────────────
+
+export interface OffboardWorkerResult {
+  success: boolean;
+  workerId: string;
+  cancelledRedemptionsCount: number;
+  message: string;
+}
+
+export async function offboardWorker(
+  workerId: string,
+  resignationReason: string,
+  adminWorkerId: string,
+  adminWorkerName: string = 'Administrator',
+  cancelPendingRedemptions: boolean = true
+): Promise<OffboardWorkerResult> {
+  const { data: targetWorker, error: fetchErr } = await supabase
+    .from('workers')
+    .select('id, name, employee_id, role, division, total_points, status')
+    .eq('id', workerId)
+    .single();
+
+  if (fetchErr || !targetWorker) {
+    throw new Error('Data pekerja tidak ditemukan di database.');
+  }
+
+  if (targetWorker.employee_id === 'SYS-ADMIN' || targetWorker.id === 'w-sysadmin') {
+    throw new Error('Akun Super Administrator bawaan tidak dapat di-offboard.');
+  }
+
+  // 1. Batalkan klaim voucher fisik yang masih berstatus pending jika diminta
+  let cancelledCount = 0;
+  if (cancelPendingRedemptions) {
+    try {
+      const { data: pendings } = await supabase
+        .from('redemption_history')
+        .select('id')
+        .eq('worker_id', workerId)
+        .eq('status', 'pending');
+
+      if (pendings && pendings.length > 0) {
+        for (const p of pendings) {
+          await cancelAndRefundRedemption(
+            p.id,
+            adminWorkerId,
+            `Offboard Personel: ${resignationReason}`
+          ).catch((e) => console.warn('[offboardWorker] Gagal membatalkan voucher:', e));
+          cancelledCount++;
+        }
+      }
+    } catch (err) {
+      console.warn('[offboardWorker] Exception pembersihan voucher pending:', err);
+    }
+  }
+
+  // 2. Soft-Deactivation: Update status pekerja menjadi 'resigned' beserta metadata
+  const nowIso = new Date().toISOString();
+  const { error: updateErr } = await supabase
+    .from('workers')
+    .update({
+      status: 'resigned',
+      resigned_at: nowIso,
+      resignation_reason: resignationReason,
+      settlement_status: 'settled',
+    })
+    .eq('id', workerId);
+
+  if (updateErr) {
+    throw new Error(`Gagal memperbarui status offboard pekerja: ${updateErr.message}`);
+  }
+
+  // 3. Catat audit trail legal K3 / ISO 45001
+  const detail = `Offboard / Resign Personel: ${targetWorker.name} (${targetWorker.employee_id}) [${targetWorker.division} - ${targetWorker.role}] oleh ${adminWorkerName}. Alasan: ${resignationReason}. ${cancelledCount} klaim voucher pending diselesaikan.`;
+  await logActivity(
+    targetWorker.id,
+    targetWorker.name,
+    'worker_offboarded',
+    detail
+  ).catch(() => {});
+
+  return {
+    success: true,
+    workerId,
+    cancelledRedemptionsCount: cancelledCount,
+    message: `Pekerja ${targetWorker.name} berhasil di-offboard (Status: Resigned). Hak akses login diputus dan skor historis K3 dipertahankan secara utuh.`,
+  };
+}
+
+export async function reactivateWorker(
+  workerId: string,
+  adminWorkerId: string,
+  adminWorkerName: string = 'Administrator'
+): Promise<void> {
+  const { data: targetWorker, error: fetchErr } = await supabase
+    .from('workers')
+    .select('id, name, employee_id, role, division')
+    .eq('id', workerId)
+    .single();
+
+  if (fetchErr || !targetWorker) {
+    throw new Error('Data pekerja tidak ditemukan di database.');
+  }
+
+  const { error: updateErr } = await supabase
+    .from('workers')
+    .update({
+      status: 'active',
+      resigned_at: null,
+      resignation_reason: null,
+      settlement_status: 'settled',
+    })
+    .eq('id', workerId);
+
+  if (updateErr) {
+    throw new Error(`Gagal mengaktifkan kembali pekerja: ${updateErr.message}`);
+  }
+
+  await logActivity(
+    targetWorker.id,
+    targetWorker.name,
+    'worker_reactivated',
+    `Re-aktivasi Akun Pekerja: ${targetWorker.name} (${targetWorker.employee_id}) kembali aktif oleh ${adminWorkerName}`
+  ).catch(() => {});
+}
+
 
 

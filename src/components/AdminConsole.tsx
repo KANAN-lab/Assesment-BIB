@@ -360,6 +360,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
         {activeTab === 'rewards' && (
           <AdminRewardCatalogPanel
             rewardCatalog={rewardCatalog}
+            workers={workers}
             currentAdminId={currentAdminId}
             onCreateReward={onCreateReward}
             onUpdateReward={onUpdateReward}

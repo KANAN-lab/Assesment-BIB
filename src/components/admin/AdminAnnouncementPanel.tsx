@@ -22,6 +22,7 @@ import {
   toggleAnnouncement,
   deleteAnnouncement
 } from '../../lib/supabaseService';
+import { SwalService } from '../../domain/SwalService';
 
 interface AdminAnnouncementPanelProps {
   currentAdminId?: string;
@@ -129,6 +130,17 @@ export const AdminAnnouncementPanel: React.FC<AdminAnnouncementPanelProps> = ({
   };
 
   const handleDeleteAnn = async (id: string) => {
+    const isConfirmed = await SwalService.confirm({
+      title: 'Hapus Pengumuman?',
+      text: 'Pengumuman ini akan dihapus permanen dari broadcast sistem layar operasional.',
+      confirmButtonText: 'Ya, Hapus Pengumuman',
+      cancelButtonText: 'Batal',
+      isDestructive: true,
+      icon: 'warning',
+    });
+
+    if (!isConfirmed) return;
+
     try {
       await deleteAnnouncement(id);
       setAnnouncements((prev) => prev.filter((a) => a.id !== id));

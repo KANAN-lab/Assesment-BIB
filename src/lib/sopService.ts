@@ -7,6 +7,7 @@ import {
   SopComplianceOverview,
 } from '../types/sop';
 import { OfflineSopService } from './offlineSopService';
+import { SystemConfigService } from '../domain/SystemConfigService';
 
 const LOCAL_STORAGE_SOP_PROGRESS_KEY = 'bib_sop_worker_progress_v2';
 const LOCAL_STORAGE_SOP_CUSTOM_MODULES_KEY = 'bib_sop_custom_modules_v2';
@@ -326,7 +327,8 @@ export async function completeSopModule(
           timeSpentSeconds,
         });
 
-        const pointsAdded = res.points_added || 50;
+        const defaultSopPts = SystemConfigService.getConfig().sopCompletionDefaultPoints || 50;
+        const pointsAdded = res.points_added || defaultSopPts;
 
         if (typeof window !== 'undefined' && pointsAdded > 0) {
           window.dispatchEvent(
@@ -342,7 +344,7 @@ export async function completeSopModule(
         return {
           success: true,
           pointsAdded,
-          message: res.message || 'Selamat! Anda telah menyelesaikan modul SOP dan memperoleh +50 PTS.',
+          message: res.message || `Selamat! Anda telah menyelesaikan modul SOP dan memperoleh +${pointsAdded} PTS.`,
         };
       }
     } catch (err) {
@@ -350,12 +352,14 @@ export async function completeSopModule(
     }
   }
 
+  const defaultSopPts = SystemConfigService.getConfig().sopCompletionDefaultPoints || 50;
+
   // 2. Offline / Network blind-spot fallback: Enqueue for background sync
   OfflineSopService.enqueueCompletion({
     workerId,
     moduleId: sopId,
     score: quizScore,
-    pointsAwarded: 50,
+    pointsAwarded: defaultSopPts,
     idempotencyKey,
   });
 
@@ -369,7 +373,7 @@ export async function completeSopModule(
 
   return {
     success: true,
-    pointsAdded: 50,
+    pointsAdded: defaultSopPts,
     isOfflineQueued: true,
     message: 'Tersimpan Offline! Hasil evaluasi SOP akan disinkronkan otomatis saat terhubung internet.',
   };
@@ -380,6 +384,8 @@ export async function completeSopModule(
  */
 export async function flushOfflineSopCompletions(): Promise<number> {
   if (!OfflineSopService.isOnline()) return 0;
+
+  const defaultSopPts = SystemConfigService.getConfig().sopCompletionDefaultPoints || 50;
 
   const res = await OfflineSopService.flushSyncQueue(async (item) => {
     try {
@@ -395,7 +401,7 @@ export async function flushOfflineSopCompletions(): Promise<number> {
             new CustomEvent('gappy_points_awarded', {
               detail: {
                 workerId: item.workerId,
-                pointsEarned: item.pointsAwarded || 50,
+                pointsEarned: item.pointsAwarded || defaultSopPts,
               },
             })
           );

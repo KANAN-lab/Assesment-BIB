@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabaseClient';
 import { KudoService, KudoQuotaInfo } from '../lib/kudoService';
 import { KudoCategory } from '../types/kudos';
+import { SystemConfigService } from '../domain/SystemConfigService';
 import { X, Award, Search, Loader2, CheckCircle2, ShieldCheck, AlertCircle } from 'lucide-react';
 
 interface KudoModalProps {
@@ -24,6 +25,10 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [submitSuccess, setSubmitSuccess] = useState(false);
+
+  const kudoCfg = SystemConfigService.getConfig();
+  const receiverPts = kudoCfg.kudoReceivedPoints || 25;
+  const senderBonus = kudoCfg.kudoSentPoints || 10;
 
   // Anti-Fraud Quota State
   const [quotaInfo, setQuotaInfo] = useState<KudoQuotaInfo | null>(null);
@@ -170,7 +175,7 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
               </div>
               <h3 className="text-xl font-black text-white tracking-tight">Kudo Terkirim!</h3>
               <p className="text-sm text-zinc-400">
-                Apresiasi Anda berhasil dikirim dan rekan Anda mendapatkan +10 PTS.
+                Apresiasi Anda berhasil dikirim! Rekan Anda mendapatkan +{receiverPts} PTS dan Anda mendapatkan bonus +{senderBonus} PTS.
               </p>
             </div>
           ) : (
@@ -356,7 +361,7 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
               ) : (quotaInfo?.remainingQuota ?? 3) <= 0 ? (
                 <span>Kuota Mingguan Habis (3/3)</span>
               ) : (
-                <span>Kirim Apresiasi (+10 PTS)</span>
+                <span>Kirim Apresiasi (+{receiverPts} PTS)</span>
               )}
             </button>
           </div>

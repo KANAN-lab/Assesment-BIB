@@ -2,6 +2,7 @@ import React from 'react';
 import { Zap, ShieldCheck, Flame, CheckCircle2, Clock, Hourglass } from 'lucide-react';
 import { WorkerProfile } from '../types/assessment';
 import { getPointsExpiryInfo } from '../lib/supabaseService';
+import { SystemConfigService } from '../domain/SystemConfigService';
 
 interface DailyProgressCardProps {
   worker: WorkerProfile;
@@ -20,15 +21,16 @@ export const DailyProgressCard: React.FC<DailyProgressCardProps> = ({
 
   const streakWeekPct = Math.min(100, Math.round((worker.streakDays % 7 || (worker.streakDays > 0 ? 7 : 0)) / 7 * 100));
 
-  const expiryInfo = getPointsExpiryInfo(worker.totalPoints);
+  const expiryInfo = getPointsExpiryInfo(worker.totalPoints, worker.operationalPoints);
 
+  const cfg = SystemConfigService.getConfig();
   const tasks = [
     {
       id: 'quiz',
       label: 'Kuis Safety Harian',
       description: 'Uji pengetahuan K3 & SOP logistik',
       done: worker.dailyQuizCompleted,
-      reward: '+50 poin',
+      reward: `+${cfg.dailyQuizRewardPoints} poin`,
       icon: Zap,
       iconColor: 'text-emerald-400',
       iconBg: 'bg-emerald-500/10 border-emerald-500/20',
@@ -40,7 +42,7 @@ export const DailyProgressCard: React.FC<DailyProgressCardProps> = ({
       label: 'Pre-Shift Checklist',
       description: 'Inspeksi keselamatan sebelum shift',
       done: worker.preShiftChecklistDone,
-      reward: '+30 poin',
+      reward: `+${cfg.preShiftRewardPoints} poin`,
       icon: ShieldCheck,
       iconColor: 'text-cyan-400',
       iconBg: 'bg-cyan-500/10 border-cyan-500/20',
@@ -74,6 +76,24 @@ export const DailyProgressCard: React.FC<DailyProgressCardProps> = ({
         </div>
       </div>
 
+      {/* Dual-Wallet Mini Breakdown */}
+      <div className="grid grid-cols-2 gap-2 text-[11px]">
+        <div className="p-2 rounded-xl bg-zinc-950/70 border border-zinc-800/80 flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-zinc-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
+            <span>Poin Harian</span>
+          </div>
+          <span className="font-bold text-amber-400 font-mono">{(worker.operationalPoints ?? 0).toLocaleString()} PTS</span>
+        </div>
+        <div className="p-2 rounded-xl bg-zinc-950/70 border border-zinc-800/80 flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-zinc-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
+            <span>Poin Prestasi</span>
+          </div>
+          <span className="font-bold text-purple-300 font-mono">{(worker.prestigePoints ?? worker.totalPoints).toLocaleString()} PTS</span>
+        </div>
+      </div>
+
       {/* Overall progress bar */}
       <div className="w-full bg-zinc-900 rounded-full h-1.5 overflow-hidden">
         <div
@@ -82,20 +102,20 @@ export const DailyProgressCard: React.FC<DailyProgressCardProps> = ({
         />
       </div>
 
-      {/* Early Warning Poin Hangus Bulanan */}
+      {/* Early Warning Poin Operasional Hangus Bulanan */}
       {expiryInfo.isWarningActive && (
         <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-start gap-2.5 text-xs">
           <Hourglass className="w-4 h-4 text-amber-400 shrink-0 mt-0.5 animate-pulse" />
           <div className="space-y-0.5">
             <div className="flex items-center gap-1.5 font-bold text-amber-300">
-              <span>Peringatan Masa Berlaku Poin</span>
+              <span>Peringatan Masa Berlaku Poin Harian</span>
               <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
                 H-{expiryInfo.daysRemaining}
               </span>
             </div>
             <p className="text-[11px] text-amber-200/80 leading-relaxed">
-              Estimasi <strong className="text-amber-100 font-bold">{expiryInfo.pointsExpiring} PTS</strong> akan dievaluasi pada{' '}
-              <strong className="text-white font-medium">{expiryInfo.expiryDate}</strong> untuk siklus liabilitas stok gudang. Segera tukarkan di Katalog Reward!
+              Sebanyak <strong className="text-amber-100 font-bold">{expiryInfo.pointsExpiring} PTS Operasional</strong> akan di-reset pada{' '}
+              <strong className="text-white font-medium">{expiryInfo.expiryDate}</strong>. Saldo Poin Prestasi Anda tetap aman. Segera tukarkan di Katalog Reward!
             </p>
           </div>
         </div>

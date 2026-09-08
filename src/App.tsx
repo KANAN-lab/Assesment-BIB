@@ -41,6 +41,7 @@ import { ShiftHandoverEntity } from './types/handover';
 import { HandoverManager } from './lib/handoverService';
 import { LicenseService } from './lib/licenseService';
 import { MheLicenseEntity } from './types/license';
+import { OfflineQueueManager } from './lib/offlineQueueManager';
 
 
 import {
@@ -80,6 +81,7 @@ import {
 import { supabase } from './lib/supabaseClient';
 import { AtomicTransactionManager } from './lib/atomicService';
 import { cleanExistingLocalStorageQuota } from './lib/storageSanitizer';
+import { AuthSessionService } from './lib/authSessionService';
 
 import { WorkerProfile, RewardItem, RewardHistory, AuditInput, LeaderboardEntry, ScoreHistoryEntry, TierType, Announcement, WorkerBadge, Badge, IncidentReport, SystemRole } from './types/assessment';
 import { RoleEntity } from './domain/RoleEntity';
@@ -169,46 +171,53 @@ export const App: React.FC = () => {
   }, [currentWorker, activeView]);
 
   // ── Load data for specific worker ──
-  const loadDataForWorker = useCallback(async (workerId: string) => {
+  const loadDataForWorker = useCallback(async (workerId: string, initialWorker?: WorkerProfile) => {
     setLoading(true);
     setError(null);
     try {
       const [worker, workers, lb, catalog, history, competencyScores, scoresHist] = await Promise.all([
-        fetchWorkerById(workerId),
-        fetchAllWorkers(),
-        fetchLeaderboard(),
-        fetchRewardCatalog(),
-        fetchRedemptionHistory(workerId),
+        initialWorker ? Promise.resolve(initialWorker) : fetchWorkerById(workerId).catch(() => AuthSessionService.getCachedWorker()),
+        fetchAllWorkers().catch(() => []),
+        fetchLeaderboard().catch(() => []),
+        fetchRewardCatalog().catch(() => []),
+        fetchRedemptionHistory(workerId).catch(() => []),
         fetchWorkerCompetencyScores(workerId).catch(() => ({})),
         fetchScoreHistory(workerId).catch(() => []),
       ]);
 
-      if (!worker) throw new Error(`Worker dengan ID ${workerId} tidak ditemukan di database.`);
+      const effectiveWorker = worker || AuthSessionService.getCachedWorker();
+      if (!effectiveWorker) throw new Error(`Worker dengan ID ${workerId} tidak ditemukan di database.`);
 
-      if (worker.status === 'pending_approval') {
-        localStorage.removeItem('komar_active_worker_id');
+      if (
+        effectiveWorker.status === 'pending_approval' ||
+        effectiveWorker.status === 'rejected' ||
+        effectiveWorker.status === 'inactive' ||
+        effectiveWorker.status === 'resigned'
+      ) {
+        AuthSessionService.clearCachedWorker();
         setCurrentWorker(null);
         setShowLoginModal(true);
-        throw new Error(`Akun (${worker.name}) dengan peran "${worker.role}" saat ini masih dalam status MENUNGGU PERSETUJUAN (Pending Approval) oleh Administrator.`);
-      }
-
-      if (worker.status === 'rejected') {
-        localStorage.removeItem('komar_active_worker_id');
-        setCurrentWorker(null);
-        setShowLoginModal(true);
-        throw new Error(`Permohonan akses (${worker.name}) [${worker.role}] telah DITOLAK oleh Administrator.`);
+        throw new Error(
+          effectiveWorker.status === 'resigned'
+            ? `Akun (${effectiveWorker.name}) telah dinonaktifkan karena status Resign / Offboard. Akses login dihentikan.`
+            : effectiveWorker.status === 'inactive'
+            ? `Akun (${effectiveWorker.name}) saat ini dinonaktifkan oleh Administrator. Akses login dihentikan.`
+            : effectiveWorker.status === 'pending_approval'
+            ? `Akun (${effectiveWorker.name}) dengan peran "${effectiveWorker.role}" saat ini masih dalam status MENUNGGU PERSETUJUAN (Pending Approval) oleh Administrator.`
+            : `Permohonan akses (${effectiveWorker.name}) [${effectiveWorker.role}] telah DITOLAK oleh Administrator.`
+        );
       }
 
       // Check & reset daily activity if date has rolled over
-      const wasReset = await checkAndResetDailyActivity(worker.id, worker.lastActivityDate).catch(() => false);
+      const wasReset = await checkAndResetDailyActivity(effectiveWorker.id, effectiveWorker.lastActivityDate).catch(() => false);
       if (wasReset) {
-        worker.dailyQuizCompleted = false;
-        worker.preShiftChecklistDone = false;
+        effectiveWorker.dailyQuizCompleted = false;
+        effectiveWorker.preShiftChecklistDone = false;
       }
 
-      localStorage.setItem('komar_active_worker_id', worker.id);
-      setCurrentWorker(worker);
-      setAllWorkers(workers);
+      AuthSessionService.saveCachedWorker(effectiveWorker);
+      setCurrentWorker(effectiveWorker);
+      setAllWorkers(workers.length > 0 ? workers : [effectiveWorker]);
       setLeaderboard(lb);
       setRewardCatalog(catalog);
       setRedemptionHistory(history);
@@ -217,12 +226,24 @@ export const App: React.FC = () => {
 
       // Load announcements & badges & unacknowledged handovers
       fetchAnnouncements(true).then(setAnnouncements).catch(() => {});
-      fetchWorkerBadges(worker.id).then(setWorkerBadges).catch(() => {});
+      fetchWorkerBadges(effectiveWorker.id).then(setWorkerBadges).catch(() => {});
       fetchAllBadges().then(setAllBadges).catch(() => {});
-      HandoverManager.getUnacknowledgedHandovers(worker.id).then(setUnacknowledgedHandovers).catch(() => {});
+      HandoverManager.getUnacknowledgedHandovers(effectiveWorker.id).then(setUnacknowledgedHandovers).catch(() => {});
 
-      // Log login activity
-      logActivity(worker.id, worker.name, 'login').catch(() => {});
+      // Log login activity dengan deduplikasi sesi & 30-menit cooldown (Skema 1 & 2)
+      const sessionKey = `bib_login_logged_${effectiveWorker.id}`;
+      const lastLogged = sessionStorage.getItem(sessionKey);
+      const now = Date.now();
+      if (!lastLogged || (now - Number(lastLogged) > 30 * 60 * 1000)) {
+        logActivity(effectiveWorker.id, effectiveWorker.name, 'login').catch(() => {});
+        sessionStorage.setItem(sessionKey, String(now));
+      }
+
+      // Perbarui tanggal aktivitas terakhir langsung di tabel workers (Skema 2)
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (effectiveWorker.lastActivityDate !== todayStr) {
+        Promise.resolve(supabase.from('workers').update({ last_activity_date: todayStr }).eq('id', effectiveWorker.id)).catch(() => {});
+      }
 
       // Auto-show onboarding tour if first time
       if (localStorage.getItem('komar_onboarding_done') !== 'true') {
@@ -230,7 +251,7 @@ export const App: React.FC = () => {
       }
 
       // Auto-set view mode to match user's authorized role
-      const sysRole = RoleEntity.resolveSystemRole(worker.role);
+      const sysRole = RoleEntity.resolveSystemRole(effectiveWorker.role);
       setActiveView(sysRole);
 
       setShowLoginModal(false);
@@ -242,22 +263,63 @@ export const App: React.FC = () => {
     }
   }, []);
 
-  // ── Session Expiry Timer (8 jam tidak aktif → auto logout) ──
+  // ── Handle Logout Terpusat ──
+  const handleLogout = useCallback(async () => {
+    try {
+      if (currentWorker) {
+        sessionStorage.removeItem(`bib_login_logged_${currentWorker.id}`);
+        await logActivity(currentWorker.id, currentWorker.name, 'logout').catch(() => {});
+      }
+      await signOutUser().catch(() => {});
+    } catch (e) {
+      console.warn('Logout error:', e);
+    }
+    AuthSessionService.clearCachedWorker();
+    AuthSessionService.broadcastLogout();
+    setCurrentWorker(null);
+    setAnnouncements([]);
+    setWorkerBadges([]);
+    setUnacknowledgedHandovers([]);
+    setShowLoginModal(true);
+  }, [currentWorker]);
+
+  // ── Multi-Tab Cross-Tab Auth Synchronization ──
+  useEffect(() => {
+    const unsubscribe = AuthSessionService.onAuthChange((action, workerId) => {
+      if (action === 'logout') {
+        if (currentWorker) {
+          setCurrentWorker(null);
+          setAnnouncements([]);
+          setWorkerBadges([]);
+          setUnacknowledgedHandovers([]);
+          setShowLoginModal(true);
+        }
+      } else if (action === 'login' && workerId) {
+        if (!currentWorker || currentWorker.id !== workerId) {
+          loadDataForWorker(workerId);
+        }
+      }
+    });
+
+    return () => unsubscribe();
+  }, [currentWorker, loadDataForWorker]);
+
+  // ── Session Expiry Timer (Kiosk: 30 menit, Personal: 8 jam tidak aktif → auto logout) ──
   useEffect(() => {
     if (!currentWorker) return;
     const updateActivity = () => { lastActiveRef.current = Date.now(); };
     window.addEventListener('click', updateActivity);
     window.addEventListener('keydown', updateActivity);
 
+    const isShared = AuthSessionService.isSharedDeviceMode();
+    const maxIdleMs = isShared ? 30 * 60 * 1000 : 8 * 60 * 60 * 1000;
+
     const expireCheck = setInterval(() => {
       const idleMs = Date.now() - lastActiveRef.current;
-      const EIGHT_HOURS = 8 * 60 * 60 * 1000;
-      if (idleMs > EIGHT_HOURS) {
-        logActivity(currentWorker.id, currentWorker.name, 'logout', 'Session expired (8h idle)').catch(() => {});
-        signOutUser().catch(() => {});
-        localStorage.removeItem('komar_active_worker_id');
-        setCurrentWorker(null);
-        setShowLoginModal(true);
+      if (idleMs > maxIdleMs) {
+        const reason = isShared ? 'Kiosk Mode timeout (30m idle)' : 'Session expired (8h idle)';
+        logActivity(currentWorker.id, currentWorker.name, 'logout', reason).catch(() => {});
+        handleLogout();
       }
     }, 60 * 1000); // cek setiap 1 menit
 
@@ -266,17 +328,17 @@ export const App: React.FC = () => {
       window.removeEventListener('keydown', updateActivity);
       clearInterval(expireCheck);
     };
-  }, [currentWorker]);
+  }, [currentWorker, handleLogout]);
 
-  // ── Auto background sync for offline SOP queue when network returns ──
+  // ── Auto background sync for all unified offline queue when network returns ──
   useEffect(() => {
     const handleOnline = () => {
-      import('./lib/sopService').then(({ flushOfflineSopCompletions }) => {
-        flushOfflineSopCompletions().then((count) => {
-          if (count > 0) {
-            console.log(`[OfflineSync] Berhasil mensinkronkan ${count} penyelesaian SOP offline.`);
-          }
-        });
+      OfflineQueueManager.forceSyncAll().then((summary: { synced: number; failed: number }) => {
+        if (summary.synced > 0) {
+          console.log(`[OfflineSync] Berhasil mensinkronkan ${summary.synced} transaksi offline ke server.`);
+        }
+      }).catch((err: any) => {
+        console.warn('[OfflineSync] Gagal sinkronisasi otomatis latar belakang:', err);
       });
     };
     window.addEventListener('online', handleOnline);
@@ -311,6 +373,9 @@ export const App: React.FC = () => {
     if (!currentWorker) return;
 
     const syncWorkerData = async () => {
+      // Jeda sinkronisasi berkala jika modal riwayat sedang dibuka oleh user agar tidak mengganggu interaksi/scroll
+      if (showHistoryCenterModal) return;
+
       try {
         const [updatedWorker, updatedWorkers, updatedLb] = await Promise.all([
           fetchWorkerById(currentWorker.id).catch(() => null),
@@ -319,6 +384,24 @@ export const App: React.FC = () => {
         ]);
 
         if (updatedWorker) {
+          // Real-time Revocation Guard
+          if (
+            updatedWorker.status === 'inactive' ||
+            updatedWorker.status === 'rejected' ||
+            updatedWorker.status === 'pending_approval' ||
+            updatedWorker.status === 'resigned'
+          ) {
+            setError(
+              updatedWorker.status === 'resigned'
+                ? 'Status akun Anda telah diubah menjadi Resign / Offboard oleh Administrator. Sesi diakhiri.'
+                : updatedWorker.status === 'inactive'
+                ? 'Akses akun Anda telah dinonaktifkan oleh Administrator. Sesi diakhiri.'
+                : 'Status otorisasi akun Anda telah diubah oleh Administrator. Sesi diakhiri.'
+            );
+            handleLogout();
+            return;
+          }
+
           setCurrentWorker((prev) => {
             if (!prev) return updatedWorker;
             if (
@@ -328,6 +411,7 @@ export const App: React.FC = () => {
               prev.dailyQuizCompleted !== updatedWorker.dailyQuizCompleted ||
               prev.preShiftChecklistDone !== updatedWorker.preShiftChecklistDone
             ) {
+              AuthSessionService.saveCachedWorker(updatedWorker);
               return updatedWorker;
             }
             return prev;
@@ -335,6 +419,12 @@ export const App: React.FC = () => {
         }
         if (updatedWorkers.length > 0) setAllWorkers(updatedWorkers);
         if (updatedLb.length > 0) setLeaderboard(updatedLb);
+
+        // Sinkronisasi riwayat reward berkala agar status pembatalan/penyerahan langsung ter-update
+        if (currentWorker?.id) {
+          const updatedHist = await fetchRedemptionHistory(currentWorker.id).catch(() => []);
+          if (updatedHist.length > 0) setRedemptionHistory(updatedHist);
+        }
       } catch {
         // silent sync
       }
@@ -342,23 +432,55 @@ export const App: React.FC = () => {
 
     const interval = setInterval(syncWorkerData, 8000);
     return () => clearInterval(interval);
-  }, [currentWorker]);
+  }, [currentWorker, handleLogout, showHistoryCenterModal]);
 
   // Listen for real-time points_awarded events to update local React state instantly
   useEffect(() => {
     const handlePointsAwarded = (e: Event) => {
       const customEvt = e as CustomEvent;
-      const { workerId, employeeId, newTotalPoints, pointsEarned } = customEvt.detail || {};
+      const {
+        workerId,
+        employeeId,
+        newTotalPoints,
+        newOperationalPoints,
+        newPrestigePoints,
+        pointsEarned,
+        deductedOperational,
+        deductedPrestige,
+        walletType,
+      } = customEvt.detail || {};
 
       if (currentWorker && (currentWorker.id === workerId || currentWorker.employeeId === employeeId || currentWorker.id === employeeId)) {
         setCurrentWorker((prev) => {
           if (!prev) return null;
           const updatedPts = typeof newTotalPoints === 'number'
             ? newTotalPoints
-            : (prev.totalPoints + (typeof pointsEarned === 'number' ? pointsEarned : 50));
+            : (prev.totalPoints + (typeof pointsEarned === 'number' ? pointsEarned : 0));
+
+          let op = typeof newOperationalPoints === 'number'
+            ? newOperationalPoints
+            : (prev.operationalPoints ?? 0);
+          let pr = typeof newPrestigePoints === 'number'
+            ? newPrestigePoints
+            : (prev.prestigePoints ?? Math.max(0, prev.totalPoints - op));
+
+          if (deductedOperational !== undefined) {
+            op = Math.max(0, op - deductedOperational);
+          }
+          if (deductedPrestige !== undefined) {
+            pr = Math.max(0, pr - deductedPrestige);
+          }
+          if (typeof newOperationalPoints !== 'number' && walletType === 'operational' && typeof pointsEarned === 'number' && pointsEarned > 0) {
+            op += pointsEarned;
+          } else if (typeof newPrestigePoints !== 'number' && walletType === 'prestige' && typeof pointsEarned === 'number' && pointsEarned > 0) {
+            pr += pointsEarned;
+          }
+
           return {
             ...prev,
             totalPoints: updatedPts,
+            operationalPoints: op,
+            prestigePoints: pr,
             tier: WorkerEntity.calculateTier(updatedPts),
           };
         });
@@ -369,7 +491,23 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('gappy_points_awarded', handlePointsAwarded);
   }, [currentWorker]);
 
-  // Initial load with session restoration
+  // Listen for real-time redemption cancellation events to reset voucher status & limits
+  useEffect(() => {
+    const handleRedemptionCancelled = (e: Event) => {
+      const customEvt = e as CustomEvent;
+      const { redemptionId } = customEvt.detail || {};
+      if (redemptionId) {
+        setRedemptionHistory((prev) =>
+          prev.map((r) => (r.id === redemptionId ? { ...r, status: 'cancelled' } : r))
+        );
+      }
+    };
+
+    window.addEventListener('gappy_redemption_cancelled', handleRedemptionCancelled);
+    return () => window.removeEventListener('gappy_redemption_cancelled', handleRedemptionCancelled);
+  }, []);
+
+  // Initial load with session restoration & offline resilience fallback
   useEffect(() => {
     const initApp = async () => {
       try {
@@ -378,28 +516,62 @@ export const App: React.FC = () => {
         if (savedWorkerId) {
           const savedWorker = await fetchWorkerById(savedWorkerId).catch(() => null);
           if (savedWorker) {
-            await loadDataForWorker(savedWorker.id);
+            await loadDataForWorker(savedWorker.id, savedWorker);
+            return;
+          }
+          // Offline fallback jika jaringan terputus / area dead-zone gudang
+          const cachedWorker = AuthSessionService.getCachedWorker();
+          if (cachedWorker && (cachedWorker.id === savedWorkerId || cachedWorker.employeeId === savedWorkerId)) {
+            setCurrentWorker(cachedWorker);
+            setAllWorkers([cachedWorker]);
+            const sysRole = RoleEntity.resolveSystemRole(cachedWorker.role);
+            setActiveView(sysRole);
+            setLoading(false);
+            setShowLoginModal(false);
             return;
           }
         }
 
         // 2. Secondary: Restore from Supabase Auth session if linked
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
         if (session?.user) {
           const linkedWorker = await fetchWorkerByUserId(session.user.id).catch(() => null);
           if (linkedWorker) {
-            await loadDataForWorker(linkedWorker.id);
+            await loadDataForWorker(linkedWorker.id, linkedWorker);
             return;
           }
         }
 
+        // 2.5 Fallback cache: If session exists in cache and device is offline
+        const cachedWorker = AuthSessionService.getCachedWorker();
+        if (cachedWorker && !navigator.onLine) {
+          setCurrentWorker(cachedWorker);
+          setAllWorkers([cachedWorker]);
+          const sysRole = RoleEntity.resolveSystemRole(cachedWorker.role);
+          setActiveView(sysRole);
+          setLoading(false);
+          setShowLoginModal(false);
+          return;
+        }
+
         // 3. Fallback: Fetch worker list for LoginModal
-        const workers = await fetchAllWorkers();
+        const workers = await fetchAllWorkers().catch(() => []);
         setAllWorkers(workers);
         setLoading(false);
       } catch (err) {
-        setError('Gagal menginisialisasi aplikasi.');
-        setLoading(false);
+        // Cek apakah ada cache profil lokal sebelum menampilkan error koneksi gagal
+        const cachedWorker = AuthSessionService.getCachedWorker();
+        if (cachedWorker) {
+          setCurrentWorker(cachedWorker);
+          setAllWorkers([cachedWorker]);
+          const sysRole = RoleEntity.resolveSystemRole(cachedWorker.role);
+          setActiveView(sysRole);
+          setLoading(false);
+          setShowLoginModal(false);
+        } else {
+          setError('Gagal menginisialisasi aplikasi.');
+          setLoading(false);
+        }
       }
     };
 
@@ -418,7 +590,20 @@ export const App: React.FC = () => {
           fetchAllWorkers().then(setAllWorkers).catch(console.warn);
           if (currentWorker?.id) {
             fetchWorkerById(currentWorker.id).then((updated) => {
-              if (updated) setCurrentWorker(updated);
+              if (updated) {
+                if (
+                  updated.status === 'inactive' ||
+                  updated.status === 'rejected' ||
+                  updated.status === 'pending_approval' ||
+                  updated.status === 'resigned'
+                ) {
+                  setError('Akses akun Anda telah dinonaktifkan atau berstatus Resign oleh Administrator. Sesi diakhiri.');
+                  handleLogout();
+                } else {
+                  setCurrentWorker(updated);
+                  AuthSessionService.saveCachedWorker(updated);
+                }
+              }
             }).catch(console.warn);
           }
         }
@@ -442,25 +627,7 @@ export const App: React.FC = () => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [currentWorker?.id]);
-
-  // Handle Logout
-  const handleLogout = async () => {
-    try {
-      if (currentWorker) {
-        await logActivity(currentWorker.id, currentWorker.name, 'logout').catch(() => {});
-      }
-      await signOutUser();
-    } catch (e) {
-      console.warn('Logout error:', e);
-    }
-    localStorage.removeItem('komar_active_worker_id');
-    setCurrentWorker(null);
-    setAnnouncements([]);
-    setWorkerBadges([]);
-    setUnacknowledgedHandovers([]);
-    setShowLoginModal(true);
-  };
+  }, [currentWorker?.id, handleLogout]);
 
   // Profile Picture Update
   const handleSaveAvatar = async (newAvatarUrl: string) => {
@@ -520,6 +687,7 @@ export const App: React.FC = () => {
             ...prev,
             dailyQuizCompleted: true,
             totalPoints: newTotal,
+            operationalPoints: (prev.operationalPoints ?? 0) + bonusAwarded,
             tier: newTier,
           }
         : null
@@ -568,6 +736,7 @@ export const App: React.FC = () => {
             preShiftChecklistDone: true,
             streakDays: newStreak,
             totalPoints: newTotal,
+            operationalPoints: (prev.operationalPoints ?? 0) + bonusAwarded,
             tier: newTier,
           }
         : null
@@ -598,9 +767,20 @@ export const App: React.FC = () => {
     try {
       const result = await AtomicTransactionManager.redeemRewardAtomically(currentWorker.id, item.id);
 
-      setCurrentWorker((prev) =>
-        prev ? { ...prev, totalPoints: result.remainingPoints } : null
-      );
+      setCurrentWorker((prev) => {
+        if (!prev) return null;
+        const opDeducted = result.deductedOperational || 0;
+        const prDeducted = result.deductedPrestige || 0;
+        const curOp = prev.operationalPoints ?? 0;
+        const curPr = prev.prestigePoints ?? Math.max(0, prev.totalPoints - curOp);
+
+        return {
+          ...prev,
+          totalPoints: result.remainingPoints,
+          operationalPoints: Math.max(0, curOp - opDeducted),
+          prestigePoints: Math.max(0, curPr - prDeducted),
+        };
+      });
 
       const [updatedCatalog, updatedHistory] = await Promise.all([
         fetchRewardCatalog(),
@@ -775,19 +955,11 @@ export const App: React.FC = () => {
   if (showLoginModal || !currentWorker) {
     return (
       <LoginModal
-        onLoginSuccess={async (empIdOrEmail) => {
-          if (empIdOrEmail) {
-            const worker = await fetchWorkerByEmployeeId(empIdOrEmail).catch(() => null);
-            if (worker) {
-              await loadDataForWorker(worker.id);
-              return;
-            }
-          }
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            const linked = await fetchWorkerByUserId(session.user.id).catch(() => null);
-            if (linked) await loadDataForWorker(linked.id);
-          }
+        onLoginSuccess={async (worker, isSharedDevice) => {
+          AuthSessionService.saveCachedWorker(worker);
+          AuthSessionService.setSharedDeviceMode(isSharedDevice);
+          AuthSessionService.broadcastLogin(worker.id);
+          await loadDataForWorker(worker.id, worker);
         }}
       />
     );
@@ -800,12 +972,33 @@ export const App: React.FC = () => {
           <AlertCircle className="w-10 h-10 text-rose-400 mx-auto mb-4" />
           <h2 className="text-white font-bold text-base mb-2">Koneksi Gagal</h2>
           <p className="text-zinc-400 text-sm mb-6">{error ?? 'Terjadi kesalahan.'}</p>
-          <button
-            onClick={() => currentWorker && loadDataForWorker(currentWorker.id)}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-6 py-2.5 rounded-xl text-sm transition"
-          >
-            Coba Lagi
-          </button>
+          <div className="flex items-center justify-center gap-3">
+            <button
+              onClick={() => {
+                const retryId = currentWorker?.id || localStorage.getItem('komar_active_worker_id');
+                if (retryId) {
+                  setError(null);
+                  loadDataForWorker(retryId);
+                } else {
+                  setError(null);
+                  setShowLoginModal(true);
+                }
+              }}
+              className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition shadow-lg shadow-emerald-900/30"
+            >
+              Coba Lagi
+            </button>
+            <button
+              onClick={() => {
+                setError(null);
+                setCurrentWorker(null);
+                setShowLoginModal(true);
+              }}
+              className="bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-bold px-5 py-2.5 rounded-xl text-sm transition"
+            >
+              Kembali ke Login
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -919,10 +1112,10 @@ export const App: React.FC = () => {
                           type="button"
                           onClick={() => setShowWorkerSioModal(true)}
                           className="px-2.5 py-1 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 rounded-lg text-[10px] font-bold text-amber-300 flex items-center gap-1.5 transition shadow-sm animate-pulse hover:scale-[1.02] active:scale-[0.98]"
-                          title="Unggah Lisensi SIO Mandiri via AI Scan & raih reward +100 PTS"
+                          title={`Unggah Lisensi SIO Mandiri via AI Scan & raih reward +${SystemConfigService.getConfig().sioRegisteredRewardPoints || 100} PTS`}
                         >
                           <Truck className="w-3.5 h-3.5 text-amber-400" />
-                          <span>{workerLicense ? 'Perbarui SIO' : 'Unggah SIO (+100 PTS)'}</span>
+                          <span>{workerLicense ? 'Perbarui SIO' : `Unggah SIO (+${SystemConfigService.getConfig().sioRegisteredRewardPoints || 100} PTS)`}</span>
                         </button>
                       )}
                     </div>
@@ -1114,6 +1307,8 @@ export const App: React.FC = () => {
             {/* Reward Marketplace */}
             <RewardMarketplace
               userPoints={currentWorker.totalPoints}
+              userOperationalPoints={currentWorker.operationalPoints}
+              userPrestigePoints={currentWorker.prestigePoints}
               userTier={currentWorker.tier}
               catalog={rewardCatalog}
               onRedeemReward={handleRedeemReward}

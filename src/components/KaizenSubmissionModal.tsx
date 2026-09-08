@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useIdempotentSubmit } from '../hooks/useIdempotentSubmit';
 import { createPortal } from 'react-dom';
 import {
@@ -89,6 +89,35 @@ export function KaizenSubmissionModal({
   });
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  // Aksesibilitas keyboard Escape, auto-focus ref, dan background scroll lock
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+      const timer = setTimeout(() => {
+        titleInputRef.current?.focus();
+      }, 50);
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onClose();
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+        clearTimeout(timer);
+        document.body.style.overflow = 'unset';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -132,7 +161,23 @@ export function KaizenSubmissionModal({
         photoBeforeUrl: uploadedPhotoUrl || undefined,
       };
 
-      const res = await KaizenService.submitSuggestion(currentWorkerId, input, idemp);
+      let res;
+      try {
+        res = await KaizenService.submitSuggestion(currentWorkerId, input, idemp);
+      } catch (networkErr: any) {
+        // Jika offline atau koneksi gagal, simpan ke antrean offline
+        const { OfflineQueueManager } = await import('../lib/offlineQueueManager');
+        OfflineQueueManager.enqueueItem({
+          type: 'kaizen_submission',
+          title: `Kaizen: ${title.trim()}`,
+          subtitle: category,
+          workerId: currentWorkerId,
+          workerName: currentWorkerName,
+          idempotencyKey: idemp,
+          payload: { authorId: currentWorkerId, input },
+        });
+        res = { success: true };
+      }
 
       if (res.success) {
         setSuccess(true);
@@ -216,6 +261,7 @@ export function KaizenSubmissionModal({
                 Judul Inovasi / Topik Perbaikan <span className="text-rose-500">*</span>
               </label>
               <input
+                ref={titleInputRef}
                 type="text"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}

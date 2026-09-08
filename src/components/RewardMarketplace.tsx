@@ -38,6 +38,8 @@ import {
 
 interface RewardMarketplaceProps {
   userPoints: number;
+  userOperationalPoints?: number;
+  userPrestigePoints?: number;
   userTier?: TierType;
   catalog: RewardItem[];
   onRedeemReward: (item: RewardItem, code: string) => Promise<any> | void;
@@ -53,6 +55,8 @@ interface RewardMarketplaceProps {
 
 export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
   userPoints,
+  userOperationalPoints,
+  userPrestigePoints,
   userTier = 'Novice Operational',
   catalog,
   onRedeemReward,
@@ -450,11 +454,18 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
             </button>
           </div>
 
-          <div className="bg-zinc-800 border border-zinc-700 px-3 py-1 rounded-xl flex items-center gap-2">
-            <Coins className="w-4 h-4 text-amber-400" />
+          <div className="bg-zinc-850/90 border border-zinc-750 px-3.5 py-1.5 rounded-xl flex items-center gap-2.5">
+            <Coins className="w-4 h-4 text-amber-400 shrink-0" />
             <div>
-              <span className="text-[10px] text-zinc-400 block leading-tight">Saldo Poin</span>
-              <span className="font-black text-xs text-amber-300">{userPoints.toLocaleString()} PTS</span>
+              <div className="flex items-center gap-1.5 leading-tight">
+                <span className="text-[10px] text-zinc-400">Total:</span>
+                <span className="font-black text-xs text-amber-300 font-mono">{userPoints.toLocaleString()} PTS</span>
+              </div>
+              <div className="flex items-center gap-2 text-[10px] text-zinc-400 mt-0.5 font-mono">
+                <span className="text-amber-400">Harian: {(userOperationalPoints ?? 0).toLocaleString()}</span>
+                <span>·</span>
+                <span className="text-purple-300">Prestasi: {((userPrestigePoints !== undefined && userPrestigePoints > 0) ? userPrestigePoints : Math.max(0, (userPoints || 0) - (userOperationalPoints || 0))).toLocaleString()}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -502,6 +513,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
 
               const claimsThisMonth = (redemptionHistory || []).filter((h: RewardHistory) => {
                 if (h.itemTitle.toLowerCase() !== item.title.toLowerCase()) return false;
+                if (h.status === 'cancelled') return false; // Abaikan voucher yang dibatalkan oleh Admin
                 const d = new Date(h.redeemedAt);
                 const now = new Date();
                 return !isNaN(d.getTime()) && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
@@ -714,8 +726,9 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
           ) : (
             <>
               {paginatedHistory.map((history) => {
-                const isPending = (history.status || 'pending') === 'pending';
+                const isCancelled = history.status === 'cancelled';
                 const isCompleted = history.status === 'completed';
+                const isPending = !isCancelled && !isCompleted;
 
                 return (
                   <div
@@ -727,12 +740,18 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                         <span className="font-bold text-xs text-white">{history.itemTitle}</span>
                         <span
                           className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
-                            isCompleted
+                            isCancelled
+                              ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                              : isCompleted
                               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                               : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
                           }`}
                         >
-                          {isCompleted ? '✓ Diserahkan' : '⏳ Menunggu Penyerahan'}
+                          {isCancelled
+                            ? '↩️ Dibatalkan (Poin Kembali)'
+                            : isCompleted
+                            ? '✓ Diserahkan'
+                            : '⏳ Menunggu Penyerahan'}
                         </span>
                       </div>
                       <div className="text-[10px] text-zinc-400 flex items-center gap-3 flex-wrap">
@@ -816,7 +835,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
               </div>
             ) : (
               <div className="space-y-2">
-                {redemptionHistory.slice(0, 10).map((h) => (
+                {redemptionHistory.filter((h) => h.status !== 'cancelled').slice(0, 10).map((h) => (
                   <div key={h.id} className="bg-zinc-950/80 border border-zinc-800 p-3 rounded-xl flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-center font-bold text-emerald-400 text-xs">
@@ -868,6 +887,92 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                     <span className="text-zinc-400">Biaya Poin:</span>
                     <span className="font-black text-amber-400">-{selectedReward.pointsRequired} PTS</span>
                   </div>
+
+                  {/* Smart Auto-Deduct Breakdown */}
+                  {(() => {
+                    const req = Number(selectedReward.pointsRequired || 0);
+                    const op = Number(userOperationalPoints || 0);
+                    const pr = Number(
+                      (userPrestigePoints !== undefined && userPrestigePoints > 0)
+                        ? userPrestigePoints
+                        : Math.max(0, (userPoints || 0) - op)
+                    );
+                    const deductOp = Math.min(op, req);
+                    const deductPr = Math.min(pr, Math.max(0, req - deductOp));
+                    return (
+                      <div className="p-3 rounded-xl bg-zinc-950/90 border border-zinc-800/80 text-[11px] space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+                            Alokasi Smart Auto-Deduct
+                          </span>
+                          <span className="text-[9px] text-emerald-400/90 font-medium bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
+                            Prioritas: Poin Harian (FIFO)
+                          </span>
+                        </div>
+
+                        <div className="space-y-1.5 pt-0.5">
+                          {/* Poin Harian */}
+                          <div className="flex items-center justify-between text-amber-300">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-medium">• Poin Harian</span>
+                              <span className="text-[10px] text-zinc-400 font-mono">
+                                (Saldo: {op.toLocaleString()} PTS)
+                              </span>
+                            </div>
+                            <span className="font-mono font-bold text-amber-400 shrink-0">
+                              -{deductOp.toLocaleString()} PTS
+                            </span>
+                          </div>
+
+                          {/* Poin Prestasi */}
+                          <div className="flex items-center justify-between text-purple-300">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="font-medium">• Poin Prestasi</span>
+                              <span className="text-[10px] text-zinc-400 font-mono">
+                                (Saldo: {pr.toLocaleString()} PTS)
+                              </span>
+                            </div>
+                            <span className="font-mono font-bold text-purple-400 shrink-0">
+                              -{deductPr.toLocaleString()} PTS
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Status Mikro Keterangan Alokasi */}
+                        <div className="pt-2 border-t border-zinc-800/60 text-[10.5px] text-zinc-400 leading-snug">
+                          {deductOp >= op && op > 0 && deductPr > 0 ? (
+                            <span className="text-amber-300/90 flex items-start gap-1">
+                              <span className="shrink-0">⚡</span>
+                              <span>
+                                Seluruh saldo Poin Harian ({op} PTS) dihabiskan dulu agar tidak hangus akhir bulan. Kekurangan ({deductPr} PTS) ditutup dari Poin Prestasi.
+                              </span>
+                            </span>
+                          ) : deductOp >= req ? (
+                            <span className="text-emerald-300/90 flex items-start gap-1">
+                              <span className="shrink-0">✨</span>
+                              <span>
+                                Poin Harian mencukupi seluruh biaya ({req} PTS). Poin Prestasi (Tabungan Aman) Anda tetap utuh!
+                              </span>
+                            </span>
+                          ) : op === 0 ? (
+                            <span className="text-zinc-400 flex items-start gap-1">
+                              <span className="shrink-0">ℹ️</span>
+                              <span>
+                                Saldo Poin Harian 0 PTS. Biaya penukaran diambil penuh dari Poin Prestasi (Tabungan Aman).
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="text-zinc-400 flex items-start gap-1">
+                              <span className="shrink-0">ℹ️</span>
+                              <span>
+                                Poin Harian dipotong lebih dulu secara otomatis untuk melindungi Poin Prestasi Anda.
+                              </span>
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   {selectedReward.minTier && (
                     (() => {

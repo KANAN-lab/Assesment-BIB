@@ -208,7 +208,7 @@ export class LicenseService {
 
     // Dispatch Notification & Points to Worker
     if (data.workerId) {
-      const regReward = SystemConfigService.getConfig().sioRegisteredRewardPoints ?? 50;
+      const regReward = SystemConfigService.getConfig().sioRegisteredRewardPoints ?? 100;
 
       // Award points asynchronously with fallback, audit log, and realtime event
       (async () => {
@@ -221,14 +221,17 @@ export class LicenseService {
           if (rpcErr) {
             const { data: w } = await supabase
               .from('workers')
-              .select('id, total_points')
+              .select('id, total_points, prestige_points')
               .or(`id.eq.${data.workerId},employee_id.eq.${data.workerId}`)
               .maybeSingle();
             if (w) {
+              const curTotal = Number(w.total_points || 0);
+              const curPr = Number(w.prestige_points || curTotal);
               await supabase
                 .from('workers')
                 .update({
-                  total_points: (w.total_points || 0) + regReward,
+                  total_points: curTotal + regReward,
+                  prestige_points: curPr + regReward,
                   updated_at: new Date().toISOString(),
                 })
                 .eq('id', w.id);
@@ -332,7 +335,7 @@ export class LicenseService {
 
     // Dispatch Renewal Notification & Points to Worker & Supervisor
     if (updatedLicense.workerId) {
-      const renewReward = SystemConfigService.getConfig().sioRenewedRewardPoints ?? 25;
+      const renewReward = SystemConfigService.getConfig().sioRenewedRewardPoints ?? 150;
 
       // Award renewal points asynchronously with fallback, audit log, and realtime event
       (async () => {
@@ -345,14 +348,17 @@ export class LicenseService {
           if (rpcErr) {
             const { data: w } = await supabase
               .from('workers')
-              .select('id, total_points')
+              .select('id, total_points, prestige_points')
               .or(`id.eq.${updatedLicense.workerId},employee_id.eq.${updatedLicense.workerId}`)
               .maybeSingle();
             if (w) {
+              const curTotal = Number(w.total_points || 0);
+              const curPr = Number(w.prestige_points || curTotal);
               await supabase
                 .from('workers')
                 .update({
-                  total_points: (w.total_points || 0) + renewReward,
+                  total_points: curTotal + renewReward,
+                  prestige_points: curPr + renewReward,
                   updated_at: new Date().toISOString(),
                 })
                 .eq('id', w.id);

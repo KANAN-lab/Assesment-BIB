@@ -1,6 +1,7 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
-  ChevronLeft, ChevronRight, ArrowUpDown, ArrowUp, ArrowDown,
+  ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
+  ArrowUpDown, ArrowUp, ArrowDown,
   Search, Download, SlidersHorizontal, Table as TableIcon
 } from 'lucide-react';
 
@@ -95,6 +96,14 @@ export function CustomDataTable<T extends Record<string, any>>({
 
   // 3. Pagination
   const totalPages = Math.ceil(sortedData.length / pageSize) || 1;
+
+  // Auto-clamp currentPage jika filter atau data menyusut
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(Math.max(1, totalPages));
+    }
+  }, [currentPage, totalPages]);
+
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * pageSize;
     return sortedData.slice(start, start + pageSize);
@@ -322,45 +331,84 @@ export function CustomDataTable<T extends Record<string, any>>({
 
         {/* Page Buttons */}
         <div className="flex items-center gap-1.5">
+          {/* First Page Button */}
+          {totalPages > 5 && (
+            <button
+              onClick={() => setCurrentPage(1)}
+              disabled={currentPage === 1}
+              className="w-7 h-7 flex items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition"
+              title="Halaman Pertama"
+            >
+              <ChevronsLeft className="w-3.5 h-3.5" />
+            </button>
+          )}
+
+          {/* Previous Page Button */}
           <button
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage === 1}
             className="w-7 h-7 flex items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition"
+            title="Halaman Sebelumnya"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
 
-          {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-            let pageNum = i + 1;
-            if (totalPages > 5) {
-              if (currentPage > 3) pageNum = currentPage - 2 + i;
-              if (pageNum > totalPages) pageNum = totalPages - (4 - i);
+          {/* Strictly Unique Windowed Page Numbers */}
+          {(() => {
+            const pageCount = Math.min(5, totalPages);
+            let startPage = Math.max(1, currentPage - Math.floor(pageCount / 2));
+            let endPage = startPage + pageCount - 1;
+
+            if (endPage > totalPages) {
+              endPage = totalPages;
+              startPage = Math.max(1, endPage - pageCount + 1);
             }
 
-            const isActive = currentPage === pageNum;
+            const pageNumbers: number[] = [];
+            for (let p = startPage; p <= endPage; p++) {
+              pageNumbers.push(p);
+            }
 
-            return (
-              <button
-                key={pageNum}
-                onClick={() => setCurrentPage(pageNum)}
-                className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold transition ${
-                  isActive
-                    ? 'bg-emerald-600 text-white border border-emerald-500 shadow-md'
-                    : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800'
-                }`}
-              >
-                {pageNum}
-              </button>
-            );
-          })}
+            return pageNumbers.map((pageNum) => {
+              const isActive = currentPage === pageNum;
 
+              return (
+                <button
+                  key={`page-${pageNum}`}
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`w-7 h-7 flex items-center justify-center rounded-lg text-xs font-bold transition ${
+                    isActive
+                      ? 'bg-emerald-600 text-white border border-emerald-500 shadow-md shadow-emerald-950/40'
+                      : 'bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white hover:bg-zinc-800'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            });
+          })()}
+
+          {/* Next Page Button */}
           <button
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages || totalPages === 0}
             className="w-7 h-7 flex items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition"
+            title="Halaman Berikutnya"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
+
+          {/* Last Page Button */}
+          {totalPages > 5 && (
+            <button
+              onClick={() => setCurrentPage(totalPages)}
+              disabled={currentPage === totalPages || totalPages === 0}
+              className="w-7 h-7 flex items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900 text-zinc-400 hover:text-white hover:bg-zinc-800 disabled:opacity-30 disabled:cursor-not-allowed transition"
+              title="Halaman Terakhir"
+            >
+              <ChevronsRight className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 

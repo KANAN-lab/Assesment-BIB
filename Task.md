@@ -931,6 +931,299 @@
   - [x] Type check `npx tsc --noEmit` (0 error).
   - [x] Production build `npm run build` (sukses).
 
+---
+
+## Phase 47: Dynamic Tier Standardization & Reward Real-Time Accounting (Batch 4)
+
+- [x] **1. Dynamic Tier Standardization (`src/lib/atomicService.ts`)**:
+  - [x] Standardisasi kalkulasi level tier penukaran reward menggunakan `SystemConfigService.getTierLevel(worker.total_points, config)`.
+  - [x] Menjamin konsistensi ambang batas tier reward (Bronze, Silver, Gold, Platinum) dengan kustomisasi dinamis administrator.
+- [x] **2. Broadcast Audit Trail Logging (`src/domain/NotificationEngine.ts` & `src/components/AdminNotificationPanel.tsx`)**:
+  - [x] Pencatatan otomatis ke `activity_log` (`action: 'notification_broadcast'`) setiap kali Administrator mengirim siaran notifikasi.
+- [x] **3. Reward Fulfillment Audit & Notification (`src/lib/supabaseService.ts`)**:
+  - [x] Otomasi pencatatan audit log `badge_awarded` saat admin/GA menyerahkan fisik reward sembako/voucher.
+  - [x] Pengiriman notifikasi real-time ke akun pekerja penerima reward.
+- [x] **4. Dynamic Points Pending Incident (`src/components/IncidentReportModal.tsx`)**:
+  - [x] Tampilan poin estimasi pelaporan insiden dinamis: 75 PTS untuk Near-Miss dan 50 PTS untuk Hazard valid.
+- [x] **5. Kaizen Reaktif & Notifikasi Supervisor (`src/lib/kaizenService.ts`)**:
+  - [x] Pemancaran event `gappy_points_awarded` real-time saat proposal Kaizen disetujui.
+  - [x] Notifikasi instan ke supervisor saat usulan baru masuk dan notifikasi ke author saat status usulan diperbarui.
+- [x] **6. Pre-Shift Checklist Streak Bonus & Aksesibilitas (`src/components/ChecklistDetailModal.tsx`)**:
+  - [x] Perhitungan perolehan poin checklist dinamis dengan streak multiplier.
+  - [x] Penambahan listener tombol `Escape`, auto-focus ref, dan background scroll lock.
+- [x] **7. Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` (0 error).
+  - [x] Platform checker `python checker.py` (Passed 60/60).
+  - [x] Production build `npm run build` (sukses).
+
+---
+
+## Phase 48: Universal Cloud Persistence, Shift Handover Lifecycle & SQL Audit Integrity (Batch 5)
+
+- [x] **1. Disciplinary Actions Cloud Sync (`src/lib/disciplinaryService.ts` & `src/components/DisciplinaryPanel.tsx`)**:
+  - [x] Tambahkan metode `fetchActionsFromSupabase(): Promise<DisciplinaryActionEntity[]>` dengan pemetaan entitas domain.
+  - [x] Integrasikan ke `DisciplinaryPanel.tsx` saat inisialisasi agar data sanksi sinkron lintas perangkat dan sesi.
+- [x] **2. PPE Distribution & Damage Cloud Persistence (`src/lib/ppeService.ts` & `src/components/PpeManagementPanel.tsx`)**:
+  - [x] Background insert ke tabel `ppe_distributions` pada `PpeService.distributePpe`.
+  - [x] Background insert ke `ppe_damage_reports` dan pembaruan status `damaged_lost` pada `PpeService.submitDamageReport`.
+  - [x] Background update status review (`replaced`, `verified`, `rejected`) pada `PpeService.processDamageReport`.
+  - [x] Implementasi `fetchDistributionsFromSupabase()` dan `fetchDamageReportsFromSupabase()` dengan fallback & merge cache lokal di `PpeManagementPanel.tsx`.
+- [x] **3. Shift Handover Lifecycle & Notification (`src/lib/handoverService.ts`)**:
+  - [x] Pencatatan otomatis ke `activity_log` (`action: 'shift_handover'`) saat log handover diajukan dan saat serah terima di-acknowledge.
+  - [x] Notifikasi real-time via `NotificationEngine` ke supervisor penerima (`nextSupervisorId`) atau supervisor operasional.
+  - [x] Notifikasi konfirmasi otomatis ke pembuat serah terima (`author_id`) saat log di-acknowledge oleh shift berikutnya.
+- [x] **4. SOP Audit Log Stored Procedure Correction (`supabase_setup.sql:1086`)**:
+  - [x] Koreksi aksi audit log di `rpc_complete_sop_module` dari `checklist_completed` menjadi `sop_completed`.
+- [x] **5. Safety Patrol Audit Action Standardization (`src/domain/SafetyPatrolService.ts:230`)**:
+  - [x] Standarisasi aksi audit log penyelesaian temuan hazard K3 dari `points_refunded` menjadi `audit_5s_completed`.
+- [x] **6. SQL Universal Constraint Synchronization (`supabase_setup.sql:1736`)**:
+  - [x] Sinkronisasi CHECK constraint `activity_log_action_check` di Section 27 agar mencakup seluruh 27 aksi valid yang identik dengan Section 33.
+- [x] **7. Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` (0 error).
+  - [x] Platform checker `python checker.py` (Passed 60/60).
+  - [x] Production build `npm run build` (sukses).
+
+---
+
+## Phase 49: Kudo Real-Time Notification, Offline Queue Integrity & Modal Accessibility (Batch 6)
+
+- [x] **1. Notifikasi Real-Time Penerimaan Kudo ke Rekan Kerja (`src/lib/kudoService.ts`)**:
+  - [x] Tambahkan pemanggilan `NotificationEngine.addNotification` ke `receiverId` saat kudo berhasil dikirim via RPC Supabase.
+  - [x] Tambahkan pemanggilan `NotificationEngine.addNotification` ke `receiverId` saat kudo berhasil dikirim via fallback client-side.
+- [x] **2. Eksekusi Sinkronisasi Aktual Antrean Offline Kaizen (`src/lib/offlineQueueManager.ts`)**:
+  - [x] Tambahkan penanganan khusus `item.type === 'kaizen_submission'` pada `retrySingleItem` menggunakan `KaizenService.submitSuggestion`.
+- [x] **3. Aksesibilitas Keyboard, Scroll Lock & Focus Trap Modal Usulan Kaizen (`src/components/KaizenSubmissionModal.tsx`)**:
+  - [x] Tambahkan penguncian scroll latar `document.body.style.overflow = 'hidden'` saat modal terbuka dan reset saat ditutup.
+  - [x] Tambahkan event listener keyboard tombol `Escape` untuk menutup dialog.
+  - [x] Tambahkan auto-focus ref pada field input judul usulan Kaizen.
+- [x] **4. Aksesibilitas Keyboard Escape pada Modal Validasi Insiden & CAPA (`src/components/SupervisorIncidentValidationModal.tsx`)**:
+  - [x] Tambahkan event listener keyboard tombol `Escape` di dalam `useEffect` untuk menutup modal.
+- [x] **5. Aksesibilitas Keyboard Escape pada Modal Unggah SIO Mandiri (`src/components/WorkerSioUploadModal.tsx`)**:
+  - [x] Tambahkan event listener keyboard tombol `Escape` di dalam `useEffect` lifecycle modal.
+- [x] **6. Aksesibilitas Keyboard Escape pada Kartu ID Digital Pekerja (`src/components/WorkerDigitalIdModal.tsx`)**:
+  - [x] Tambahkan event listener keyboard tombol `Escape` di dalam `useEffect` lifecycle modal.
+- [x] **7. Verifikasi QA Menyeluruh & Deployment**:
+  - [x] Static type check: `npx tsc --noEmit` (0 error).
+  - [x] Platform suite check: `python checker.py` (Passed 60/60).
+  - [x] Production build: `npm run build` (sukses).
+
+---
+
+## Phase 50: Departmental Specialist Routing, Universal Offline Full Sync & Modal Standard (Batch 7)
+
+- [x] **1. Eliminasi Notification Blackout Peran Spesialis Departemen (`src/domain/NotificationEngine.ts`)**:
+  - [x] Tambahkan penanganan `role === 'hse' || role === 'ga' || role === 'hr'` di `getNotificationsForUser` agar menerima notifikasi personal (`userId` / `employeeId`) dan siaran departemen.
+  - [x] Normalisasi peran spesialis ke level supervisory pada `isNotificationVisibleForRole` untuk menjaga konsistensi visibilitas kategori.
+- [x] **2. Implementasi Sinkronisasi Aktual Antrean Offline 7 Modul (`src/lib/offlineQueueManager.ts`)**:
+  - [x] Implementasikan handler sinkronisasi aktual Supabase untuk `incident_report` via `createIncidentReport`.
+  - [x] Implementasikan handler sinkronisasi aktual Supabase untuk `kudo` via `KudoService.sendKudo`.
+  - [x] Implementasikan handler sinkronisasi aktual Supabase untuk `daily_quiz` via `completeWorkerQuiz`.
+  - [x] Implementasikan handler sinkronisasi aktual Supabase untuk `pre_shift_checklist` via `completeWorkerChecklist`.
+- [x] **3. Standardisasi Scroll Lock & Keyboard Escape Seluruh Modal**:
+  - [x] `SafetyPatrolModal.tsx`: Penguncian scroll latar & listener `Escape`.
+  - [x] `WorkerKaizenHistoryModal.tsx`: Penguncian scroll latar & listener `Escape`.
+  - [x] `WorkerHistoryCenterModal.tsx`: Penguncian scroll latar & listener `Escape`.
+  - [x] `SopLibraryModal.tsx`: Penguncian scroll latar & listener `Escape`.
+  - [x] `SopSlideshowModal.tsx`: Penguncian scroll latar saat pembacaan modul SOP aktif.
+  - [x] `QrBadgeScannerModal.tsx`: Penguncian scroll latar & listener `Escape`.
+  - [x] `ProfilePictureModal.tsx`: Penguncian scroll latar & listener `Escape`.
+  - [x] `OnboardingModal.tsx`: Penguncian scroll latar & listener `Escape`.
+  - [x] `PreShiftChecklistModal.tsx`: Listener keyboard tombol `Escape`.
+- [x] **4. Sinkronisasi Dokumentasi PRD**:
+  - [x] Tambahkan Section 35 pada `PRD.md` mencakup spesifikasi Batch 6 dan Batch 7.
+- [x] **5. Verifikasi & Build**:
+  - [x] Type check `npx tsc --noEmit` (0 error).
+  - [x] Platform checker `python checker.py` (Passed 60/60).
+  - [x] Production build `npm run build` (sukses).
+
+---
+
+## Phase 51: Comprehensive Defect Remediation & System Hardening (Batch 8)
+
+- [x] **1. Offline Queue Idempotency & Conflict Guard (`src/lib/offlineQueueManager.ts`)**:
+  - [x] Penanganan respons duplikat Postgres (kode `23505` / pesan `sudah pernah dikirim`) pada sinkronisasi `incident_report`. Item antrean offline kini ditandai `success = true` alih-alih melempar error dan tertahan permanen.
+- [x] **2. Type System & Specialist Role Expansion (`src/domain/NotificationEngine.ts`)**:
+  - [x] Perluas tipe `AppNotification['recipientRole']` dan parameter `broadcast` agar mendukung peran spesialis: `'hse'`, `'ga'`, `'hr'` di samping `'worker'`, `'supervisor'`, `'admin'`, `'all'`.
+  - [x] Sinkronisasi `NotificationCategoryConfig.visibleToRoles` agar konsisten dengan peran spesialis.
+- [x] **3. Universal Database Constraint Alignment (`supabase_setup.sql`)**:
+  - [x] Perbarui CHECK constraint `app_notifications_recipient_role_check` di Section 28 agar mencakup `'hse', 'ga', 'hr'`.
+  - [x] Tambahkan skrip migrasi `ALTER TABLE app_notifications DROP CONSTRAINT IF EXISTS ... ADD CONSTRAINT ...` agar kompatibel dengan database eksisting.
+- [x] **4. Standardisasi Aksesibilitas, Focus Trap & Scroll Lock Seluruh Modal**:
+  - [x] `OfflineQueueDrawer.tsx`: Penguncian scroll body latar saat laci antrean offline terbuka & reset saat ditutup.
+  - [x] `DailyQuestModal.tsx`: Penguncian scroll latar & penanganan tombol `Escape` untuk memicu konfirmasi keluar kuis.
+  - [x] `IncidentReportModal.tsx`: Penguncian scroll latar & penanganan tombol `Escape`.
+  - [x] `CompetencyGapAnalysisModal.tsx`: Penguncian scroll latar saat modal analisis dibuka & penanganan tombol `Escape`.
+  - [x] `FirstTimePasswordModal.tsx`: Penguncian scroll latar pada modal wajib ganti password pertama kali.
+  - [x] `LoginModal.tsx`: Penguncian scroll latar pada layar autentikasi untuk mencegah scrolling tak diinginkan pada perangkat mobile.
+  - [x] `AdminStaffPanel.tsx`: Penguncian scroll latar & penanganan tombol `Escape` untuk modal mutasi personel, impor TSV, dan registrasi pegawai baru.
+  - [x] `AdminRewardCatalogPanel.tsx`: Penguncian scroll latar & penanganan tombol `Escape` untuk modal tambah/edit item reward dan modal tanda tangan digital serah-terima fisik.
+- [x] **5. Verifikasi & Pengujian Kualitas**:
+  - [x] Static type check: `npx tsc --noEmit` (0 error).
+  - [x] Suite checker: `python checker.py` (Passed 60/60 checks).
+  - [x] Production bundle: `npm run build` (sukses, built in 21.46s, 77 precached PWA items).
+
+---
+
+## Phase 52: Enterprise Session Resilience, Real-Time Revocation & Cross-Tab Auth Sync
+
+- [x] **1. Dedicated Auth Session Service (`src/lib/authSessionService.ts`)**:
+  - [x] Implementasi caching profil offline terstruktur (`saveCachedWorker`, `getCachedWorker`, `clearCachedWorker`).
+  - [x] Sinkronisasi cross-tab via `BroadcastChannel('komar_auth_channel')` & fallback storage event (`broadcastAuthLogin`, `broadcastAuthLogout`).
+  - [x] Pengelolaan preferensi mode komputer bersama / kiosk (`isSharedDevice`).
+- [x] **2. Login Enhancement & Direct Worker Passing (`src/components/LoginModal.tsx`)**:
+  - [x] Oper objek `worker` lengkap dari hasil `signInWithNikOrEmail` langsung ke `onLoginSuccess(worker, isSharedDevice)` (eliminasi latensi query ganda & error resolusi email).
+  - [x] Tambahkan opsi toggle/checkbox *"Komputer Bersama / Mode Kiosk Gudang (Auto-logout 30 Menit)"*.
+- [x] **3. Offline Boot & Real-Time Revocation Guard (`src/App.tsx`)**:
+  - [x] Offline session resilience: jika perangkat offline saat boot, lakukan fallback restore profil pekerja dari `getCachedWorker()` tanpa memutus sesi.
+  - [x] Real-time revocation guard: logout seketika saat status akun berubah menjadi `inactive`, `rejected`, atau `pending_approval` di database.
+  - [x] Cross-tab listener: eksekusi logout simultan di seluruh tab browser saat salah satu tab logout.
+  - [x] Dynamic idle timeout: 30 menit untuk mode kiosk bersama vs 8 jam untuk mode perangkat pribadi.
+- [x] **4. Verifikasi & Build**:
+  - [x] Static type check `npx tsc --noEmit` (0 error).
+  - [x] Platform suite check `python checker.py` (Passed 60/60).
+  - [x] Production build `npm run build` (sukses).
+
+---
+
+## Phase 53: CustomDataTable Pagination Sliding Window & Key Collision Fix
+
+- [x] **1. Identifikasi Akar Masalah Pagination Duplikat**:
+  - Formula lama `if (pageNum > totalPages) pageNum = totalPages - (4 - i);` menghasilkan nomor halaman berulang/mundur (misal: `[5, 6, 7, 6, 7]` saat total halaman 7 dan halaman aktif 7).
+  - Duplikasi nomor halaman memicu tabrakan React `key={pageNum}`, menyebabkan node DOM tombol tidak di-unmount dan menumpuk di browser pada setiap siklus re-render.
+- [x] **2. Implementasi Sliding Window Bersih (`src/components/CustomDataTable.tsx`)**:
+  - Mengganti formula dengan algoritma sliding window 5-halaman terpusat: `Math.max(1, currentPage - Math.floor(pageCount / 2))` dan `Math.min(totalPages, ...)`.
+  - Mengubah key rendering tombol menjadi prefix unik: `key={'page-' + pageNum}`.
+  - Menambahkan tombol navigasi cepat Halaman Pertama (`ChevronsLeft`) dan Halaman Terakhir (`ChevronsRight`) jika `totalPages > 5`.
+  - Menambahkan auto-clamp `useEffect` agar `currentPage` otomatis turun jika data terfilter menyusut di bawah halaman saat ini.
+- [x] **3. Verifikasi & Validasi Lapangan**:
+  - Static type check: `npx tsc --noEmit` (0 error).
+  - Platform suite check: `python checker.py` (60/60 passed).
+  - Production build: `npm run build` (sukses, built in 25.28s, 77 precached assets).
+  - Runtime verification via Browser Subagent di `http://localhost:3000`:
+    - Halaman 1 menampilkan: `1, 2, 3, 4, 5` (tanpa duplikat).
+    - Halaman 4 menampilkan: `2, 3, 4, 5, 6` (tanpa duplikat).
+---
+
+## Phase 54: Enterprise Staff Offboarding & Resignation Management Protocol
+
+- [x] **1. Data Model & Schema Enhancement**:
+  - [x] Perluas status tipe pekerja di `src/types/assessment.ts` untuk mendukung `'resigned'` serta atribut metadata offboarding (`resignedAt?: string`, `resignationReason?: string`, `settlementStatus?: 'pending' | 'settled'`).
+  - [x] Perbarui mapping `rowToWorkerProfile` dan `WorkerRow` di `src/lib/supabaseService.ts`.
+  - [x] Buat skrip migrasi SQL `sql/migration_resignation_protocol.sql` untuk memastikan constraint kolom status tabel `workers` mendukung nilai `'resigned'`.
+- [x] **2. Security & Session Revocation Gate**:
+  - [x] Pasang guard penolakan login di `signInWithNikOrEmail` (`src/lib/supabaseService.ts`) dengan pesan khusus edukatif bagi pegawai yang telah resign.
+  - [x] Pastikan real-time polling 8 detik dan listener realtime di `src/App.tsx` langsung memutus sesi aktif (`handleLogout`) seketika saat pekerja di-offboard.
+- [x] **3. Fair-Play Active Leaderboard Hygiene**:
+  - [x] Filter kueri `fetchLeaderboard` di `src/lib/supabaseService.ts` agar hanya memuat pegawai dengan `status === 'active'`.
+  - [x] Cegah distorsi papan peringkat agar staf yang telah resign tidak menghalangi kompetisi sehat staf aktif.
+- [x] **4. Reward Points Freezing & Pending Redemption Settlement**:
+  - [x] Buat helper penyelesaian klaim gantung di `src/lib/supabaseService.ts` / `src/lib/atomicService.ts`: batalkan klaim reward pending yang belum diserahterimakan fisik dan pulihkan stok barang secara atomic.
+  - [x] Bekukan saldo poin pekerja yang resign agar tidak bisa ditransaksikan kembali di marketplace.
+- [x] **5. Soft-Delete & ISO 45001 / K3 Historical Preservation**:
+  - [x] Terapkan prinsip larangan keras *Hard Delete* (`DELETE FROM workers`). Seluruh riwayat skor BIB, audit checklist harian, dan investigasi insiden masa lalu tetap dipertahankan utuh untuk audit legal K3 PT DAM.
+  - [x] Jika pekerja adalah Operator Alat Berat, catat pelepasan lisensi SIO/MHE dari unit operasional aktif gudang.
+- [x] **6. UI Admin Staff Offboarding Modal (`src/components/admin/AdminStaffPanel.tsx`)**:
+  - [x] Tambahkan tombol aksi *"Offboard / Resign"* pada kolom Aksi tabel personel operasional.
+  - [x] Bangun Modal Konfirmasi Offboarding interaktif dengan ringkasan status pekerja, input alasan resign, dan konfirmasi checklist keamanan.
+  - [x] Tambahkan selector filter status di header tabel (*Semua Status*, *Hanya Aktif*, *Resigned / Nonaktif*) dan badge visual khusus pada baris pekerja yang telah resign.
+- [x] **7. Verifikasi & Quality Gate**:
+  - [x] Static type check `npx tsc --noEmit` (0 error).
+  - [x] Platform suite check `python checker.py` (60/60 passed).
+  - [x] Production build `npm run build` (sukses, built in 21.52s, 77 precached assets).
+  - [x] Runtime visual verification via Browser Subagent (`offboard_modal_open_1788885942356.png` & `resign_filter_active_1788886046763.png` - PASS).
+
+---
+
+## Phase 55: Dual-Wallet Points Architecture & Automated Monthly Reset Lifecycle Protocol (Smart Auto-Deduct)
+
+- [x] **1. Data Model & Schema Enhancement**:
+  - [x] Tambahkan kolom `operational_points` dan `prestige_points` pada interface `WorkerProfile` (`src/types/assessment.ts`).
+  - [x] Tambahkan kolom `deducted_operational` dan `deducted_prestige` pada interface `RedemptionHistory`.
+  - [x] Buat skrip migrasi SQL `sql/migration_dual_wallet_points.sql` dan sinkronkan dengan `supabase_setup.sql`.
+- [x] **2. Service Layer Points Routing & Central Credit Helper**:
+  - [x] Implementasikan helper `creditWorkerPoints` di `src/lib/supabaseService.ts` untuk mengelola mutasi saldo dompet harian vs prestasi secara terisolasi dengan sinkronisasi `total_points`.
+  - [x] Alokasikan perolehan poin dari Kuis Harian (+50) dan Checklist Pre-Shift (+30) ke `operational_points`.
+  - [x] Alokasikan perolehan poin Kudo (+10 / +25) ke `operational_points` via `src/lib/kudoService.ts`.
+  - [x] Alokasikan perolehan poin Kaizen (+50 s.d. +300), SIO MHE (+100/+150), 5S (+50 s.d. +200), dan Pelaporan K3 (+50/+75) ke `prestige_points`.
+- [x] **3. Atomic Smart Auto-Deduct & Fairness Refund Engine**:
+  - [x] Perbarui `redeemRewardAtomic` di `src/lib/atomicService.ts` dengan logika Smart Auto-Deduct: prioritaskan pemotongan `operational_points` terlebih dahulu, sisa diambil dari `prestige_points`.
+  - [x] Simpan proporsi pemotongan di tabel `redemption_history` (`deducted_operational`, `deducted_prestige`).
+  - [x] Terapkan aturan refund adil saat pembatalan voucher: pengembalian proporsional jika di bulan yang sama, dan konversi ke `prestige_points` jika direfund pasca periode reset.
+  - [x] Hardening `deductWorkerPoints` dan `refundWorkerPoints` di `src/lib/supabaseService.ts` dengan Smart Auto-Deduct pada sanksi K3 & banding.
+- [x] **4. Automated Monthly Reset Lifecycle & Audit Protection**:
+  - [x] Implementasikan `processMonthlyOperationalPointsReset` di `src/lib/supabaseService.ts`: reset `operational_points = 0`, jaga `prestige_points` dan tier kompetensi pekerja tetap utuh.
+  - [x] Catat audit log transaksi `points_expired` dengan rincian poin operasional yang dievaluasi.
+  - [x] Pasang fallback otomatis saat login pekerja di awal bulan baru untuk menjamin konsistensi periode.
+- [x] **5. User Interface Transparency (Dual-Wallet Breakdown)**:
+  - [x] Perbarui `DailyProgressCard.tsx` untuk menampilkan rincian saldo dual-wallet dan early warning H-14/H-7/H-3 spesifik untuk poin harian.
+  - [x] Perbarui modal konfirmasi penukaran di `RewardMarketplace.tsx` dengan rincian transparan alokasi pemotongan poin operasional vs prestasi.
+  - [x] Tambahkan tombol eksekusi siklus reset bulanan di `AdminRewardCatalogPanel.tsx` dengan dialog konfirmasi OOP SweetAlert2.
+  - [x] Perkaya `AdminStaffPanel.tsx` dan `exportWorkersCSV` dengan rincian Poin Harian vs Poin Prestasi.
+- [x] **6. Quality Gate & Runtime Verification**:
+  - [x] Static type check `npx tsc --noEmit` (0 error).
+  - [x] Platform suite check `python checker.py` (59/59 passed).
+  - [x] Runtime browser verification via Browser Subagent (`swal_monthly_reset_confirm_1788891136966.png` & penukaran reward BIB-1E9E78E6 - PASS).
+- [x] **7. Bundler Tree Cleanup & Unified Offline Sync Hardening**:
+  - [x] Konversi seluruh dynamic imports di `src/lib/offlineQueueManager.ts` menjadi static imports terstruktur.
+  - [x] Sinkronisasi otomatis saat online di `src/App.tsx` dialihkan ke `OfflineQueueManager.forceSyncAll()` mencakup seluruh 7 modul transaksi offline.
+  - [x] Eliminasi seluruh warning Vite bundler (Zero Warnings, build selesai 20.21s, 75 precached PWA assets).
+- [x] **8. Deep Defensive Storage & Date Parsing Hardening**:
+  - [x] Implementasikan helper `safeLocalStorageGetItem<T>` di `src/lib/storageSanitizer.ts` untuk memproteksi pembacaan storage dari risiko crash akibat JSON korup.
+  - [x] Terapkan `safeLocalStorageGetItem` pada modul SOP di `src/components/SopManagementPanel.tsx`.
+  - [x] Pasang guard anti-`NaN` pada parsing tanggal di `src/components/ActivityLogPanel.tsx` (`formatTimeAgo`), `src/components/ScoreHistoryChart.tsx` (`formatDate`), dan `src/components/WorkerHistoryCenterModal.tsx`.
+- [x] **9. Cancelled Reward Redemption Quota & Limit Restoration**:
+  - [x] Filter keluar transaksi reward berstatus `cancelled` pada kalkulasi `claimsThisMonth` di `src/components/RewardMarketplace.tsx`, sehingga batas klaim bulanan pekerja ter-reset saat klaim dibatalkan Admin.
+  - [x] Sinkronkan validasi batas klaim di `src/lib/atomicService.ts` (`.neq('status', 'cancelled')`) serta Stored Procedure `rpc_redeem_reward_fcfs` di `supabase_setup.sql` dan `sql/migration_dual_wallet_points.sql`.
+  - [x] Tampilkan status lencana voucher yang dibatalkan secara akurat (`↩️ Dibatalkan (Poin Kembali)`) pada tab Riwayat dan Modal Riwayat Pekerja (`WorkerHistoryCenterModal.tsx`).
+  - [x] Broadcast & listen event `gappy_redemption_cancelled` di `src/lib/supabaseService.ts` dan `src/App.tsx` untuk pembaruan realtime status klaim tanpa perlu reload manual.
+- [x] **10. Comprehensive Point Scheme Hardcode Audit & Dynamic Configuration Unification**:
+  - [x] Audit dan eliminasi seluruh nilai nominal poin hardcoded di seluruh codebase (UI components, services, domain engines, dan PDF generator).
+  - [x] Hubungkan seluruh perolehan dan potongan poin ke `SystemConfigService` (`dailyQuizRewardPoints`, `preShiftRewardPoints`, `sopCompletionDefaultPoints`, `incidentValidRewardPoints`, `nearMissRewardPoints`, `kudoSentPoints`, `kudoReceivedPoints`, `audit5sGoldRewardPoints`, `audit5sSilverRewardPoints`, `sioRegisteredRewardPoints`, `sioRenewedRewardPoints`, `safetyPatrolResolvedPoints`).
+  - [x] Perbaiki parsing Buku Kas Poin di `WorkerHistoryCenterModal.tsx` agar membaca nominal riil dari teks audit log tanpa fallback tebakan, serta parsing otomatis saldo poin bulanan yang hangus (`expired`).
+  - [x] Tambahkan token `(+pts PTS)` pada pesan pemulihan banding dan pembatalan sanksi di `DisciplinaryService.ts` dan `SafetyPatrolService.ts`.
+  - [x] Verifikasi type safety `npx tsc --noEmit` (0 error), suite test `python checker.py` (59/59 passed), dan production bundle `npm run build` (0 warning).
+- [x] **11. History Center Modal Width & Tab Ergonomics, Chronological Ledger Ordering, & Staff Redemption Audit Foreign Key Resolution**:
+  - [x] **Tab Menu Ergonomics**: Perlebar modal Pusat Riwayat & Arsip Saya (`WorkerHistoryCenterModal.tsx`) dari `max-w-3xl` menjadi `max-w-5xl xl:max-w-6xl w-full` dengan tab button `whitespace-nowrap shrink-0`, padding proporsional, dan badge jumlah entri aktif, menyelesaikan masalah tab sempit/mengecil dan terpotong.
+  - [x] **Chronological Ledger Ordering**: Normalisasi parsing timestamp tanggal mutasi via `parseSafeDate` untuk menyelaraskan format string server UTC `YYYY-MM-DD HH:mm` dan ISO `TIMESTAMPTZ`. Sorting Buku Kas kini murni kronologis presisi dari waktu terbaru (transaksi reward berdampingan dengan pembatalannya/refund).
+  - [x] **Staff Redemption Audit Lookup**: Perbaiki query join PostgREST di `fetchAllRedemptionHistory` (`src/lib/supabaseService.ts`) dengan penamaan relasi foreign key eksplisit (`worker:workers!redemption_history_worker_id_fkey` dan `fulfiller:workers!redemption_history_fulfilled_by_fkey`), mengatasi error PGRST201 dan mengembalikan nama pekerja asli (`ABDUL KAHFI`), NIK, serta Divisi (`WFG`) secara akurat di tabel Audit Penukaran Staf.
+  - [x] Verifikasi quality gates: `python checker.py` (59/59 passed), `npx tsc --noEmit` (0 error), dan `npm run build` (0 warning).
+
+---
+
+## Phase 12: Activity Log Anti-Bloat & Session Hygiene Architecture
+
+- [x] **1. Session Cooldown & Deduping (Skema 1)**:
+  - [x] Pasang session deduplication guard di `src/App.tsx` menggunakan `sessionStorage` / cooldown window (30 menit) agar refresh browser (F5) tidak meng-insert baris `login` baru secara berulang.
+  - [x] Reset session key saat user melakukan logout manual.
+- [x] **2. Direct Worker Last Active Timestamp (Skema 2)**:
+  - [x] Pastikan pencatatan aktivitas login memperbarui kolom `last_activity_date` di profil `workers`, membebaskan ketergantungan histori pada event login berkala.
+- [x] **3. Database Retention & Pruning Function (Skema 3)**:
+  - [x] Tambahkan stored procedure `clean_ephemeral_activity_logs(p_days int DEFAULT 7)` di `supabase_setup.sql` yang secara aman menghapus log `login`/`logout` kadaluwarsa tanpa menyentuh log operasional bernilai tinggi (`points_refunded`, `quiz_completed`, dll.).
+- [x] **4. One-Time Database Pruning Execution (Skema 4)**:
+  - [x] Eksekusi skrip pembersihan terhadap ratusan baris spam `login`/`logout` yang menumpuk di tabel `activity_log` (597 baris spam login/logout berhasil dibersihkan, 15 baris log operasional bernilai tinggi 100% aman).
+- [x] **5. Verification & Quality Gates**:
+  - [x] Jalankan `python checker.py` (59/59 passed) dan `npx tsc --noEmit` (0 error).
+  - [x] Verifikasi di database bahwa `activity_log` terpangkas dari 631 baris menjadi 34 baris bersih, dan Buku Kas Poin tetap menampilkan riwayat pemasukan/refund lengkap.
+
+---
+
+## Phase 13: Dual-Wallet Smart Auto-Deduct Transparency & Allocation Clarification
+
+- [x] **1. Analisis Kausalitas Auto-Deduct**:
+  - [x] Konfirmasi logika pemotongan di `src/components/RewardMarketplace.tsx` dan `supabase_setup.sql` (`rpc_redeem_reward_fcfs`): Poin Harian (Hangus Akhir Bulan) telah diprioritaskan habis terlebih dahulu (FIFO/Expiry-First).
+  - [x] Identifikasi bahwa pemotongan -230 PTS Prestasi terjadi karena saldo Poin Harian pekerja saat itu memang hanya tersisa 30 PTS (habis total), bukan karena sistem menitikberatkan ke Poin Prestasi.
+- [x] **2. Modal Breakdown UX Transparency Enhancement**:
+  - [x] Tambahkan indikator saldo `(Saldo: X PTS)` untuk Poin Harian dan Poin Prestasi di modal Konfirmasi Penukaran Reward.
+  - [x] Tambahkan badge prioritas `Prioritas: Poin Harian (FIFO)`.
+  - [x] Tambahkan micro-keterangan dinamis transparan (menjelaskan apakah Poin Harian dihabiskan dulu, mencukupi seluruhnya, atau jika saldo 0).
+- [x] **3. Verification & Quality Gates**:
+  - [x] Validasi typecheck `npx tsc --noEmit` bebas error.
+  - [x] Jalankan `python checker.py` (59/59 checks passed).
+  - [x] Verifikasi visual di browser (screenshot `reward_deduct_modal_1788907939269.png`).
+
+
+
+
 
 
 

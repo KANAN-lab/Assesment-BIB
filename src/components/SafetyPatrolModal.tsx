@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import { useIdempotentSubmit } from '../hooks/useIdempotentSubmit';
 import { createPortal } from 'react-dom';
@@ -49,6 +49,22 @@ export const SafetyPatrolModal: React.FC<SafetyPatrolModalProps> = ({
     getPayload: () => ({ selectedZoneId, findingType, severity, description: description.trim(), assignedPicId }),
   });
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Body scroll lock & Escape key listener
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   const selectedZone = WAREHOUSE_PATROL_ZONES.find((z) => z.id === selectedZoneId);
 

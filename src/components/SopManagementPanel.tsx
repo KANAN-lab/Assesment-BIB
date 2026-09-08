@@ -49,7 +49,7 @@ import { fetchAllSopModules } from '../lib/sopService';
 import { supabase } from '../lib/supabaseClient';
 import { SopSlideshowModal } from './SopSlideshowModal';
 import { uploadFileToGoogleDrive, formatGoogleDriveImageUrl, compressImageIfAppropriate } from '../lib/googleDriveService';
-import { safeLocalStorageSetItem, sanitizeDataForStorage } from '../lib/storageSanitizer';
+import { safeLocalStorageSetItem, safeLocalStorageGetItem, sanitizeDataForStorage } from '../lib/storageSanitizer';
 import { SwalService } from '../domain/SwalService';
 
 interface SopManagementPanelProps {
@@ -868,7 +868,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
           console.warn('Supabase update fallback to local custom cache:', error);
         }
 
-        const localCustom = JSON.parse(localStorage.getItem('bib_sop_custom_modules_v2') || '[]');
+        const localCustom = safeLocalStorageGetItem<any[]>('bib_sop_custom_modules_v2', []);
         const existingIdx = localCustom.findIndex((m: any) => m.id === editingModuleId);
         const updatedModuleObj: any = {
           id: editingModuleId,
@@ -926,7 +926,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
           console.warn('Supabase insert fallback to local custom cache:', error);
         }
 
-        const localCustom = JSON.parse(localStorage.getItem('bib_sop_custom_modules_v2') || '[]');
+        const localCustom = safeLocalStorageGetItem<any[]>('bib_sop_custom_modules_v2', []);
         const newModuleObj: any = {
           ...newModuleRecord,
           presentationFormat: formFormat,
@@ -970,7 +970,7 @@ export const SopManagementPanel: React.FC<SopManagementPanelProps> = ({
 
     try {
       await supabase.from('sop_modules').delete().eq('id', item.id);
-      const localCustom = JSON.parse(localStorage.getItem('bib_sop_custom_modules_v2') || '[]');
+      const localCustom = safeLocalStorageGetItem<any[]>('bib_sop_custom_modules_v2', []);
       const filtered = localCustom.filter((m: any) => m.id !== item.id);
       safeLocalStorageSetItem('bib_sop_custom_modules_v2', filtered);
 

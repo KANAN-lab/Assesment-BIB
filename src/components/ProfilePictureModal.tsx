@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, CheckCircle, Camera, Image, Sparkles, Upload, Loader2, AlertCircle } from 'lucide-react';
 import { uploadWorkerAvatarFile } from '../lib/supabaseService';
@@ -34,6 +34,21 @@ export const ProfilePictureModal: React.FC<ProfilePictureModalProps> = ({
   const [activeTab, setActiveTab] = useState<'preset' | 'upload' | 'custom'>('preset');
   const [uploading, setUploading] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

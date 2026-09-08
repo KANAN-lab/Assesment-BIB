@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS workers (
   avatar                   TEXT DEFAULT '',
   streak_days              INTEGER NOT NULL DEFAULT 0,
   total_points             INTEGER NOT NULL DEFAULT 0,
+  operational_points       INTEGER NOT NULL DEFAULT 0,
+  prestige_points          INTEGER NOT NULL DEFAULT 0,
   tier                     TEXT NOT NULL DEFAULT 'Novice Operational'
                              CHECK (tier IN ('Novice Operational', 'Pro Specialist', 'Elite Logistician', 'Legendary Champion')),
   bib_behavior             NUMERIC(5,2) NOT NULL DEFAULT 0,
@@ -43,7 +45,10 @@ CREATE TABLE IF NOT EXISTS workers (
   last_activity_date       DATE,
   must_change_password     BOOLEAN NOT NULL DEFAULT true,
   password                 TEXT DEFAULT '123',
-  status                   TEXT DEFAULT 'active' CHECK (status IN ('active', 'pending', 'pending_approval', 'rejected', 'inactive')),
+  status                   TEXT DEFAULT 'active' CHECK (status IN ('active', 'pending', 'pending_approval', 'rejected', 'inactive', 'resigned')),
+  resigned_at              TIMESTAMPTZ DEFAULT NULL,
+  resignation_reason       TEXT DEFAULT NULL,
+  settlement_status        TEXT DEFAULT 'settled',
   created_at               TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at               TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -52,8 +57,13 @@ CREATE TABLE IF NOT EXISTS workers (
 ALTER TABLE workers ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
 ALTER TABLE workers ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;
 ALTER TABLE workers ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS operational_points INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS prestige_points INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE workers DROP CONSTRAINT IF EXISTS workers_status_check;
-ALTER TABLE workers ADD CONSTRAINT workers_status_check CHECK (status IN ('active', 'pending', 'pending_approval', 'rejected', 'inactive'));
+ALTER TABLE workers ADD CONSTRAINT workers_status_check CHECK (status IN ('active', 'pending', 'pending_approval', 'rejected', 'inactive', 'resigned'));
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS resigned_at TIMESTAMPTZ DEFAULT NULL;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS resignation_reason TEXT DEFAULT NULL;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS settlement_status TEXT DEFAULT 'settled';
 ALTER TABLE workers ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT true;
 ALTER TABLE workers ADD COLUMN IF NOT EXISTS password TEXT DEFAULT '123';
 ALTER TABLE workers ADD COLUMN IF NOT EXISTS last_activity_date DATE;
@@ -86,22 +96,28 @@ ALTER TABLE reward_catalog DROP CONSTRAINT IF EXISTS reward_catalog_min_tier_che
 CREATE TABLE IF NOT EXISTS redemption_history (
   id               TEXT PRIMARY KEY,
   worker_id        TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
-  item_title       TEXT NOT NULL,
-  points_spent     INTEGER NOT NULL,
-  redeemed_at      TEXT NOT NULL,
-  redemption_code  TEXT NOT NULL,
-  status           TEXT NOT NULL DEFAULT 'pending'
-                     CHECK (status IN ('pending', 'completed', 'cancelled')),
-  expiry_date      TIMESTAMPTZ DEFAULT (now() + INTERVAL '30 days'),
-  fulfilled_at     TIMESTAMPTZ,
-  fulfilled_by     TEXT REFERENCES workers(id) ON DELETE SET NULL,
-  created_at       TIMESTAMPTZ NOT NULL DEFAULT now()
+  item_title            TEXT NOT NULL,
+  points_spent          INTEGER NOT NULL,
+  deducted_operational  INTEGER NOT NULL DEFAULT 0,
+  deducted_prestige     INTEGER NOT NULL DEFAULT 0,
+  redeemed_at           TEXT NOT NULL,
+  redemption_code       TEXT NOT NULL,
+  status                TEXT NOT NULL DEFAULT 'pending'
+                          CHECK (status IN ('pending', 'completed', 'cancelled')),
+  expiry_date           TIMESTAMPTZ DEFAULT (now() + INTERVAL '30 days'),
+  fulfilled_at          TIMESTAMPTZ,
+  fulfilled_by          TEXT REFERENCES workers(id) ON DELETE SET NULL,
+  created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 ALTER TABLE redemption_history ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'pending';
+ALTER TABLE redemption_history DROP CONSTRAINT IF EXISTS redemption_history_status_check;
+ALTER TABLE redemption_history ADD CONSTRAINT redemption_history_status_check CHECK (status IN ('pending', 'completed', 'cancelled'));
 ALTER TABLE redemption_history ADD COLUMN IF NOT EXISTS expiry_date TIMESTAMPTZ DEFAULT (now() + INTERVAL '30 days');
 ALTER TABLE redemption_history ADD COLUMN IF NOT EXISTS fulfilled_at TIMESTAMPTZ;
 ALTER TABLE redemption_history ADD COLUMN IF NOT EXISTS fulfilled_by TEXT REFERENCES workers(id) ON DELETE SET NULL;
+ALTER TABLE redemption_history ADD COLUMN IF NOT EXISTS deducted_operational INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE redemption_history ADD COLUMN IF NOT EXISTS deducted_prestige INTEGER NOT NULL DEFAULT 0;
 
 -- Table: worker_competency_scores
 CREATE TABLE IF NOT EXISTS worker_competency_scores (
@@ -156,6 +172,8 @@ CREATE INDEX IF NOT EXISTS idx_workers_employee_id ON workers(employee_id);
 CREATE INDEX IF NOT EXISTS idx_workers_division_role ON workers(division, role);
 CREATE INDEX IF NOT EXISTS idx_workers_total_points ON workers(total_points DESC);
 CREATE INDEX IF NOT EXISTS idx_workers_bib_total ON workers(bib_total_score DESC);
+CREATE INDEX IF NOT EXISTS idx_workers_status_division ON workers(status, division);
+CREATE INDEX IF NOT EXISTS idx_workers_resigned_at ON workers(resigned_at) WHERE status = 'resigned';
 
 CREATE INDEX IF NOT EXISTS idx_redemption_history_worker_id ON redemption_history(worker_id);
 CREATE INDEX IF NOT EXISTS idx_redemption_history_created_at ON redemption_history(created_at DESC);
@@ -170,6 +188,7 @@ RETURNS void LANGUAGE plpgsql AS $$
 BEGIN
   UPDATE workers
   SET total_points = total_points + p_points,
+      prestige_points = COALESCE(prestige_points, 0) + p_points,
       updated_at = now()
   WHERE id = p_worker_id OR employee_id = p_worker_id;
 END;
@@ -181,6 +200,7 @@ BEGIN
   UPDATE workers SET
     streak_days = streak_days + 1,
     total_points = total_points + p_points,
+    operational_points = COALESCE(operational_points, 0) + p_points,
     updated_at = now()
   WHERE id = p_worker_id OR employee_id = p_worker_id;
 END;
@@ -188,11 +208,28 @@ $$;
 
 CREATE OR REPLACE FUNCTION deduct_worker_points(p_worker_id TEXT, p_points INTEGER)
 RETURNS void LANGUAGE plpgsql AS $$
+DECLARE
+  v_op INTEGER;
+  v_pr INTEGER;
+  v_deduct_op INTEGER;
+  v_deduct_pr INTEGER;
 BEGIN
-  UPDATE workers SET
-    total_points = GREATEST(0, total_points - p_points),
-    updated_at = now()
-  WHERE id = p_worker_id OR employee_id = p_worker_id;
+  SELECT COALESCE(operational_points, 0), COALESCE(prestige_points, 0)
+  INTO v_op, v_pr
+  FROM workers
+  WHERE id = p_worker_id OR employee_id = p_worker_id FOR UPDATE;
+
+  IF FOUND THEN
+    v_deduct_op := LEAST(v_op, p_points);
+    v_deduct_pr := LEAST(v_pr, p_points - v_deduct_op);
+
+    UPDATE workers SET
+      operational_points = GREATEST(0, v_op - v_deduct_op),
+      prestige_points = GREATEST(0, v_pr - v_deduct_pr),
+      total_points = GREATEST(0, (v_op - v_deduct_op) + (v_pr - v_deduct_pr)),
+      updated_at = now()
+    WHERE id = p_worker_id OR employee_id = p_worker_id;
+  END IF;
 END;
 $$;
 
@@ -227,6 +264,10 @@ LANGUAGE plpgsql
 AS $$
 DECLARE
   v_worker_points INTEGER;
+  v_worker_op INTEGER := 0;
+  v_worker_pr INTEGER := 0;
+  v_deduct_op INTEGER := 0;
+  v_deduct_pr INTEGER := 0;
   v_worker_tier TEXT;
   v_reward_title TEXT;
   v_reward_points INTEGER;
@@ -240,7 +281,8 @@ DECLARE
   v_redemption_id TEXT;
 BEGIN
   -- 1. Lock & check worker points and tier
-  SELECT total_points, tier INTO v_worker_points, v_worker_tier
+  SELECT total_points, tier, COALESCE(operational_points, 0), COALESCE(prestige_points, 0)
+  INTO v_worker_points, v_worker_tier, v_worker_op, v_worker_pr
   FROM workers
   WHERE id = p_worker_id FOR UPDATE;
 
@@ -273,20 +315,26 @@ BEGIN
     RAISE EXCEPTION 'POIN_KURANG: Poin Anda (% PTS) tidak mencukupi untuk menukar % (% PTS).', v_worker_points, v_reward_title, v_reward_points;
   END IF;
 
-  -- 6. Check monthly claim limit per worker
+  -- 6. Check monthly claim limit per worker (abaikan voucher yang telah dibatalkan)
   SELECT COUNT(*) INTO v_claims_this_month
   FROM redemption_history
   WHERE worker_id = p_worker_id
     AND item_title = v_reward_title
+    AND (status IS NULL OR status != 'cancelled')
     AND DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE);
 
   IF v_claims_this_month >= v_max_claims THEN
     RAISE EXCEPTION 'BATAS_KLAIM: Anda telah mencapai batas maksimal klaim (%x per bulan) untuk item "%".', v_max_claims, v_reward_title;
   END IF;
 
-  -- 7. Perform Atomic Deductions & Record Transaction
+  -- 7. Perform Smart Auto-Deduct (FIFO Expiry-Priority) & Record Transaction
+  v_deduct_op := LEAST(v_worker_op, v_reward_points);
+  v_deduct_pr := LEAST(v_worker_pr, v_reward_points - v_deduct_op);
+
   UPDATE workers
-  SET total_points = total_points - v_reward_points,
+  SET operational_points = GREATEST(0, v_worker_op - v_deduct_op),
+      prestige_points = GREATEST(0, v_worker_pr - v_deduct_pr),
+      total_points = total_points - v_reward_points,
       updated_at = now()
   WHERE id = p_worker_id;
 
@@ -295,18 +343,20 @@ BEGIN
   WHERE id = p_reward_id;
 
   v_voucher_code := 'BIB-' || UPPER(SUBSTRING(MD5(RANDOM()::TEXT), 1, 8));
-  v_now_str := TO_CHAR(now(), 'YYYY-MM-DD HH24:MI');
+  v_now_str := TO_CHAR(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"');
   v_expiry_date := now() + INTERVAL '30 days';
   v_redemption_id := 'red-' || gen_random_uuid()::text;
 
   INSERT INTO redemption_history (
-    id, worker_id, item_title, points_spent, redeemed_at, redemption_code, status, expiry_date
+    id, worker_id, item_title, points_spent, deducted_operational, deducted_prestige, redeemed_at, redemption_code, status, expiry_date
   )
   VALUES (
     v_redemption_id,
     p_worker_id,
     v_reward_title,
     v_reward_points,
+    v_deduct_op,
+    v_deduct_pr,
     v_now_str,
     v_voucher_code,
     'pending',
@@ -319,6 +369,8 @@ BEGIN
     'voucher_code', v_voucher_code,
     'redemption_code', v_voucher_code,
     'points_spent', v_reward_points,
+    'deducted_operational', v_deduct_op,
+    'deducted_prestige', v_deduct_pr,
     'remaining_points', v_worker_points - v_reward_points,
     'remaining_stock', v_available_stock - 1,
     'status', 'pending',
@@ -678,6 +730,7 @@ BEGIN
      IF v_target_worker_id IS NOT NULL AND v_target_worker_id <> '' THEN
        UPDATE workers
        SET total_points = total_points + v_reward_points,
+           prestige_points = COALESCE(prestige_points, 0) + v_reward_points,
            updated_at = now()
        WHERE id = v_target_worker_id OR employee_id = v_target_worker_id;
 
@@ -730,7 +783,13 @@ ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
   action IN (
     'login', 'logout', 'password_reset', 'profile_update', 'badge_awarded',
     'quiz_completed', 'checklist_completed', 'incident_reported',
-    'kudo_sent', 'kudo_received', 'shift_handover', 'sop_completed'
+    'kudo_sent', 'kudo_received', 'shift_handover', 'sop_completed',
+    'kaizen_submitted', 'kaizen_approved', 'disciplinary_issued',
+    'disciplinary_retraining_completed', 'audit_5s_completed',
+    'sio_registered', 'ppe_distributed', 'ppe_damaged',
+    'notification_broadcast', 'role_mutated',
+    'admin_created', 'admin_status_toggled', 'points_refunded', 'points_expired', 'redemption_rejected',
+    'worker_offboarded', 'worker_reactivated'
   )
 );
 
@@ -1078,6 +1137,7 @@ BEGIN
 
   UPDATE workers
   SET total_points = total_points + v_points,
+      prestige_points = COALESCE(prestige_points, 0) + v_points,
       bib_benchmark = LEAST(100.0, bib_benchmark + 2.5),
       bib_total_score = ROUND(((bib_behavior * 0.35) + (bib_integrity * 0.30) + (LEAST(100.0, bib_benchmark + 2.5) * 0.35))::numeric, 2),
       updated_at = now()
@@ -1166,14 +1226,19 @@ CREATE POLICY "Allow update for kaizen_suggestions" ON kaizen_suggestions FOR UP
 DROP POLICY IF EXISTS "Allow delete for kaizen_suggestions" ON kaizen_suggestions;
 CREATE POLICY "Allow delete for kaizen_suggestions" ON kaizen_suggestions FOR DELETE TO public USING (true);
 
--- Update activity_log check constraint to include kaizen actions
+-- Update activity_log check constraint to include universal actions
 ALTER TABLE activity_log DROP CONSTRAINT IF EXISTS activity_log_action_check;
 ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
   action IN (
     'login', 'logout', 'password_reset', 'profile_update', 'badge_awarded',
     'quiz_completed', 'checklist_completed', 'incident_reported',
     'kudo_sent', 'kudo_received', 'shift_handover', 'sop_completed',
-    'kaizen_submitted', 'kaizen_approved'
+    'kaizen_submitted', 'kaizen_approved', 'disciplinary_issued',
+    'disciplinary_retraining_completed', 'audit_5s_completed',
+    'sio_registered', 'ppe_distributed', 'ppe_damaged',
+    'notification_broadcast', 'role_mutated',
+    'admin_created', 'admin_status_toggled', 'points_refunded', 'points_expired', 'redemption_rejected',
+    'worker_offboarded', 'worker_reactivated'
   )
 );
 
@@ -1225,6 +1290,7 @@ BEGIN
   IF v_point_diff <> 0 THEN
     UPDATE workers
     SET total_points = GREATEST(total_points + v_point_diff, 0),
+        prestige_points = GREATEST(COALESCE(prestige_points, 0) + v_point_diff, 0),
         updated_at = now()
     WHERE id = v_author_id;
 
@@ -1663,6 +1729,7 @@ BEGIN
   IF p_points_reward > 0 AND v_pic_id IS NOT NULL THEN
     UPDATE workers
     SET total_points = total_points + p_points_reward,
+        prestige_points = COALESCE(prestige_points, 0) + p_points_reward,
         updated_at = now()
     WHERE id = v_pic_id;
 
@@ -1742,21 +1809,28 @@ ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
     'disciplinary_retraining_completed', 'audit_5s_completed',
     'sio_registered', 'ppe_distributed', 'ppe_damaged',
     'notification_broadcast', 'role_mutated',
-    'admin_created', 'admin_status_toggled', 'points_refunded', 'points_expired', 'redemption_rejected'
+    'admin_created', 'admin_status_toggled', 'points_refunded', 'points_expired', 'redemption_rejected',
+    'worker_offboarded', 'worker_reactivated'
   )
 );
 
 -- ─── 28. App Notifications Table (Pusat Siaran & Notifikasi Terpadu) ────────
 CREATE TABLE IF NOT EXISTS app_notifications (
   id             TEXT PRIMARY KEY,
-  recipient_id   TEXT NOT NULL DEFAULT 'all', -- 'all', 'worker', 'supervisor', 'admin', atau specific worker_id
-  recipient_role TEXT NOT NULL DEFAULT 'all' CHECK (recipient_role IN ('all', 'worker', 'supervisor', 'admin')),
+  recipient_id   TEXT NOT NULL DEFAULT 'all', -- 'all', 'worker', 'supervisor', 'admin', 'hse', 'ga', 'hr', atau specific worker_id
+  recipient_role TEXT NOT NULL DEFAULT 'all' CHECK (recipient_role IN ('all', 'worker', 'supervisor', 'admin', 'hse', 'ga', 'hr')),
   title          TEXT NOT NULL,
   message        TEXT NOT NULL,
   type           TEXT NOT NULL DEFAULT 'system' CHECK (type IN ('incident', 'quiz', 'reward', 'audit', 'system', 'license')),
   is_read        BOOLEAN NOT NULL DEFAULT false,
   metadata       JSONB DEFAULT '{}'::jsonb,
   created_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+-- Migration safe check update jika tabel app_notifications sudah dibuat sebelumnya
+ALTER TABLE app_notifications DROP CONSTRAINT IF EXISTS app_notifications_recipient_role_check;
+ALTER TABLE app_notifications ADD CONSTRAINT app_notifications_recipient_role_check CHECK (
+  recipient_role IN ('all', 'worker', 'supervisor', 'admin', 'hse', 'ga', 'hr')
 );
 
 CREATE INDEX IF NOT EXISTS idx_app_notif_recipient ON app_notifications(recipient_role, recipient_id, created_at DESC);
@@ -1910,7 +1984,8 @@ ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
     'disciplinary_retraining_completed', 'audit_5s_completed',
     'sio_registered', 'ppe_distributed', 'ppe_damaged',
     'notification_broadcast', 'role_mutated',
-    'admin_created', 'admin_status_toggled', 'points_refunded', 'points_expired', 'redemption_rejected'
+    'admin_created', 'admin_status_toggled', 'points_refunded', 'points_expired', 'redemption_rejected',
+    'worker_offboarded', 'worker_reactivated'
   )
 );
 
@@ -1959,7 +2034,8 @@ CREATE OR REPLACE FUNCTION rpc_send_kudo(
   p_receiver_id TEXT,
   p_category TEXT,
   p_message TEXT DEFAULT '',
-  p_points INTEGER DEFAULT 25
+  p_points INTEGER DEFAULT 25,
+  p_sender_bonus INTEGER DEFAULT 10
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -1971,7 +2047,7 @@ DECLARE
   v_sender_name TEXT;
   v_receiver_name TEXT;
   v_kudo_id TEXT;
-  v_sender_bonus INTEGER := 10;
+  v_sender_bonus INTEGER := COALESCE(p_sender_bonus, 10);
 BEGIN
   -- 1. Anti-Self: Tidak boleh mengirim kudo ke diri sendiri
   IF p_sender_id = p_receiver_id THEN
@@ -2025,15 +2101,17 @@ BEGIN
   VALUES (v_kudo_id, p_sender_id, p_receiver_id, p_category, p_message, p_points, now());
 
   -- 5. Atomic Update Points:
-  -- Receiver dapat +p_points
+  -- Receiver dapat +p_points (Poin Operasional)
   UPDATE workers
   SET total_points = total_points + p_points,
+      operational_points = COALESCE(operational_points, 0) + p_points,
       updated_at = now()
   WHERE id = p_receiver_id;
 
-  -- Sender dapat apresiasi pemberi inspirasi (+10 pts)
+  -- Sender dapat apresiasi pemberi inspirasi (+10 pts) (Poin Operasional)
   UPDATE workers
   SET total_points = total_points + v_sender_bonus,
+      operational_points = COALESCE(operational_points, 0) + v_sender_bonus,
       updated_at = now()
   WHERE id = p_sender_id;
 
@@ -2071,6 +2149,7 @@ DECLARE
 BEGIN
   UPDATE workers
   SET total_points = total_points + p_points,
+      prestige_points = COALESCE(prestige_points, 0) + p_points,
       updated_at = now()
   WHERE id = p_worker_id OR employee_id = p_worker_id
   RETURNING name, total_points INTO v_worker_name, v_new_points;
@@ -2094,4 +2173,172 @@ BEGIN
   );
 END;
 $$;
+
+-- ─── 36. Enterprise Staff Offboarding & Resignation Protocol (Phase 54) ───
+
+ALTER TABLE workers DROP CONSTRAINT IF EXISTS workers_status_check;
+ALTER TABLE workers ADD CONSTRAINT workers_status_check 
+  CHECK (status IN ('active', 'pending', 'pending_approval', 'rejected', 'inactive', 'resigned'));
+
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS resigned_at TIMESTAMPTZ DEFAULT NULL;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS resignation_reason TEXT DEFAULT NULL;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS settlement_status TEXT DEFAULT 'settled';
+
+CREATE INDEX IF NOT EXISTS idx_workers_status_division ON workers(status, division);
+CREATE INDEX IF NOT EXISTS idx_workers_resigned_at ON workers(resigned_at) WHERE status = 'resigned';
+
+-- ─── 37. Dual-Wallet Points Architecture & Monthly Reset Protocol (Phase 55) ───
+
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS operational_points INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE workers ADD COLUMN IF NOT EXISTS prestige_points    INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE redemption_history ADD COLUMN IF NOT EXISTS deducted_operational INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE redemption_history ADD COLUMN IF NOT EXISTS deducted_prestige    INTEGER NOT NULL DEFAULT 0;
+
+-- Initial migration for existing total_points
+UPDATE workers
+SET 
+  prestige_points = COALESCE(total_points, 0),
+  operational_points = 0
+WHERE (operational_points = 0 AND prestige_points = 0 AND COALESCE(total_points, 0) > 0);
+
+-- Monthly Points Expiration RPC Function
+CREATE OR REPLACE FUNCTION rpc_process_monthly_points_reset()
+RETURNS TABLE(affected_workers INTEGER, total_points_expired INTEGER) 
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_affected INTEGER := 0;
+  v_total_expired INTEGER := 0;
+BEGIN
+  SELECT COALESCE(SUM(operational_points), 0), COUNT(*)
+  INTO v_total_expired, v_affected
+  FROM workers
+  WHERE operational_points > 0;
+
+  INSERT INTO activity_log (worker_id, worker_name, action, details, created_at)
+  SELECT 
+    id, 
+    name, 
+    'points_expired', 
+    'Siklus Bulanan Berakhir: ' || operational_points || ' PTS Operasional hangus. Saldo Prestasi (' || prestige_points || ' PTS) tetap aman.',
+    NOW()
+  FROM workers
+  WHERE operational_points > 0;
+
+  UPDATE workers
+  SET 
+    operational_points = 0,
+    total_points = prestige_points,
+    updated_at = NOW()
+  WHERE operational_points > 0;
+
+  RETURN QUERY SELECT v_affected, v_total_expired;
+END;
+$$;
+
+-- RPC & Trigger Dual-Wallet Consistency Functions
+CREATE OR REPLACE FUNCTION increment_worker_points(p_worker_id TEXT, p_points INTEGER)
+RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE workers
+  SET total_points = total_points + p_points,
+      prestige_points = COALESCE(prestige_points, 0) + p_points,
+      updated_at = now()
+  WHERE id = p_worker_id OR employee_id = p_worker_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION increment_worker_streak_and_points(p_worker_id TEXT, p_points INTEGER)
+RETURNS void LANGUAGE plpgsql AS $$
+BEGIN
+  UPDATE workers SET
+    streak_days = streak_days + 1,
+    total_points = total_points + p_points,
+    operational_points = COALESCE(operational_points, 0) + p_points,
+    updated_at = now()
+  WHERE id = p_worker_id OR employee_id = p_worker_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION deduct_worker_points(p_worker_id TEXT, p_points INTEGER)
+RETURNS void LANGUAGE plpgsql AS $$
+DECLARE
+  v_op INTEGER;
+  v_pr INTEGER;
+  v_deduct_op INTEGER;
+  v_deduct_pr INTEGER;
+BEGIN
+  SELECT COALESCE(operational_points, 0), COALESCE(prestige_points, 0)
+  INTO v_op, v_pr
+  FROM workers
+  WHERE id = p_worker_id OR employee_id = p_worker_id FOR UPDATE;
+
+  IF FOUND THEN
+    v_deduct_op := LEAST(v_op, p_points);
+    v_deduct_pr := LEAST(v_pr, p_points - v_deduct_op);
+
+    UPDATE workers SET
+      operational_points = GREATEST(0, v_op - v_deduct_op),
+      prestige_points = GREATEST(0, v_pr - v_deduct_pr),
+      total_points = GREATEST(0, (v_op - v_deduct_op) + (v_pr - v_deduct_pr)),
+      updated_at = now()
+    WHERE id = p_worker_id OR employee_id = p_worker_id;
+  END IF;
+END;
+$$;
+
+-- ─── 38. Client Idempotency Keys & Anti-Double Submission (Phase 30) ──────────
+
+ALTER TABLE incident_reports ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_incident_reports_idempotency_key
+  ON incident_reports (idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+COMMENT ON COLUMN incident_reports.idempotency_key IS 'Client-generated key untuk mencegah double submit insiden.';
+
+ALTER TABLE kaizen_suggestions ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_kaizen_suggestions_idempotency_key
+  ON kaizen_suggestions (idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+COMMENT ON COLUMN kaizen_suggestions.idempotency_key IS 'Client-generated key untuk mencegah double submit Kaizen.';
+
+ALTER TABLE safety_patrol_logs ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_safety_patrol_logs_idempotency_key
+  ON safety_patrol_logs (idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+COMMENT ON COLUMN safety_patrol_logs.idempotency_key IS 'Client-generated key untuk mencegah duplikasi temuan Safety Patrol.';
+
+ALTER TABLE shift_handovers ADD COLUMN IF NOT EXISTS idempotency_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_shift_handovers_idempotency_key
+  ON shift_handovers (idempotency_key)
+  WHERE idempotency_key IS NOT NULL;
+COMMENT ON COLUMN shift_handovers.idempotency_key IS 'Client-generated key untuk mencegah duplikasi log serah terima shift.';
+
+-- ─── 39. Global Permissions & RPC Execution Privileges ────────────────────────
+
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
+
+-- ─── 40. Activity Log Maintenance & Ephemeral Pruning (Skema 3) ────────────────
+-- Menghapus log ephemeral login & logout yang lebih tua dari p_days_retention (default 7 hari).
+-- Log operasional bernilai tinggi (points_refunded, checklist, quiz, incident, sop, kudo) 
+-- TIDAK AKAN PERNAH DIHAPUS.
+CREATE OR REPLACE FUNCTION clean_ephemeral_activity_logs(p_days_retention INTEGER DEFAULT 7)
+RETURNS INTEGER AS $$
+DECLARE
+  v_deleted INTEGER;
+BEGIN
+  DELETE FROM activity_log
+  WHERE action IN ('login', 'logout')
+    AND created_at < (now() - (p_days_retention || ' days')::INTERVAL);
+  
+  GET DIAGNOSTICS v_deleted = ROW_COUNT;
+  RETURN v_deleted;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+GRANT EXECUTE ON FUNCTION clean_ephemeral_activity_logs(INTEGER) TO anon, authenticated, service_role;
+
+
+
 

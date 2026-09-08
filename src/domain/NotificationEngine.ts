@@ -4,8 +4,8 @@ export type NotificationType = 'incident' | 'quiz' | 'reward' | 'audit' | 'syste
 
 export interface AppNotification {
   id: string;
-  recipientId: string; // workerId or 'supervisor' or 'admin' or 'all'
-  recipientRole: 'worker' | 'supervisor' | 'admin' | 'all';
+  recipientId: string; // workerId or 'supervisor' or 'admin' or 'all' or specific role
+  recipientRole: 'worker' | 'supervisor' | 'admin' | 'all' | 'hse' | 'ga' | 'hr';
   title: string;
   message: string;
   type: NotificationType;
@@ -19,7 +19,7 @@ export interface NotificationCategoryConfig {
   label: string;
   description: string;
   enabled: boolean;
-  visibleToRoles: Array<'worker' | 'supervisor' | 'admin'>;
+  visibleToRoles: Array<'worker' | 'supervisor' | 'admin' | 'hse' | 'ga' | 'hr'>;
 }
 
 export interface NotificationRoutingPolicy {
@@ -295,7 +295,7 @@ export class NotificationEngine {
   public static broadcast(
     title: string,
     message: string,
-    recipientRole: 'all' | 'worker' | 'supervisor' | 'admin' = 'all',
+    recipientRole: 'all' | 'worker' | 'supervisor' | 'admin' | 'hse' | 'ga' | 'hr' = 'all',
     type: NotificationType = 'system',
     metadata?: Record<string, any>
   ): AppNotification {
@@ -389,7 +389,12 @@ export class NotificationEngine {
     // Jika user adalah admin dan adminMonitorAll aktif, selalu izinkan
     if (role === 'admin' && policy.adminMonitorAll) return true;
 
-    const normalizedRole = role === 'admin' || role === 'supervisor' || role === 'worker' ? role : 'worker';
+    const normalizedRole =
+      role === 'admin'
+        ? 'admin'
+        : role === 'supervisor' || role === 'hse' || role === 'ga' || role === 'hr'
+        ? 'supervisor'
+        : 'worker';
     return category.visibleToRoles.includes(normalizedRole);
   }
 
@@ -397,7 +402,7 @@ export class NotificationEngine {
    * Mengambil daftar notifikasi terisolasi secara akurat untuk user atau peran tertentu.
    * FIX: 
    * 1. Notifikasi personal pekerja HANYA tampil jika recipientId cocok dengan ID pekerja (tidak bocor ke pekerja lain).
-   * 2. Siaran massal hanya tampil jika recipientId eksplisit 'worker', 'supervisor', atau 'all'.
+   * 2. Siaran massal hanya tampil jika recipientId eksplisit 'worker', 'supervisor', 'hse', 'ga', 'hr', atau 'all'.
    * 3. Memfilter kategori notifikasi berdasarkan hak akses NotificationRoutingPolicy yang disetel Administrator.
    */
   public static getNotificationsForUser(userId?: string, role?: string, employeeId?: string): AppNotification[] {
@@ -435,7 +440,20 @@ export class NotificationEngine {
         return false;
       }
 
-      // 4. Jika user adalah Operational Employee (Worker)
+      // 4. Jika user adalah Spesialis Departemen (HSE, GA, HR)
+      if (role === 'hse' || role === 'ga' || role === 'hr') {
+        // Tampilkan broadcast khusus role departemen ini atau broadcast supervisor
+        if (n.recipientId === role || (n as any).recipientRole === role) return true;
+        if (n.recipientId === 'supervisor' || n.recipientRole === 'supervisor') return true;
+
+        // Tampilkan notifikasi personal yang ditujukan khusus ke akun ini
+        if (userId && n.recipientId === userId) return true;
+        if (employeeId && n.recipientId === employeeId) return true;
+
+        return false;
+      }
+
+      // 5. Jika user adalah Operational Employee (Worker)
       if (role === 'worker' || !role) {
         // Jangan tampilkan notifikasi khusus supervisor atau admin
         if (n.recipientRole === 'supervisor' || n.recipientRole === 'admin') return false;

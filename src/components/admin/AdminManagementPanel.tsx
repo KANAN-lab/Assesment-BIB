@@ -17,6 +17,7 @@ import {
   promoteWorkerToAdmin,
   CreateAdminPayload
 } from '../../lib/supabaseService';
+import { SwalService } from '../../domain/SwalService';
 
 interface AdminManagementPanelProps {
   workers: WorkerProfile[];
@@ -213,18 +214,28 @@ export const AdminManagementPanel: React.FC<AdminManagementPanelProps> = ({
   const handleToggleStatus = async (admin: WorkerProfile) => {
     const isCurrentlyActive = admin.status !== 'inactive';
     const nextStatus = isCurrentlyActive ? 'inactive' : 'active';
-    const actionLabel = isCurrentlyActive ? 'menonaktifkan' : 'mengaktifkan kembali';
+    const actionLabel = isCurrentlyActive ? 'Nonaktifkan' : 'Aktifkan Kembali';
 
-    if (!window.confirm(`Apakah Anda yakin ingin ${actionLabel} akun administrator "${admin.name}" (${admin.employeeId})?`)) {
-      return;
-    }
+    const isConfirmed = await SwalService.confirm({
+      title: `${actionLabel} Akun Administrator?`,
+      text: `Apakah Anda yakin ingin ${isCurrentlyActive ? 'menonaktifkan' : 'mengaktifkan kembali'} akses administrator "${admin.name}" (${admin.employeeId})?`,
+      confirmButtonText: `Ya, ${actionLabel}`,
+      cancelButtonText: 'Batal',
+      isDestructive: isCurrentlyActive,
+      icon: isCurrentlyActive ? 'warning' : 'question',
+    });
+
+    if (!isConfirmed) return;
 
     try {
       await toggleAdminStatus(admin.id, nextStatus, currentAdminId);
-      showToast(`Akun ${admin.name} berhasil ${nextStatus === 'active' ? 'diaktifkan kembali' : 'dinonaktifkan'}.`);
+      await SwalService.success(
+        'Status Berhasil Diperbarui',
+        `Akun ${admin.name} berhasil ${nextStatus === 'active' ? 'diaktifkan kembali' : 'dinonaktifkan'}.`
+      );
       onWorkersUpdated?.();
     } catch (err: any) {
-      showToast(err.message || 'Gagal mengubah status akun.');
+      await SwalService.error('Gagal Mengubah Status', err.message || 'Terjadi kesalahan sistem.');
     }
   };
 

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { SopModule, SopSlide } from '../types/sop';
 import { formatGoogleDriveImageUrl, getGoogleDriveImageFallbackUrls } from '../lib/googleDriveService';
+import { SystemConfigService } from '../domain/SystemConfigService';
 
 interface SopInteractiveImageCanvasProps {
   imageUrl?: string;
@@ -529,8 +530,9 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
     }
   }, [voiceoverMode, isSpeaking, stopSpeech, speakSlide, currentSlide, ttsSupported]);
 
-  // Keyboard navigation
+  // Keyboard navigation & body scroll lock
   useEffect(() => {
+    document.body.style.overflow = 'hidden';
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'ArrowRight' || e.key === 'Space') {
         if (speedrunTimer === 0 && !isLastSlide) {
@@ -544,7 +546,10 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
     };
 
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    return () => {
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, [speedrunTimer, isLastSlide, totalSlides, onClose]);
 
   // Handle Next / Previous
@@ -1253,7 +1258,7 @@ export const SopSlideshowModal: React.FC<SopSlideshowModalProps> = ({
                 className="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 disabled:pointer-events-none text-white font-bold rounded-xl text-xs transition shadow-lg shadow-emerald-900/40 flex items-center gap-1.5"
               >
                 <Award className="w-4 h-4" />
-                <span>{isCompleting ? 'Menyimpan...' : 'Selesaikan & Klaim +50 PTS'}</span>
+                <span>{isCompleting ? 'Menyimpan...' : `Selesaikan & Klaim +${SystemConfigService.getConfig().sopCompletionDefaultPoints || 50} PTS`}</span>
               </button>
             ) : (
               <button

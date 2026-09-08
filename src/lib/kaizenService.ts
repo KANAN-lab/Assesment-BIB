@@ -194,16 +194,20 @@ export class KaizenService {
         if (pointDiff !== 0 && suggestion?.author_id) {
           const { data: worker } = await supabase
             .from('workers')
-            .select('id, total_points')
+            .select('id, total_points, prestige_points')
             .eq('id', suggestion.author_id)
             .maybeSingle();
 
           if (worker) {
-            const newPoints = Math.max((worker.total_points || 0) + pointDiff, 0);
+            const currentTotal = Number(worker.total_points || 0);
+            const currentPr = Number(worker.prestige_points || currentTotal);
+            const newPoints = Math.max(currentTotal + pointDiff, 0);
+            const newPrestige = Math.max(currentPr + pointDiff, 0);
             await supabase
               .from('workers')
               .update({
                 total_points: newPoints,
+                prestige_points: newPrestige,
                 updated_at: new Date().toISOString(),
               })
               .eq('id', suggestion.author_id);

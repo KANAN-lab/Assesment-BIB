@@ -23,6 +23,7 @@ import { WorkerAvatar } from './WorkerAvatar';
 import { LicenseService } from '../lib/licenseService';
 import { MheLicenseEntity } from '../types/license';
 import { WorkerSioUploadModal } from './WorkerSioUploadModal';
+import { SystemConfigService } from '../domain/SystemConfigService';
 
 interface WorkerDigitalIdModalProps {
   isOpen: boolean;
@@ -56,17 +57,28 @@ export const WorkerDigitalIdModal: React.FC<WorkerDigitalIdModalProps> = ({
     };
   }, [worker, isOpen]);
 
-  // Lock scroll
+  // Lock scroll and listen for Escape key
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onClose();
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+        document.body.style.overflow = 'unset';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
     } else {
       document.body.style.overflow = 'unset';
     }
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
   const isMheRole = useMemo(() => {
     const r = worker.role.toLowerCase();
@@ -306,7 +318,7 @@ export const WorkerDigitalIdModal: React.FC<WorkerDigitalIdModalProps> = ({
                     className="w-full py-1.5 px-3 rounded-lg bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/40 text-indigo-300 font-bold text-[11px] flex items-center justify-center gap-1.5 transition shadow-sm"
                   >
                     <UploadCloud className="w-3.5 h-3.5 text-indigo-400" />
-                    <span>{license ? 'Perbarui Berkas SIO (AI Scan)' : 'Unggah SIO Mandiri (AI Scan) +100 PTS'}</span>
+                    <span>{license ? 'Perbarui Berkas SIO (AI Scan)' : `Unggah SIO Mandiri (AI Scan) +${SystemConfigService.getConfig().sioRegisteredRewardPoints || 100} PTS`}</span>
                   </button>
                 )}
               </div>

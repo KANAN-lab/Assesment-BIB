@@ -33,10 +33,18 @@ export const PreShiftChecklistModal: React.FC<PreShiftChecklistModalProps> = ({
 
   React.useEffect(() => {
     document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
     return () => {
       document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [onClose]);
 
   return createPortal(
     <div

@@ -189,6 +189,7 @@ export const GaConsole: React.FC<GaConsoleProps> = ({
         {activeTab === 'rewards-fulfillment' && (
           <AdminRewardCatalogPanel
             rewardCatalog={rewardCatalog}
+            workers={operationalWorkers}
             currentAdminId={currentGaId}
             onCreateReward={onCreateReward}
             onUpdateReward={onUpdateReward}

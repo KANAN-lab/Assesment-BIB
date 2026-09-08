@@ -79,10 +79,10 @@ export class ExecutivePDFReportGenerator {
     // Summary Metric Banner
     const totalWorkers = opWorkers.length;
     const avgBib = totalWorkers
-      ? (opWorkers.reduce((s, w) => s + w.bibScores.totalScore, 0) / totalWorkers).toFixed(1)
+      ? (opWorkers.reduce((s, w) => s + (w.bibScores?.totalScore ?? 0), 0) / totalWorkers).toFixed(1)
       : '0.0';
-    const totalStreak = opWorkers.reduce((s, w) => s + w.streakDays, 0);
-    const auditedCount = opWorkers.filter((w) => w.bibScores.totalScore > 0).length;
+    const totalStreak = opWorkers.reduce((s, w) => s + (w.streakDays ?? 0), 0);
+    const auditedCount = opWorkers.filter((w) => (w.bibScores?.totalScore ?? 0) > 0).length;
 
     doc.setFillColor(248, 250, 252);
     doc.setDrawColor(226, 232, 240);
@@ -108,7 +108,7 @@ export class ExecutivePDFReportGenerator {
     ];
 
     const tableBody = opWorkers.map((w, idx) => {
-      const bib = w.bibScores.totalScore;
+      const bib = w.bibScores?.totalScore ?? 0;
       const statusText = bib >= 80 ? 'Kompeten' : bib > 0 ? 'Pengawasan' : 'Perlu Audit';
       return [
         idx + 1,
@@ -117,10 +117,10 @@ export class ExecutivePDFReportGenerator {
         w.role,
         w.division,
         w.tier.replace(' Operational', '').replace(' Specialist', ''),
-        w.bibScores.behavior.toFixed(1),
-        w.bibScores.integrity.toFixed(1),
-        w.bibScores.benchmark.toFixed(1),
-        w.bibScores.totalScore.toFixed(1),
+        (w.bibScores?.behavior ?? 0).toFixed(1),
+        (w.bibScores?.integrity ?? 0).toFixed(1),
+        (w.bibScores?.benchmark ?? 0).toFixed(1),
+        (w.bibScores?.totalScore ?? 0).toFixed(1),
         statusText,
       ];
     });
@@ -467,7 +467,7 @@ export class ExecutivePDFReportGenerator {
     doc.setTextColor(71, 85, 105);
     doc.text(`Nilai Konversi Est: Rp ${(totalPointsInCirculation * 100).toLocaleString()}`, 18, 47);
     doc.text('Status Alokasi Anggaran: Terkendali', 85, 47);
-    doc.text(`Total Penerima Reward: ${workers.filter((w) => w.totalPoints > 0).length} Staf`, 145, 47);
+    doc.text(`Total Penerima Reward: ${workers.filter((w) => (w.totalPoints ?? 0) > 0).length} Staf`, 145, 47);
 
     // Table
     const tableHead = [['NO', 'NAMA REWARD / VOUCHER', 'KATEGORI', 'BIAYA POIN', 'MINIMAL TIER', 'STOK TERSEDIA']];
@@ -608,8 +608,11 @@ export class ExecutivePDFReportGenerator {
     doc.setTextColor(146, 64, 14);
     const occurDate = new Date(incident.occurredAt).toLocaleString('id-ID');
     doc.text(`Waktu Kejadian: ${occurDate}`, 18, 45.5);
-    doc.text(`Status Investigasi: ${incident.status.toUpperCase()}`, 75, 45.5);
-    doc.text(`Poin K3 Pelapor: +50 PTS (${incident.pointsAwarded ? 'Disetujui' : 'Dalam Proses'})`, 135, 45.5);
+    const cfg = SystemConfigService.getConfig();
+    const incRewardPts = incident.incidentType === 'near_miss'
+      ? (cfg.nearMissRewardPoints || 75)
+      : (cfg.incidentValidRewardPoints || 50);
+    doc.text(`Poin K3 Pelapor: +${incRewardPts} PTS (${incident.pointsAwarded ? 'Disetujui' : 'Dalam Proses'})`, 135, 45.5);
 
     // ── Tabel 1: Identitas Pelapor & Rincian Insiden ──
     const table1Head = [['BAGIAN I: IDENTITAS PELAPOR & DATA KEJADIAN', 'KETERANGAN']];

@@ -27,7 +27,8 @@ export const PerformanceSummaryCard: React.FC<PerformanceSummaryCardProps> = ({
   const config = SystemConfigService.getConfig();
   const dailyTargetPts = config.dailyQuizRewardPoints + config.preShiftRewardPoints;
   const weeklyTargetPts = dailyTargetPts * 7;
-  const currentWeeklyPts = worker.totalPoints % weeklyTargetPts;
+  const activeWeeklyPts = worker.operationalPoints !== undefined ? worker.operationalPoints : worker.totalPoints;
+  const currentWeeklyPts = activeWeeklyPts % weeklyTargetPts;
   const weeklyPct = Math.min(100, Math.round((currentWeeklyPts / weeklyTargetPts) * 100));
 
   return (

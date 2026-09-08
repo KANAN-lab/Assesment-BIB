@@ -8,6 +8,7 @@ import {
   FINDING_TYPE_CONFIG
 } from '../types/safetyPatrol';
 import { OfflineQueueManager } from '../lib/offlineQueueManager';
+import { safeLocalStorageSetItem } from '../lib/storageSanitizer';
 import { SystemConfigService } from './SystemConfigService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -189,7 +190,7 @@ export class SafetyPatrolService {
       // Bila ada poin yang dihadiahkan, tambah poin pekerja di Supabase
       if (pointsAwarded && target?.assignedPicId) {
         const awardPoints = SystemConfigService.getConfig().safetyPatrolResolvedPoints ?? 25;
-        const awardReason = `Penyelesaian Temuan Safety Patrol Gemba Walk: ${target.zoneName}`;
+        const awardReason = `Penyelesaian Temuan Safety Patrol Gemba Walk: ${target.zoneName} (+${awardPoints} PTS)`;
         let rpcSuccess = false;
 
         try {
@@ -209,16 +210,20 @@ export class SafetyPatrolService {
         if (!rpcSuccess) {
           const { data: w } = await supabase
             .from('workers')
-            .select('id, name, total_points')
+            .select('id, name, total_points, prestige_points')
             .or(`id.eq.${target.assignedPicId},employee_id.eq.${target.assignedPicId}`)
             .maybeSingle();
 
           if (w) {
-            const newPoints = (w.total_points || 0) + awardPoints;
+            const curTotal = Number(w.total_points || 0);
+            const curPr = Number(w.prestige_points || curTotal);
+            const newPoints = curTotal + awardPoints;
+            const newPrestige = curPr + awardPoints;
             await supabase
               .from('workers')
               .update({
                 total_points: newPoints,
+                prestige_points: newPrestige,
                 updated_at: new Date().toISOString(),
               })
               .eq('id', w.id);
@@ -228,7 +233,7 @@ export class SafetyPatrolService {
                 worker_id: w.id,
                 worker_name: w.name,
                 action: 'audit_5s_completed',
-                detail: `${awardReason}: +${awardPoints} PTS`,
+                detail: awardReason,
               });
             } catch {
               // ignore audit log failure
@@ -397,10 +402,6 @@ export class SafetyPatrolService {
   }
 
   private static saveToLocal(records: SafetyPatrolRecord[]): void {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-    } catch (e) {
-      console.warn('Gagal menyimpan patrol records ke localStorage:', e);
-    }
+    safeLocalStorageSetItem(STORAGE_KEY, records);
   }
 }

@@ -503,6 +503,14 @@ CREATE TABLE IF NOT EXISTS redemption_history (
   - Saat pekerja dipindahkan antar divisi (contoh: *WRM* → *WFG* / *EXP*), sistem secara otomatis mengupdate binding divisi pekerja.
   - Opsi SOP K3, Pre-Shift Checklist 8-poin spesifik divisi, dan bank soal Kuis Gappy AI otomatis beralih mengikuti acuan divisi yang baru tanpa perlu registrasi ulang akun.
 
+### 11.3 Protokol Offboarding & Pegawai Resign (Staff Resignation & Offboarding Protocol)
+- **Prinsip Kepatuhan & Keamanan Operasional**:
+  - **Larangan Keras Hard Delete (ISO 45001 & Audit Preservation)**: Data profil pekerja yang resign tidak boleh dihapus (`DELETE`) dari database. Seluruh histori audit BIB, pre-shift checklist, dan investigasi insiden K3 wajib tetap tersimpan utuh demi akuntabilitas hukum dan audit keselamatan kerja PT. DAYA ANUGRAH MULYA.
+  - **Seketika Putus Akses & Sesi (Real-Time Revocation)**: Status akun dialihkan menjadi `resigned`. Real-time listener memutus sesi login aktif di seluruh perangkat dalam hitungan detik dan memblokir upaya login NIK/email berikutnya.
+  - **Fair-Play Leaderboard Filtering**: Pekerja dengan status `resigned` secara otomatis disaring keluar dari kueri papan peringkat aktif (*Active Shift Leaderboard*) guna menjaga validitas kompetisi antar staf aktif.
+  - **Pembekuan Poin & Resolusi Klaim Pending**: Saldo poin BIB dibekukan (*frozen*). Klaim reward fisik yang masih berstatus `pending` dapat dibatalkan dengan pemulihan stok katalog secara atomic.
+  - **Pelepasan Aset & Lisensi Operasional**: Lisensi SIO/MHE operator alat berat dilepaskan dari unit aktif gudang untuk mencegah penugasan tidak valid pada shift berjalan.
+
 ---
 
 ## 12. Pustaka SOP Micro-Deck & K3 Interactive Academy (v4.0)
@@ -826,6 +834,58 @@ Modul pembelajaran interaktif multi-format (*Gamified Micro-Learning*) untuk mem
   - Koreksi stored procedure `rpc_complete_sop_module` pada `supabase_setup.sql:1086` dari aksi yang salah `'checklist_completed'` menjadi `'sop_completed'`.
   - Standardisasi aksi audit log penyelesaian temuan hazard Safety Patrol di `SafetyPatrolService.ts:230` dari `'points_refunded'` menjadi `'audit_5s_completed'`.
   - Penyelarasan definisi CHECK constraint `activity_log_action_check` di `supabase_setup.sql` Section 27 agar mencakup seluruh 27 aksi legal yang identik dengan Section 33.
+
+---
+
+## 35. Kudo Real-Time Notification, Universal Offline Sync & Modal Accessibility Architecture (Batch 6)
+
+- **Notifikasi Kudo Real-Time & Routing Spesialis Departemen (`NotificationEngine.ts` & `KudoService.ts`)**:
+  - Pengiriman Kudo apresiasi otomatis memicu pemanggilan `NotificationEngine.addNotification` ke akun pekerja penerima (`receiverId`) pada jalur RPC Supabase maupun fallback client-side, dengan kredit poin instan (+25 PTS) dan event `gappy_points_awarded`.
+  - Penambahan perutean notifikasi untuk peran spesialis departemen (`hse`, `ga`, `hr`) pada `NotificationEngine.getNotificationsForUser`, mengeliminasi *blackout* notifikasi pada konsol spesialis dan menormalisasi hak akses visibilitas kategori ke level supervisory/manajemen.
+- **Eksekusi Nyata Antrean Sinkronisasi Offline 7 Modul (`OfflineQueueManager.ts`)**:
+  - Eliminasi cabang mock/delay buatan: seluruh 7 tipe antrean offline kini mengeksekusi penulisan aktual ke Supabase saat konektivitas pulih:
+    1. `sop_completion` &rarr; `flushOfflineSopCompletions()`
+    2. `safety_patrol` &rarr; `supabase.from('safety_patrol_logs').insert(...)`
+    3. `kaizen_submission` &rarr; `KaizenService.submitSuggestion(...)`
+    4. `incident_report` &rarr; `createIncidentReport(...)`
+    5. `kudo` &rarr; `KudoService.sendKudo(...)`
+    6. `daily_quiz` &rarr; `completeWorkerQuiz(...)`
+    7. `pre_shift_checklist` &rarr; `completeWorkerChecklist(...)`
+- **Standardisasi Aksesibilitas & Focus Trap Dialog Modal**:
+  - Penerapan penguncian scroll latar (`document.body.style.overflow = 'hidden'`) dan reset otomatis saat unmount pada seluruh modal sistem.
+  - Penambahan listener keyboard global tombol `Escape` pada seluruh modal (termasuk Kaizen, Safety Patrol, Riwayat Kaizen, Pusat Riwayat Pekerja, Perpustakaan SOP, SOP Slideshow, Pemindai QR Badge, Ganti Foto Profil, dan Onboarding).
+
+---
+
+## 36. Dual-Wallet Points Economy & Smart Auto-Deduct Lifecycle Protocol
+
+- **Arsitektur Dual-Wallet Points**:
+  - **`operational_points` (Dompet Poin Operasional / Harian)**:
+    - Menampung perolehan poin dari rutinitas harian operasional: Kuis Safety Harian (+50 PTS), Checklist Pre-Shift (+30 PTS), dan Kudo Apresiasi Rekan (+10 / +25 PTS).
+    - Memiliki masa berlaku terbatas per siklus bulanan (30 hari). Pada tanggal 1 bulan baru pukul 00:00:01 WIB, saldo poin operasional yang tidak dibelanjakan otomatis hangus (*reset* ke 0).
+  - **`prestige_points` (Dompet Poin Prestasi / Milestone)**:
+    - Menampung perolehan poin berdampak tinggi: Inovasi Kaizen (+50 s.d. +300 PTS), Kepatuhan & Perpanjangan SIO MHE (+100/+150 PTS), Pelaporan Potensi Bahaya Near-Miss (+50/+75 PTS), dan Audit 5S Zona Gudang (+50 s.d. +200 PTS).
+    - Bersifat **Permanen / Long-Term Asset** selama pekerja aktif bekerja di perusahaan. Tidak terpengaruh siklus reset bulanan.
+  - **`total_points` (Kumulatif)**:
+    - Nilai total saldo belanja = `operational_points + prestige_points`.
+    - Dipertahankan untuk backward compatibility penuh pada Leaderboard, Matrix Analytics, dan Tier Rank Worker.
+- **Logika Transaksi Smart Auto-Deduct**:
+  - Eksekusi penukaran reward di `atomicService.ts` memprioritaskan pemotongan `operational_points` (yang mendekati tanggal kedaluwarsa) terlebih dahulu:
+    $$\text{deductedOperational} = \min(\text{operational\_points}, \text{requiredPoints})$$
+    $$\text{deductedPrestige} = \min(\text{prestige\_points}, \text{requiredPoints} - \text{deductedOperational})$$
+  - Rincian pemotongan disimpan di `redemption_history` (`deducted_operational`, `deducted_prestige`).
+- **Kebijakan Pengembalian Adil (Fairness Refund Policy)**:
+  - Pembatalan klaim reward oleh Admin pada bulan yang sama mengembalikan saldo ke dompet asal masing-masing.
+  - Pembatalan klaim reward pada bulan baru (pasca siklus reset) mengonversi seluruh poin refund ke `prestige_points` agar pekerja tidak dirugikan akibat kekosongan inventaris gudang.
+- **Linimasa Siklus Bulanan & Early Warning**:
+  - H-14: Banner peringatan dini amber aktif di profil pekerja dan target harian.
+  - H-7 & H-3: Broadcast notifikasi otomatis via `NotificationEngine`.
+  - Tanggal 1 (00:00:01): Eksekusi `processMonthlyOperationalPointsReset` yang mencatat audit log `points_expired`, mereset `operational_points = 0`, serta mempertahankan tier dan skor BIB pekerja tetap 100% utuh.
+- **Audit Hardening & Sinkronisasi Ekosistem Sistem**:
+  - **Sanksi K3 & Kedisiplinan (`disciplinaryService.ts` & `deductWorkerPoints`)**: Pemotongan penalti poin pelanggaran menerapkan Smart Auto-Deduct (memotong `operational_points` terlebih dahulu, sisa dari `prestige_points`) dan menjaga `total_points` selalu sinkron.
+  - **Integrasi Database & RPC Supabase**: Seluruh 10 Stored Procedures & Triggers di `supabase_setup.sql` (`increment_worker_points`, `increment_worker_streak_and_points`, `deduct_worker_points`, `rpc_redeem_reward_fcfs`, `trg_fn_award_incident_points`, `rpc_complete_sop_module`, `rpc_review_kaizen_suggestion`, `rpc_submit_zone_audit_5s`, `rpc_send_worker_kudo`, dan `rpc_award_integrity_points`) telah diselaraskan dengan arsitektur Dual-Wallet.
+  - **Ekspor & Pendaftaran Staf HR**: Penambahan kolom 'Poin Operasional (Harian)' dan 'Poin Prestasi (Abadi)' pada `exportWorkersCSV` serta pengalokasian bonus pendaftaran staf baru (100 PTS) ke `prestige_points` abadi.
+
 
 
 

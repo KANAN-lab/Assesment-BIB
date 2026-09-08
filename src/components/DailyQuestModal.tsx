@@ -63,6 +63,26 @@ export const DailyQuestModal: React.FC<DailyQuestModalProps> = ({
   };
 
   useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    const timer = setTimeout(() => {
+      closeBtnRef.current?.focus();
+    }, 50);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        handleAttemptClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      clearTimeout(timer);
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isStarted, isFinished, isAntiCheatViolated]);
+
+  useEffect(() => {
     if (initialQuizzes && initialQuizzes.length > 0) {
       setActiveQuizzes(initialQuizzes);
       setLoadingAI(false);

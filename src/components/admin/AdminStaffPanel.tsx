@@ -1,18 +1,26 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import SearchableSelect, { SelectOption } from '../ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import {
   UserCheck, Search, ChevronDown, Download, Upload, ArrowRightLeft,
-  X, AlertTriangle, Loader2, Plus, Users, UserPlus, KeyRound
+  X, AlertTriangle, Loader2, Plus, Users, UserPlus, KeyRound,
+  UserMinus, FileText, RotateCcw, ShieldAlert, CheckCircle2
 } from 'lucide-react';
 import { WorkerProfile } from '../../types/assessment';
 import { DivisionEntity } from '../../domain/DivisionEntity';
 import { RoleEntity } from '../../domain/RoleEntity';
 import { CustomDataTable, DataTableColumn } from '../CustomDataTable';
 import { WorkerAvatar } from '../WorkerAvatar';
-import { exportWorkersCSV, batchImportWorkers, createWorkerProfile } from '../../lib/supabaseService';
+import {
+  exportWorkersCSV,
+  batchImportWorkers,
+  createWorkerProfile,
+  offboardWorker,
+  reactivateWorker,
+} from '../../lib/supabaseService';
 import { RoleMutationManager } from '../../domain/RoleMutationManager';
 import { SystemConfigService } from '../../domain/SystemConfigService';
+import { SwalService } from '../../domain/SwalService';
 
 export const SAMPLE_EMPLOYEE_IMPORT_DATA = `328000257\tAGUNG BAGASKARA\tOperator Forklift (WFG)\tWFG
 328000261\tARANIKITA BERU SIBIRO\tAdmin (Timbangan)\tTIM
@@ -159,6 +167,15 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
 }) => {
   const [filterDiv, setFilterDiv] = useState('Semua');
   const [filterCategory, setFilterCategory] = useState<'Semua' | 'worker' | 'specialist'>('Semua');
+  const [filterStatus, setFilterStatus] = useState<'Semua' | 'active' | 'resigned'>('Semua');
+
+  // Offboarding modal state
+  const [selectedOffboardWorker, setSelectedOffboardWorker] = useState<WorkerProfile | null>(null);
+  const [offboardReasonCategory, setOffboardReasonCategory] = useState('Pengunduran Diri Pribadi (Resign)');
+  const [customOffboardReason, setCustomOffboardReason] = useState('');
+  const [cancelPendingVouchers, setCancelPendingVouchers] = useState(true);
+  const [isSubmittingOffboard, setIsSubmittingOffboard] = useState(false);
+  const [selectedViewWorker, setSelectedViewWorker] = useState<WorkerProfile | null>(null);
 
   // Import modal state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -197,6 +214,34 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
       allDivisionRoles: pool,
     };
   }, [roles, newWorkerDivision]);
+
+  useEffect(() => {
+    const isAnyModalOpen =
+      isAddWorkerModalOpen ||
+      selectedMutationWorker !== null ||
+      isImportModalOpen ||
+      selectedOffboardWorker !== null ||
+      selectedViewWorker !== null;
+    if (isAnyModalOpen) {
+      document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          if (isAddWorkerModalOpen) setIsAddWorkerModalOpen(false);
+          else if (selectedMutationWorker) setSelectedMutationWorker(null);
+          else if (isImportModalOpen) setIsImportModalOpen(false);
+          else if (selectedOffboardWorker) setSelectedOffboardWorker(null);
+          else if (selectedViewWorker) setSelectedViewWorker(null);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.body.style.overflow = 'unset';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+  }, [isAddWorkerModalOpen, selectedMutationWorker, isImportModalOpen, selectedOffboardWorker, selectedViewWorker]);
 
   const handleOpenAddModal = () => {
     const defaultDiv = divisions[0]?.code ?? 'WFG';
@@ -249,7 +294,7 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
     }
   };
 
-  // Filtered workers list (Divisi & Kategori - pencarian dihandle otomatis oleh CustomDataTable)
+  // Filtered workers list (Divisi, Kategori & Status - pencarian dihandle otomatis oleh CustomDataTable)
   const filteredWorkers = useMemo(() => {
     return workers.filter((w) => {
       const matchDiv = filterDiv === 'Semua' || w.division === filterDiv;
@@ -258,9 +303,14 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
         filterCategory === 'Semua' ||
         (filterCategory === 'worker' && isWorker) ||
         (filterCategory === 'specialist' && !isWorker);
-      return matchDiv && matchCat;
+      const isResigned = w.status === 'resigned' || w.status === 'inactive';
+      const matchStatus =
+        filterStatus === 'Semua' ||
+        (filterStatus === 'active' && !isResigned) ||
+        (filterStatus === 'resigned' && isResigned);
+      return matchDiv && matchCat && matchStatus;
     });
-  }, [workers, filterDiv, filterCategory]);
+  }, [workers, filterDiv, filterCategory, filterStatus]);
 
   // Roles available for mutation target
   const availableRolesForMutation = useMemo(() => {
@@ -326,6 +376,72 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
     }
   };
 
+  const handleOpenOffboardModal = (worker: WorkerProfile) => {
+    setSelectedOffboardWorker(worker);
+    setOffboardReasonCategory('Pengunduran Diri Pribadi (Resign)');
+    setCustomOffboardReason('');
+    setCancelPendingVouchers(true);
+  };
+
+  const handleExecuteOffboard = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedOffboardWorker) return;
+    const finalReason =
+      offboardReasonCategory === 'Lainnya'
+        ? (customOffboardReason.trim() || 'Pengunduran Diri')
+        : offboardReasonCategory;
+
+    setIsSubmittingOffboard(true);
+    try {
+      const res = await offboardWorker(
+        selectedOffboardWorker.id,
+        finalReason,
+        currentAdminId || 'System Admin',
+        'Administrator',
+        cancelPendingVouchers
+      );
+      setSelectedOffboardWorker(null);
+      await SwalService.success('Offboarding Berhasil!', res.message);
+      if (onWorkersUpdated) {
+        onWorkersUpdated();
+      } else {
+        setTimeout(() => window.location.reload(), 1000);
+      }
+    } catch (err: any) {
+      await SwalService.error('Gagal Offboard Pegawai', err?.message || 'Terjadi kesalahan sistem.');
+    } finally {
+      setIsSubmittingOffboard(false);
+    }
+  };
+
+  const handleExecuteReactivate = async (worker: WorkerProfile) => {
+    const isConfirmed = await SwalService.confirm({
+      title: 'Aktifkan Kembali Akun Pegawai?',
+      text: `Apakah Anda yakin ingin memulihkan status aktif untuk ${worker.name} (${worker.employeeId})? Hak akses login sistem dan penugasan shift operasional akan dipulihkan.`,
+      confirmButtonText: 'Ya, Aktifkan Kembali',
+      cancelButtonText: 'Batal',
+      isDestructive: false,
+      icon: 'question',
+    });
+
+    if (!isConfirmed) return;
+
+    try {
+      await reactivateWorker(worker.id, currentAdminId || 'System Admin', 'Administrator');
+      await SwalService.success(
+        'Akun Berhasil Diaktifkan!',
+        `Status akun pegawai ${worker.name} (${worker.employeeId}) telah aktif kembali.`
+      );
+      if (onWorkersUpdated) {
+        onWorkersUpdated();
+      } else {
+        setTimeout(() => window.location.reload(), 1000);
+      }
+    } catch (err: any) {
+      await SwalService.error('Gagal Mengaktifkan Kembali', err?.message || 'Terjadi kesalahan sistem.');
+    }
+  };
+
   // Parsed TSV Import Rows
   const parsedImportRows = useMemo(() => {
     if (!importRawText.trim()) return [];
@@ -371,17 +487,35 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
       key: 'name',
       header: 'Pekerja',
       sortable: true,
-      render: (w) => (
-        <div className="flex items-center gap-3 min-w-[200px]">
-          <WorkerAvatar src={w.avatar} name={w.name} />
-          <div>
-            <div className="font-bold text-white text-xs">{w.name}</div>
-            <div className="text-[10px] text-zinc-500 font-mono">
-              {w.employeeId} {w.email && `· ${w.email}`}
+      render: (w) => {
+        const isResigned = w.status === 'resigned';
+        const isInactive = w.status === 'inactive';
+        return (
+          <div className="flex items-center gap-3 min-w-[200px]">
+            <WorkerAvatar src={w.avatar} name={w.name} />
+            <div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className={`font-bold text-xs ${isResigned ? 'text-zinc-400 line-through decoration-rose-500/50' : 'text-white'}`}>
+                  {w.name}
+                </span>
+                {isResigned && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                    Resigned
+                  </span>
+                )}
+                {isInactive && (
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-400 border border-zinc-700">
+                    Nonaktif
+                  </span>
+                )}
+              </div>
+              <div className="text-[10px] text-zinc-500 font-mono">
+                {w.employeeId} {w.email && `· ${w.email}`}
+              </div>
             </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       key: 'division',
@@ -433,9 +567,14 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
       sortable: true,
       align: 'right',
       render: (w) => (
-        <span className="font-mono text-amber-400 font-bold text-xs">
-          {(w.totalPoints || 0).toLocaleString()} PTS
-        </span>
+        <div className="text-right leading-tight">
+          <span className="font-mono text-amber-400 font-bold text-xs block">
+            {(w.totalPoints || 0).toLocaleString()} PTS
+          </span>
+          <span className="text-[10px] text-zinc-500 font-mono block">
+            H: {(w.operationalPoints ?? 0).toLocaleString()} · P: {(w.prestigePoints ?? Math.max(0, (w.totalPoints || 0) - (w.operationalPoints ?? 0))).toLocaleString()}
+          </span>
+        </div>
       ),
     },
     {
@@ -451,19 +590,58 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
     },
     {
       key: 'actions',
-      header: 'Aksi Mutasi',
+      header: 'Aksi & Status',
       align: 'center',
-      render: (w) => (
-        <button
-          type="button"
-          onClick={() => handleOpenMutationModal(w)}
-          className="px-2.5 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 mx-auto"
-          title="Pindahkan Role/Divisi Staf (Clean Slate)"
-        >
-          <ArrowRightLeft className="w-3 h-3 text-purple-400" />
-          <span>Mutasi</span>
-        </button>
-      ),
+      render: (w) => {
+        const isResigned = w.status === 'resigned' || w.status === 'inactive';
+        return (
+          <div className="flex items-center justify-center gap-1.5">
+            {!isResigned ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => handleOpenMutationModal(w)}
+                  className="px-2 py-1 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 border border-purple-500/30 rounded-lg text-[11px] font-bold transition flex items-center gap-1"
+                  title="Pindahkan Role/Divisi Staf (Clean Slate)"
+                >
+                  <ArrowRightLeft className="w-3 h-3 text-purple-400" />
+                  <span>Mutasi</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleOpenOffboardModal(w)}
+                  className="px-2 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/20 rounded-lg text-[11px] font-semibold transition flex items-center gap-1"
+                  title="Proses Resign / Nonaktifkan Pegawai"
+                >
+                  <UserMinus className="w-3 h-3 text-rose-400" />
+                  <span>Offboard</span>
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setSelectedViewWorker(w)}
+                  className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700 rounded-lg text-[11px] font-semibold transition flex items-center gap-1"
+                  title="Lihat Rekam Offboard"
+                >
+                  <FileText className="w-3 h-3 text-zinc-400" />
+                  <span>Detail</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleExecuteReactivate(w)}
+                  className="px-2 py-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/20 rounded-lg text-[11px] font-semibold transition flex items-center gap-1"
+                  title="Aktifkan Kembali Akun"
+                >
+                  <RotateCcw className="w-3 h-3 text-emerald-400" />
+                  <span>Aktifkan</span>
+                </button>
+              </>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -540,6 +718,20 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
                 <option value="Semua">Semua Kategori</option>
                 <option value="worker">Staf Lapangan / Operator</option>
                 <option value="specialist">Pengawas & Spesialis</option>
+              </select>
+              <ChevronDown className="w-3.5 h-3.5 text-zinc-500 absolute right-2.5 top-2.5 pointer-events-none" />
+            </div>
+
+            {/* Status Filter Dropdown (Active vs Resigned) */}
+            <div className="relative flex-1 sm:flex-initial min-w-[130px] sm:min-w-[150px]">
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as any)}
+                className="appearance-none w-full bg-zinc-900 border border-zinc-800 rounded-xl pl-3 pr-8 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500 font-medium"
+              >
+                <option value="Semua">Semua Status</option>
+                <option value="active">Hanya Aktif</option>
+                <option value="resigned">Resign / Nonaktif</option>
               </select>
               <ChevronDown className="w-3.5 h-3.5 text-zinc-500 absolute right-2.5 top-2.5 pointer-events-none" />
             </div>
@@ -1004,6 +1196,250 @@ export const AdminStaffPanel: React.FC<AdminStaffPanelProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─── MODAL OFFBOARDING / RESIGN PEGAWAI (PHASE 54) ─── */}
+      {selectedOffboardWorker && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+          onClick={() => setSelectedOffboardWorker(null)}
+        >
+          <div
+            className="relative w-full max-w-lg max-h-[90vh] m-auto card-elevated p-5 sm:p-6 space-y-4 border border-rose-500/30 overflow-y-auto custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-8 h-8 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center justify-center text-rose-400">
+                  <UserMinus className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white">Protokol Offboarding Pegawai</h3>
+                  <p className="text-[11px] text-zinc-400">Penonaktifan akses & preservasi rekam K3 / ISO 45001</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedOffboardWorker(null)}
+                className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Target Worker Summary Card */}
+            <div className="p-3 bg-zinc-950/80 rounded-xl border border-zinc-800/80 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <WorkerAvatar src={selectedOffboardWorker.avatar} name={selectedOffboardWorker.name} />
+                <div>
+                  <div className="font-bold text-white text-xs">{selectedOffboardWorker.name}</div>
+                  <div className="text-[10px] text-zinc-500 font-mono">
+                    {selectedOffboardWorker.employeeId} · {selectedOffboardWorker.division} ({selectedOffboardWorker.role})
+                  </div>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10px] text-zinc-500">Saldo Poin BIB</div>
+                <div className="text-xs font-mono font-bold text-amber-400">
+                  {(selectedOffboardWorker.totalPoints || 0).toLocaleString()} PTS
+                </div>
+              </div>
+            </div>
+
+            {/* ISO 45001 Legal Compliance Notice */}
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-[11px] space-y-1 text-amber-200">
+              <div className="flex items-center gap-1.5 font-bold text-amber-300">
+                <ShieldAlert className="w-3.5 h-3.5 shrink-0" />
+                <span>Kepatuhan Audit K3 & Hukum (Soft-Deactivation)</span>
+              </div>
+              <p className="text-[10.5px] leading-relaxed text-zinc-300">
+                Data profil pekerja <strong>TIDAK akan dihapus</strong> dari database. Seluruh riwayat skor BIB, checklist operasional, dan investigasi insiden masa lalu tetap dipertahankan secara permanen untuk audit legal PT DAM.
+              </p>
+            </div>
+
+            {/* Offboard Form */}
+            <form onSubmit={handleExecuteOffboard} className="space-y-3.5 text-xs">
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-zinc-300">
+                  Alasan Offboarding / Resign <span className="text-rose-400">*</span>
+                </label>
+                <select
+                  value={offboardReasonCategory}
+                  onChange={(e) => setOffboardReasonCategory(e.target.value)}
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3 py-2 text-white focus:outline-none focus:border-rose-500 font-medium"
+                >
+                  <option value="Pengunduran Diri Pribadi (Resign)">Pengunduran Diri Pribadi (Resign)</option>
+                  <option value="Masa Kontrak Kerja Berakhir">Masa Kontrak Kerja Berakhir</option>
+                  <option value="Mutasi Eksternal Grup Perusahaan">Mutasi Eksternal Grup Perusahaan</option>
+                  <option value="Pelanggaran Disiplin / K3">Pelanggaran Disiplin / Kaidah K3</option>
+                  <option value="Kesehatan / Medis">Kesehatan / Rekomendasi Medis</option>
+                  <option value="Lainnya">Alasan Lainnya (Ketik Manual)</option>
+                </select>
+              </div>
+
+              {offboardReasonCategory === 'Lainnya' && (
+                <div className="space-y-1 animate-fade-in">
+                  <label className="text-[11px] font-bold text-zinc-300">
+                    Keterangan Alasan Spesifik <span className="text-rose-400">*</span>
+                  </label>
+                  <textarea
+                    value={customOffboardReason}
+                    onChange={(e) => setCustomOffboardReason(e.target.value)}
+                    placeholder="Tuliskan keterangan detail alasan resign/offboard..."
+                    rows={2}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-white placeholder-zinc-500 focus:outline-none focus:border-rose-500 text-xs custom-scrollbar resize-none"
+                    required
+                  />
+                </div>
+              )}
+
+              {/* Settlement Checkbox */}
+              <label className="flex items-start gap-2.5 p-3 rounded-xl bg-zinc-950/70 border border-zinc-800/80 cursor-pointer hover:border-zinc-700 transition">
+                <input
+                  type="checkbox"
+                  checked={cancelPendingVouchers}
+                  onChange={(e) => setCancelPendingVouchers(e.target.checked)}
+                  className="mt-0.5 rounded border-zinc-700 text-rose-600 focus:ring-rose-500 bg-zinc-900"
+                />
+                <div className="text-[11px]">
+                  <div className="font-bold text-white">Selesaikan Klaim Reward Fisik yang Pending</div>
+                  <div className="text-zinc-400 text-[10px] mt-0.5">
+                    Otomatis membatalkan voucher reward fisik yang belum diserahterimakan dan memulihkan stok reward katalog secara aman.
+                  </div>
+                </div>
+              </label>
+
+              {/* Action Buttons */}
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setSelectedOffboardWorker(null)}
+                  className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold rounded-xl transition"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingOffboard}
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white text-xs font-bold rounded-xl transition flex items-center gap-2 shadow-md shadow-rose-950/50"
+                >
+                  {isSubmittingOffboard ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <UserMinus className="w-3.5 h-3.5" />
+                  )}
+                  <span>Konfirmasi Offboard Pegawai</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─── MODAL LIHAT DETAIL REKAM OFFBOARD ─── */}
+      {selectedViewWorker && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] overflow-y-auto bg-black/90 backdrop-blur-xl p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
+          onClick={() => setSelectedViewWorker(null)}
+        >
+          <div
+            className="relative w-full max-w-md max-h-[90vh] m-auto card-elevated p-5 sm:p-6 space-y-4 border border-zinc-800 overflow-y-auto custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-zinc-800 pb-3">
+              <div className="flex items-center gap-2.5">
+                <FileText className="w-4 h-4 text-zinc-400" />
+                <h3 className="text-sm font-bold text-white">Detail Riwayat Offboarding</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSelectedViewWorker(null)}
+                className="p-1.5 hover:bg-zinc-800 rounded-lg text-zinc-400 hover:text-white transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="p-3 bg-zinc-950/80 rounded-xl border border-zinc-800/80 flex items-center gap-3">
+                <WorkerAvatar src={selectedViewWorker.avatar} name={selectedViewWorker.name} />
+                <div>
+                  <div className="font-bold text-white text-xs">{selectedViewWorker.name}</div>
+                  <div className="text-[10px] text-zinc-500 font-mono">
+                    NIP: {selectedViewWorker.employeeId} · Divisi: {selectedViewWorker.division}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <div className="p-2.5 bg-zinc-900/60 rounded-xl border border-zinc-800/80">
+                  <div className="text-zinc-500 text-[10px]">Status Akun</div>
+                  <div className="font-bold text-rose-400 mt-0.5">RESIGNED</div>
+                </div>
+                <div className="p-2.5 bg-zinc-900/60 rounded-xl border border-zinc-800/80">
+                  <div className="text-zinc-500 text-[10px]">Tanggal Efektif</div>
+                  <div className="font-bold text-zinc-200 mt-0.5">
+                    {selectedViewWorker.resignedAt
+                      ? new Date(selectedViewWorker.resignedAt).toLocaleDateString('id-ID', {
+                          day: 'numeric',
+                          month: 'short',
+                          year: 'numeric',
+                        })
+                      : 'Arsip Sistem'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-3 bg-zinc-900/60 rounded-xl border border-zinc-800/80">
+                <div className="text-zinc-500 text-[10px]">Alasan Offboarding</div>
+                <div className="text-zinc-200 text-xs font-medium mt-1 leading-relaxed">
+                  {selectedViewWorker.resignationReason || 'Pengunduran Diri Pribadi (Resign)'}
+                </div>
+              </div>
+
+              <div className="p-3 bg-zinc-900/60 rounded-xl border border-zinc-800/80 flex items-center justify-between">
+                <div>
+                  <div className="text-zinc-500 text-[10px]">Saldo Poin Tersimpan</div>
+                  <div className="font-mono text-xs font-bold text-amber-400">
+                    {(selectedViewWorker.totalPoints || 0).toLocaleString()} PTS (Dibekukan)
+                  </div>
+                </div>
+                <div>
+                  <div className="text-zinc-500 text-[10px]">Skor Historis BIB</div>
+                  <div className="font-mono text-xs font-bold text-emerald-400 text-right">
+                    {selectedViewWorker.bibScores?.totalScore?.toFixed(1) ?? '0.0'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-2 pt-3 border-t border-zinc-800">
+              <button
+                type="button"
+                onClick={() => {
+                  const target = selectedViewWorker;
+                  setSelectedViewWorker(null);
+                  handleExecuteReactivate(target);
+                }}
+                className="px-3.5 py-2 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-xs font-bold rounded-xl transition flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Aktifkan Kembali</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSelectedViewWorker(null)}
+                className="px-4 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-xs font-bold rounded-xl transition"
+              >
+                Tutup
+              </button>
+            </div>
           </div>
         </div>,
         document.body

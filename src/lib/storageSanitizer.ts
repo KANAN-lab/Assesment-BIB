@@ -120,16 +120,26 @@ export function cleanExistingLocalStorageQuota(): { freedEstimatedChars: number;
   let totalFreedChars = 0;
   const cleanedKeys: string[] = [];
 
-  const KNOWN_KEYS_TO_INSPECT = [
+  const explicitKeys = new Set<string>([
     'bib_sop_custom_modules_v2',
     'gappy_5s_audit_records_v2',
     'gappy_disciplinary_actions_v2',
     'bib_unified_offline_queue',
     'bib_offline_sop_sync_queue',
     'gappy_sio_records_v1',
-  ];
+    'gappy_safety_patrol_records',
+    'bib_incident_photos_cache_v1',
+  ]);
 
-  for (const key of KNOWN_KEYS_TO_INSPECT) {
+  // Pindai juga seluruh keys aplikasi yang berpotensi menyimpan Base64 (kecuali tanda tangan digital)
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && !k.startsWith('gappy_reward_sig_') && (k.startsWith('bib_') || k.startsWith('gappy_'))) {
+      explicitKeys.add(k);
+    }
+  }
+
+  for (const key of explicitKeys) {
     try {
       const raw = localStorage.getItem(key);
       if (!raw) continue;
@@ -155,4 +165,20 @@ export function cleanExistingLocalStorageQuota(): { freedEstimatedChars: number;
   }
 
   return { freedEstimatedChars: totalFreedChars, cleanedKeys };
+}
+
+/**
+ * Membaca data dari LocalStorage secara aman dengan proteksi try/catch.
+ * Mencegah aplikasi crash jika data JSON di storage korup atau tidak valid.
+ */
+export function safeLocalStorageGetItem<T>(key: string, fallback: T): T {
+  if (typeof window === 'undefined' || !window.localStorage) return fallback;
+  try {
+    const raw = localStorage.getItem(key);
+    if (raw === null || raw === undefined) return fallback;
+    return JSON.parse(raw) as T;
+  } catch (err) {
+    console.warn(`[storageSanitizer] Gagal mem-parse JSON untuk key '${key}'. Menggunakan fallback:`, err);
+    return fallback;
+  }
 }

@@ -13,6 +13,8 @@ export interface AtomicRedemptionResult {
   redemptionCode: string;
   voucherCode?: string;
   pointsSpent?: number;
+  deductedOperational?: number;
+  deductedPrestige?: number;
   remainingPoints: number;
   remainingStock: number;
   status?: 'pending' | 'completed' | 'cancelled';
@@ -29,6 +31,19 @@ export class AtomicTransactionManager {
     workerId: string,
     rewardId: string
   ): Promise<AtomicRedemptionResult> {
+    // 0. Pre-Flight Status Guard: Pastikan pekerja berstatus aktif (bukan resigned/inactive)
+    const { data: workerStatusCheck } = await supabase
+      .from('workers')
+      .select('status, name')
+      .eq('id', workerId)
+      .single();
+
+    if (workerStatusCheck?.status === 'resigned' || workerStatusCheck?.status === 'inactive') {
+      throw new Error(
+        `Akun (${workerStatusCheck?.name || workerId}) berstatus ${workerStatusCheck?.status?.toUpperCase()}. Poin reward dibekukan.`
+      );
+    }
+
     try {
       // 1. Attempt Supabase RPC Atomic Transaction FCFS
       const { data: rpcData, error: rpcError } = await supabase.rpc('rpc_redeem_reward_fcfs', {
@@ -84,7 +99,7 @@ export class AtomicTransactionManager {
     // 2. Client-side Managed Atomic Sequence with Validation Lock (Fallback)
     const { data: worker, error: workerErr } = await supabase
       .from('workers')
-      .select('id, total_points, tier')
+      .select('id, total_points, operational_points, prestige_points, tier')
       .eq('id', workerId)
       .single();
 
@@ -115,8 +130,13 @@ export class AtomicTransactionManager {
       throw new Error(`Kuota bulanan reward "${reward.title}" telah habis! Silakan tunggu reset kuota bulan depan.`);
     }
 
-    if (worker.total_points < reward.points_required) {
-      throw new Error(`Poin Anda (${worker.total_points} PTS) tidak mencukupi untuk menukar ${reward.title} (${reward.points_required} PTS).`);
+    const totalPts = Number(worker.total_points || 0);
+    const opPts = Number(worker.operational_points || 0);
+    const prPts = Number(worker.prestige_points || Math.max(0, totalPts - opPts));
+    const reqPts = Number(reward.points_required);
+
+    if (totalPts < reqPts) {
+      throw new Error(`Poin Anda (${totalPts} PTS) tidak mencukupi untuk menukar ${reward.title} (${reqPts} PTS).`);
     }
 
     // Monthly claim limit validation per worker
@@ -129,31 +149,39 @@ export class AtomicTransactionManager {
       .select('*', { count: 'exact', head: true })
       .eq('worker_id', workerId)
       .eq('item_title', reward.title)
+      .neq('status', 'cancelled')
       .gte('created_at', startOfMonth);
 
     if (!countErr && (monthlyClaimsCount ?? 0) >= maxClaims) {
       throw new Error(`Anda telah mencapai batas maksimal klaim (${maxClaims}x per bulan) untuk item "${reward.title}".`);
     }
 
+    // Smart Auto-Deduct Protocol (FIFO Expiry Priority): Habiskan Poin Operasional (akan hangus) lebih dulu
+    const deductedOperational = Math.min(opPts, reqPts);
+    const remainingNeeded = reqPts - deductedOperational;
+    const deductedPrestige = Math.min(prPts, remainingNeeded);
+
+    const newOperational = Math.max(0, opPts - deductedOperational);
+    const newPrestige = Math.max(0, prPts - deductedPrestige);
+    const newPoints = newOperational + newPrestige;
+    const newStock = reward.available_stock - 1;
+
     // Generate unique redemption voucher code
     const randomHex = Math.random().toString(36).substring(2, 7).toUpperCase();
     const redemptionCode = `BIB-${reward.category.substring(0, 3).toUpperCase()}-${randomHex}`;
-    const newPoints = worker.total_points - reward.points_required;
-    const newStock = reward.available_stock - 1;
     const redemptionId = `red-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
     const expiryDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    const nowStr = new Date().toLocaleDateString('id-ID', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    const nowIso = new Date().toISOString();
 
     // Execute atomic update sequence
     const { error: updateWorkerErr } = await supabase
       .from('workers')
-      .update({ total_points: newPoints })
+      .update({
+        total_points: newPoints,
+        operational_points: newOperational,
+        prestige_points: newPrestige,
+        updated_at: nowIso,
+      })
       .eq('id', workerId);
 
     if (updateWorkerErr) throw updateWorkerErr;
@@ -170,8 +198,10 @@ export class AtomicTransactionManager {
       worker_id: workerId,
       item_title: reward.title,
       points_spent: reward.points_required,
+      deducted_operational: deductedOperational,
+      deducted_prestige: deductedPrestige,
       redemption_code: redemptionCode,
-      redeemed_at: nowStr,
+      redeemed_at: nowIso,
       status: 'pending',
       expiry_date: expiryDate,
     });
@@ -188,6 +218,7 @@ export class AtomicTransactionManager {
           detail: {
             workerId,
             pointsEarned: -reward.points_required,
+            newTotalPoints: newPoints,
           },
         })
       );
@@ -199,11 +230,13 @@ export class AtomicTransactionManager {
       redemptionCode,
       voucherCode: redemptionCode,
       pointsSpent: reward.points_required,
+      deductedOperational,
+      deductedPrestige,
       remainingPoints: newPoints,
       remainingStock: newStock,
       status: 'pending',
       expiryDate,
-      message: `Berhasil menukarkan "${reward.title}"! Kode voucher: ${redemptionCode}`,
+      message: `Berhasil menukarkan "${reward.title}"! Kode voucher: ${redemptionCode} (Operasional: -${deductedOperational}, Prestasi: -${deductedPrestige})`,
     };
   }
 }

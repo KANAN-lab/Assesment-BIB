@@ -6,12 +6,13 @@ import {
   Edit2, Trash2, X, Check, Loader2, AlertCircle, PackageCheck,
   PenTool, RotateCcw, FileSignature, Eye
 } from 'lucide-react';
-import { RewardItem, TierType } from '../../types/assessment';
+import { RewardItem, TierType, WorkerProfile } from '../../types/assessment';
 import { CustomDataTable, DataTableColumn } from '../CustomDataTable';
 import {
   fetchAllRedemptionHistory,
   fulfillRedemption,
   cancelAndRefundRedemption,
+  processMonthlyOperationalPointsReset,
   AdminRedemptionRecord
 } from '../../lib/supabaseService';
 import { SystemConfigService } from '../../domain/SystemConfigService';
@@ -19,6 +20,7 @@ import { SwalService } from '../../domain/SwalService';
 
 interface AdminRewardCatalogPanelProps {
   rewardCatalog: RewardItem[];
+  workers?: WorkerProfile[];
   currentAdminId?: string;
   onCreateReward?: (item: Omit<RewardItem, 'id'>) => Promise<void> | void;
   onUpdateReward?: (rewardId: string, updates: Partial<Omit<RewardItem, 'id'>>) => Promise<void> | void;
@@ -29,6 +31,7 @@ interface AdminRewardCatalogPanelProps {
 
 export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = ({
   rewardCatalog,
+  workers,
   currentAdminId,
   onCreateReward,
   onUpdateReward,
@@ -173,6 +176,27 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
   const [rewardFormSubmitting, setRewardFormSubmitting] = useState(false);
 
   useEffect(() => {
+    const isAnyModalOpen = showRewardModal || fulfillingLog !== null || viewingSignatureUrl !== null;
+    if (isAnyModalOpen) {
+      document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          if (viewingSignatureUrl) setViewingSignatureUrl(null);
+          else if (fulfillingLog) setFulfillingLog(null);
+          else if (showRewardModal) setShowRewardModal(false);
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => {
+        document.body.style.overflow = 'unset';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+  }, [showRewardModal, fulfillingLog, viewingSignatureUrl]);
+
+  useEffect(() => {
     const handleConfigUpdate = (e: any) => {
       if (e.detail?.rewardCategories) setAvailableCategories(e.detail.rewardCategories);
       if (e.detail?.masterTiers) setAvailableTiers(e.detail.masterTiers);
@@ -233,6 +257,35 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
     }
   };
 
+  const [isExecutingReset, setIsExecutingReset] = useState(false);
+
+  const handleExecuteMonthlyReset = async () => {
+    const isConfirmed = await SwalService.confirm({
+      title: 'Jalankan Siklus Reset Bulanan?',
+      text: 'Seluruh Poin Operasional (Harian) pekerja gudang yang belum dibelanjakan akan di-reset ke 0 untuk rekonsiliasi liabilitas stok periode ini. Seluruh Poin Prestasi (Kaizen, SIO, K3) dan Tier pekerja akan tetap UTUH 100%. Lanjutkan proses?',
+      confirmButtonText: 'Ya, Jalankan Reset Periode',
+      cancelButtonText: 'Batal',
+      isDestructive: true,
+      icon: 'warning',
+    });
+
+    if (!isConfirmed) return;
+
+    setIsExecutingReset(true);
+    try {
+      const res = await processMonthlyOperationalPointsReset(currentAdminId || 'System Administrator');
+      await SwalService.success(
+        'Siklus Reset Periode Berhasil!',
+        `Rekonsiliasi selesai: ${res.affectedWorkers} pekerja dievaluasi, total ${res.totalExpired.toLocaleString()} PTS Operasional telah di-reset. Seluruh Poin Prestasi tetap aman.`
+      );
+      loadAllRedemptions();
+    } catch (err: any) {
+      await SwalService.error('Gagal Reset Periode', err?.message || 'Terjadi kesalahan sistem.');
+    } finally {
+      setIsExecutingReset(false);
+    }
+  };
+
   const filteredAdminCatalog = useMemo(() => {
     return rewardCatalog.filter((item) => {
       const matchSearch =
@@ -250,22 +303,43 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
       key: 'workerName',
       header: 'Staf Pemohon',
       sortable: true,
-      render: (log) => (
-        <div>
-          <div className="font-bold text-white">{log.workerName || log.workerId}</div>
-          <div className="text-[10px] text-zinc-500 font-mono">NIK: {log.workerEmployeeId || '-'}</div>
-        </div>
-      ),
+      render: (log) => {
+        const matchedWorker = workers?.find(
+          (w) => w.id === log.workerId || w.employeeId === log.workerEmployeeId || w.employeeId === log.workerId
+        );
+        const displayName = (log.workerName && log.workerName !== 'Staf Terdaftar')
+          ? log.workerName
+          : (matchedWorker?.name || log.workerName || log.workerId);
+        const displayNik = (log.workerEmployeeId && log.workerEmployeeId !== '-')
+          ? log.workerEmployeeId
+          : (matchedWorker?.employeeId || '-');
+
+        return (
+          <div>
+            <div className="font-bold text-white">{displayName}</div>
+            <div className="text-[10px] text-zinc-500 font-mono">NIK: {displayNik}</div>
+          </div>
+        );
+      },
     },
     {
       key: 'workerDivision',
       header: 'Divisi',
       sortable: true,
-      render: (log) => (
-        <span className="bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded text-[10px] font-bold">
-          {log.workerDivision || '-'}
-        </span>
-      ),
+      render: (log) => {
+        const matchedWorker = workers?.find(
+          (w) => w.id === log.workerId || w.employeeId === log.workerEmployeeId || w.employeeId === log.workerId
+        );
+        const displayDivision = (log.workerDivision && log.workerDivision !== '-')
+          ? log.workerDivision
+          : (matchedWorker?.division || '-');
+
+        return (
+          <span className="bg-zinc-800 text-zinc-300 px-2 py-0.5 rounded text-[10px] font-bold">
+            {displayDivision}
+          </span>
+        );
+      },
     },
     { key: 'itemTitle', header: 'Item Reward', sortable: true },
     {
@@ -579,14 +653,27 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
           </div>
 
           {rewardSubTab === 'catalog' && (
-            <button
-              type="button"
-              onClick={handleOpenCreateRewardModal}
-              className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-purple-900/30 shrink-0"
-            >
-              <Plus className="w-4 h-4" />
-              <span>+ Tambah Item Reward Baru</span>
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={handleExecuteMonthlyReset}
+                disabled={isExecutingReset}
+                className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                title="Siklus Tutup Buku: Reset Poin Operasional Bulanan & Lindungi Poin Prestasi"
+              >
+                {isExecutingReset ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                <span>Siklus Reset Bulanan</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleOpenCreateRewardModal}
+                className="px-3.5 py-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-lg shadow-purple-900/30 shrink-0"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Tambah Item Reward Baru</span>
+              </button>
+            </div>
           )}
         </div>
 

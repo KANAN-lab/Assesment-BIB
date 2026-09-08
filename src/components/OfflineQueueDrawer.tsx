@@ -81,7 +81,14 @@ export const OfflineQueueDrawer: React.FC<OfflineQueueDrawerProps> = ({
     };
     window.addEventListener('keydown', handleKeyDown);
 
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
     return () => {
+      document.body.style.overflow = 'unset';
       window.removeEventListener(EVENT_OFFLINE_QUEUE_CHANGED, handleQueueChange);
       window.removeEventListener(EVENT_OPEN_OFFLINE_DRAWER, handleOpenDrawer);
       window.removeEventListener('keydown', handleKeyDown);

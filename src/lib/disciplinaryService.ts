@@ -333,7 +333,7 @@ export class DisciplinaryService {
 
     // Jika refundPoints diminta dan ada pointDeduction > 0
     if (refundPoints && action.pointDeduction && action.pointDeduction > 0) {
-      const reason = `Pemulihan Poin: Banding Sanksi ${action.documentRefNumber} Diterima (${status})`;
+      const reason = `Pemulihan Poin: Banding Sanksi ${action.documentRefNumber} Diterima (${status}) (+${action.pointDeduction} PTS)`;
       refundWorkerPoints(action.workerId, action.pointDeduction, reason).catch((err) => {
         console.warn('[DisciplinaryService] Gagal memulihkan poin banding sanksi:', err);
       });
@@ -361,7 +361,7 @@ export class DisciplinaryService {
 
     // Jika sanksi memiliki penalti poin, pulihkan kembali poin pekerja secara otomatis!
     if (target.pointDeduction && target.pointDeduction > 0) {
-      const reason = `Pemulihan Poin K3: Pembatalan Arsip ${target.documentRefNumber}`;
+      const reason = `Pemulihan Poin K3: Pembatalan Arsip ${target.documentRefNumber} (+${target.pointDeduction} PTS)`;
       refundWorkerPoints(target.workerId, target.pointDeduction, reason).catch((err) => {
         console.warn('[DisciplinaryService] Gagal memulihkan poin pembatalan sanksi:', err);
       });

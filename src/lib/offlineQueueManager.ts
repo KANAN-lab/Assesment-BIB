@@ -5,6 +5,11 @@
 
 import { OfflineQueueItem, QueueSyncSummary, SyncStatus } from '../types/offlineQueue';
 import { OfflineSopService, OfflineSopCompletion } from './offlineSopService';
+import { supabase } from './supabaseClient';
+import { flushOfflineSopCompletions } from './sopService';
+import { KaizenService } from './kaizenService';
+import { createIncidentReport, completeWorkerQuiz, completeWorkerChecklist } from './supabaseService';
+import { KudoService } from './kudoService';
 
 const QUEUE_STORAGE_KEY = 'bib_unified_offline_queue';
 const LAST_SYNC_KEY = 'bib_offline_last_sync_time';
@@ -221,11 +226,9 @@ export class OfflineQueueManager {
       if (customHandler) {
         success = await customHandler(item);
       } else if (item.type === 'sop_completion') {
-        const { flushOfflineSopCompletions } = await import('./sopService');
         await flushOfflineSopCompletions();
         success = true;
       } else if (item.type === 'safety_patrol') {
-        const { supabase } = await import('./supabaseClient');
         const p = item.payload;
         const insertPayload: Record<string, any> = {
           id: p.id,
@@ -265,6 +268,75 @@ export class OfflineQueueManager {
         } else {
           success = true;
         }
+      } else if (item.type === 'kaizen_submission') {
+        const p = item.payload || {};
+        const authorId = p.authorId || item.workerId;
+        const input = p.input || {
+          title: p.title,
+          category: p.category,
+          currentCondition: p.currentCondition,
+          proposedSolution: p.proposedSolution,
+          expectedImpact: p.expectedImpact,
+          photoBeforeUrl: p.photoBeforeUrl,
+          photoAfterUrl: p.photoAfterUrl,
+        };
+        const res = await KaizenService.submitSuggestion(
+          authorId,
+          input,
+          item.idempotencyKey
+        );
+        if (res.success || res.error?.includes('sudah pernah dikirim')) {
+          success = true;
+        } else {
+          throw new Error(res.error || 'Gagal sinkronisasi usulan Kaizen');
+        }
+      } else if (item.type === 'incident_report') {
+        const p = item.payload || {};
+        const workerId = p.workerId || item.workerId;
+        const payload = {
+          incidentType: p.incidentType || p.type || 'near_miss',
+          location: p.location || 'Area Gudang',
+          description: p.description || '',
+          severity: p.severity || 'Medium',
+          occurredAt: p.occurredAt || new Date().toISOString(),
+          photoUrl: p.photoUrl,
+        };
+        try {
+          await createIncidentReport(workerId, payload, item.idempotencyKey);
+          success = true;
+        } catch (incErr: any) {
+          if (incErr?.message?.includes('sudah pernah dikirim')) {
+            success = true;
+          } else {
+            throw incErr;
+          }
+        }
+      } else if (item.type === 'kudo') {
+        const p = item.payload || {};
+        const res = await KudoService.sendKudo(
+          p.senderId || item.workerId,
+          p.receiverId,
+          p.category,
+          p.message
+        );
+        if (res.success || res.message?.includes('Anti-Pingpong') || res.message?.includes('Batas Kuota')) {
+          success = true;
+        } else {
+          throw new Error(res.message || 'Gagal mengirim kudo');
+        }
+      } else if (item.type === 'daily_quiz') {
+        const p = item.payload || {};
+        await completeWorkerQuiz(
+          p.workerId || item.workerId,
+          p.basePointsEarned || p.pointsEarned || 50,
+          p.newBibScores
+        );
+        success = true;
+      } else if (item.type === 'pre_shift_checklist') {
+        const p = item.payload || {};
+        const baseBonusPoints = p.baseBonusPoints || 30;
+        await completeWorkerChecklist(p.workerId || item.workerId, baseBonusPoints);
+        success = true;
       } else {
         // Fallback simulate success for recorded items if offline
         await new Promise((r) => setTimeout(r, 600));
@@ -300,7 +372,6 @@ export class OfflineQueueManager {
 
     // 1. Eksekusi flushing SOP completions terlebih dahulu via service resmi
     try {
-      const { flushOfflineSopCompletions } = await import('./sopService');
       const sopResult = await flushOfflineSopCompletions();
       synced += (typeof sopResult === 'number' ? sopResult : 0);
     } catch (e) {
@@ -321,6 +392,13 @@ export class OfflineQueueManager {
     this.recordLastSync();
     this.notifyChange();
     return { synced, failed };
+  }
+
+  /**
+   * Alias untuk forceSyncAll()
+   */
+  public static async flushAll(): Promise<{ synced: number; failed: number }> {
+    return this.forceSyncAll();
   }
 
   /**

@@ -156,10 +156,18 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
     return () => {
       document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
     };
-  }, []);
+  }, [onClose]);
 
   const cfg = SystemConfigService.getConfig();
   const rewardPointsDisplay = (incident.incidentType === 'near_miss' || (incident as any).type === 'near_miss')
@@ -293,10 +301,10 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
               <Award className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
               <div>
                 <strong className="block text-amber-300 font-bold text-xs mb-0.5">
-                  Aturan Poin Reward Laporan Valid (+50 PTS):
+                  Aturan Poin Reward Laporan Valid (+{rewardPointsDisplay} PTS):
                 </strong>
                 <p className="text-amber-200/90 text-[11px] leading-relaxed">
-                  Insiden yang diverifikasi <strong className="text-emerald-400">VALID / DISETUJUI</strong> akan mentransfer <strong className="text-emerald-400">+50 PTS Reward</strong> langsung ke akun poin worker pelapor.
+                  Insiden yang diverifikasi <strong className="text-emerald-400">VALID / DISETUJUI</strong> akan mentransfer <strong className="text-emerald-400">+{rewardPointsDisplay} PTS Reward</strong> langsung ke akun poin worker pelapor.
                 </p>
               </div>
             </div>
@@ -548,7 +556,7 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
               ) : (
                 <CheckCircle2 className="w-4 h-4" />
               )}
-              Setujui & Validasi (+50 PTS)
+              Setujui & Validasi (+{rewardPointsDisplay} PTS)
             </button>
           </div>
         </div>

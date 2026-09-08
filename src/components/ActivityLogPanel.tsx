@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Activity, LogIn, LogOut, Key, Shield, BookOpen, CheckCircle2, ShieldAlert, User, RefreshCw, Award, ArrowRightLeft, BookMarked, ShieldCheck, UserCheck, RotateCcw, XCircle, Hourglass, AlertOctagon, AlertTriangle, Radio } from 'lucide-react';
+import { Activity, LogIn, LogOut, Key, Shield, BookOpen, CheckCircle2, ShieldAlert, User, RefreshCw, Award, ArrowRightLeft, BookMarked, ShieldCheck, UserCheck, RotateCcw, XCircle, Hourglass, AlertOctagon, AlertTriangle, Radio, UserMinus } from 'lucide-react';
 import type { ActivityLog, ActivityAction } from '../types/assessment';
 
 interface ActivityLogPanelProps {
@@ -36,10 +36,16 @@ const ACTION_CONFIG: Record<ActivityAction, { icon: React.ReactNode; label: stri
   points_refunded:                   { icon: <RotateCcw className="w-3.5 h-3.5" />,   label: 'Pemulihan Poin',     color: 'text-emerald-400 bg-emerald-500/10' },
   points_expired:                    { icon: <Hourglass className="w-3.5 h-3.5" />,   label: 'Poin Hangus',        color: 'text-amber-400 bg-amber-500/10' },
   redemption_rejected:               { icon: <XCircle className="w-3.5 h-3.5" />,     label: 'Reward Dibatalkan',  color: 'text-rose-400 bg-rose-500/10' },
+  worker_offboarded:                 { icon: <UserMinus className="w-3.5 h-3.5" />,   label: 'Pegawai Offboard',   color: 'text-rose-400 bg-rose-500/10' },
+  worker_reactivated:                { icon: <RotateCcw className="w-3.5 h-3.5" />,   label: 'Pegawai Diaktifkan', color: 'text-emerald-400 bg-emerald-500/10' },
 };
 
 function formatTimeAgo(iso: string): string {
-  const diff = Date.now() - new Date(iso).getTime();
+  if (!iso) return 'baru saja';
+  const timestamp = new Date(iso).getTime();
+  if (isNaN(timestamp)) return 'baru saja';
+  const diff = Date.now() - timestamp;
+  if (diff < 0) return 'baru saja';
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'baru saja';
   if (mins < 60) return `${mins} mnt lalu`;

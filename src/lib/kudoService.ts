@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient';
 import { KudoEntity, KudoCategory } from '../types/kudos';
 import { SystemConfigService } from '../domain/SystemConfigService';
+import { NotificationEngine } from '../domain/NotificationEngine';
 
 export interface KudoQuotaInfo {
   sentThisWeek: number;
@@ -91,6 +92,7 @@ export class KudoService {
       }
 
       const rewardPoints = SystemConfigService.getConfig().kudoReceivedPoints || 25;
+      const senderBonus = SystemConfigService.getConfig().kudoSentPoints || 10;
 
       // Coba panggil RPC atomik
       const { data, error } = await supabase.rpc('rpc_send_kudo', {
@@ -116,10 +118,21 @@ export class KudoService {
           );
           window.dispatchEvent(
             new CustomEvent('gappy_points_awarded', {
-              detail: { workerId: senderId, pointsEarned: result.sender_bonus ?? 10 },
+              detail: { workerId: senderId, pointsEarned: result.sender_bonus ?? senderBonus },
             })
           );
         }
+
+        // Notifikasi real-time ke akun rekan kerja penerima Kudo
+        NotificationEngine.addNotification({
+          recipientId: receiverId,
+          recipientRole: 'worker',
+          title: `👏 Kudo Keselamatan Baru: ${category}`,
+          message: `Anda menerima apresiasi Kudo kategori ${category}${message ? `: "${message.trim()}"` : ''}. +${rewardPoints} PTS telah ditambahkan ke akun Anda!`,
+          type: 'reward',
+          metadata: { senderId, category, points: rewardPoints },
+        });
+
         return result;
       }
 
@@ -136,35 +149,41 @@ export class KudoService {
         console.warn('Fallback insert worker_kudos failed:', insertErr);
       }
 
-      // Update points penerima (+25)
+      // Update points penerima (+25 Operational PTS)
       const { data: recWorker } = await supabase
         .from('workers')
-        .select('total_points')
+        .select('total_points, operational_points, prestige_points')
         .eq('id', receiverId)
         .maybeSingle();
 
       if (recWorker) {
+        const curOp = Number(recWorker.operational_points || 0);
+        const curTot = Number(recWorker.total_points || 0);
         await supabase
           .from('workers')
           .update({
-            total_points: (recWorker.total_points || 0) + rewardPoints,
+            operational_points: curOp + rewardPoints,
+            total_points: curTot + rewardPoints,
             updated_at: new Date().toISOString(),
           })
           .eq('id', receiverId);
       }
 
-      // Bonus pengirim (+10)
+      // Bonus pengirim (+${senderBonus} Operational PTS)
       const { data: sendWorker } = await supabase
         .from('workers')
-        .select('total_points')
+        .select('total_points, operational_points, prestige_points')
         .eq('id', senderId)
         .maybeSingle();
 
       if (sendWorker) {
+        const curOp = Number(sendWorker.operational_points || 0);
+        const curTot = Number(sendWorker.total_points || 0);
         await supabase
           .from('workers')
           .update({
-            total_points: (sendWorker.total_points || 0) + 10,
+            operational_points: curOp + senderBonus,
+            total_points: curTot + senderBonus,
             updated_at: new Date().toISOString(),
           })
           .eq('id', senderId);
@@ -181,7 +200,7 @@ export class KudoService {
           {
             worker_id: senderId,
             action: 'kudo_sent',
-            detail: `Mengirimkan Kudo (${category}): +10 PTS`,
+            detail: `Mengirimkan Kudo (${category}): +${senderBonus} PTS`,
           },
         ]);
       } catch (logErr) {
@@ -196,10 +215,20 @@ export class KudoService {
         );
         window.dispatchEvent(
           new CustomEvent('gappy_points_awarded', {
-            detail: { workerId: senderId, pointsEarned: 10 },
+            detail: { workerId: senderId, pointsEarned: senderBonus },
           })
         );
       }
+
+      // Notifikasi real-time ke akun rekan kerja penerima Kudo
+      NotificationEngine.addNotification({
+        recipientId: receiverId,
+        recipientRole: 'worker',
+        title: `👏 Kudo Keselamatan Baru: ${category}`,
+        message: `Anda menerima apresiasi Kudo kategori ${category}${message ? `: "${message.trim()}"` : ''}. +${rewardPoints} PTS telah ditambahkan ke akun Anda!`,
+        type: 'reward',
+        metadata: { senderId, category, points: rewardPoints },
+      });
 
       return {
         success: true,

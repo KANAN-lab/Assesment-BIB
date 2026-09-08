@@ -18,6 +18,7 @@ import {
 import { IncidentReport } from '../types/assessment';
 import { NotificationEngine } from '../domain/NotificationEngine';
 import { ExecutivePDFReportGenerator } from '../lib/pdfReportService';
+import { SystemConfigService } from '../domain/SystemConfigService';
 
 interface SupervisorIncidentKanbanProps {
   incidents: IncidentReport[];
@@ -105,11 +106,15 @@ export const SupervisorIncidentKanban: React.FC<SupervisorIncidentKanbanProps> =
 
     // Kirim notifikasi ke Worker saat Supervisor memvalidasi insiden (misal dari open -> investigating/resolved)
     if (inc.status === 'open' && nextStatus !== 'open') {
+      const cfg = SystemConfigService.getConfig();
+      const incRewardPts = inc.incidentType === 'near_miss'
+        ? (cfg.nearMissRewardPoints || 75)
+        : (cfg.incidentValidRewardPoints || 50);
       NotificationEngine.addNotification({
         recipientId: inc.workerId,
         recipientRole: 'worker',
         title: '🎉 Laporan Insiden K3 Disetujui!',
-        message: `Laporan insiden Anda di ${inc.location} telah disetujui Supervisor. Poin +50 PTS telah ditambahkan ke dompet Anda!`,
+        message: `Laporan insiden Anda di ${inc.location} telah disetujui Supervisor. Poin +${incRewardPts} PTS telah ditambahkan ke dompet Anda!`,
         type: 'incident',
       });
     }
@@ -200,6 +205,9 @@ export const SupervisorIncidentKanban: React.FC<SupervisorIncidentKanbanProps> =
                   colIncidents.map((inc) => {
                     const sevMeta = SEVERITY_META[inc.severity] ?? SEVERITY_META.low;
                     const isUpdating = updatingIncidentId === inc.id;
+                    const incRewardPts = inc.incidentType === 'near_miss'
+                      ? (SystemConfigService.getConfig().nearMissRewardPoints || 75)
+                      : (SystemConfigService.getConfig().incidentValidRewardPoints || 50);
 
                     return (
                       <div
@@ -238,7 +246,7 @@ export const SupervisorIncidentKanban: React.FC<SupervisorIncidentKanbanProps> =
                         {inc.status === 'open' && (
                           <div className="bg-amber-500/10 border border-amber-500/20 text-amber-300 text-[10px] p-1.5 rounded-lg flex items-center gap-1 font-semibold">
                             <Clock className="w-3 h-3 text-amber-400 shrink-0" />
-                            <span>Poin +50 PTS Worker Pending</span>
+                            <span>Poin +{incRewardPts} PTS Worker Pending</span>
                           </div>
                         )}
 
@@ -289,7 +297,7 @@ export const SupervisorIncidentKanban: React.FC<SupervisorIncidentKanbanProps> =
                               className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] rounded-lg transition flex items-center gap-1 disabled:opacity-50"
                             >
                               {isUpdating ? <Loader2 className="w-3 h-3 animate-spin" /> : <CheckCircle2 className="w-3 h-3" />}
-                              Validasi (+50 PTS)
+                              Validasi (+{incRewardPts} PTS)
                             </button>
                           )}
 

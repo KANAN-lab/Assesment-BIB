@@ -17,7 +17,9 @@ interface ScoreHistoryChartProps {
 }
 
 function formatDate(isoStr: string): string {
+  if (!isoStr) return '-';
   const d = new Date(isoStr);
+  if (isNaN(d.getTime())) return '-';
   return `${d.getDate()}/${d.getMonth() + 1}`;
 }
 

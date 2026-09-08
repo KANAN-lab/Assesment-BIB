@@ -4,15 +4,17 @@ import { WorkerProfile } from '../types/assessment';
 import { signInWithNikOrEmail, signUpWorker, sendPasswordResetEmail, verifyOtpAndResetPassword } from '../lib/supabaseService';
 import { DivisionEntity } from '../domain/DivisionEntity';
 import { RoleEntity } from '../domain/RoleEntity';
+import { AuthSessionService } from '../lib/authSessionService';
 
 interface LoginModalProps {
-  onLoginSuccess: (employeeId?: string) => void;
+  onLoginSuccess: (worker: WorkerProfile, isSharedDevice: boolean) => void;
 }
 
 export const LoginModal: React.FC<LoginModalProps> = ({
   onLoginSuccess,
 }) => {
   const [tab, setTab] = useState<'login' | 'register' | 'forgot'>('login');
+  const [isSharedDevice, setIsSharedDevice] = useState<boolean>(() => AuthSessionService.isSharedDeviceMode());
 
   // Master Data OOP
   const divisions = useMemo(() => DivisionEntity.createDefaultDivisions(), []);
@@ -68,6 +70,13 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
+  React.useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, []);
+
   // Switch Account Type -> auto-select valid division and valid role
   const handleAccountTypeChange = (type: 'worker' | 'supervisor') => {
     setAccountType(type);
@@ -115,8 +124,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     setLoading(true);
     setError(null);
     try {
-      await signInWithNikOrEmail(identifier, loginPassword);
-      onLoginSuccess(identifier);
+      const res = await signInWithNikOrEmail(identifier, loginPassword);
+      if (res?.worker) {
+        onLoginSuccess(res.worker, isSharedDevice);
+      } else {
+        throw new Error('Data profil pekerja tidak ditemukan.');
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Gagal login. Periksa NIK/Email dan password.';
       setError(msg);
@@ -168,8 +181,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           `Pendaftaran akun "${registeredRole}" berhasil diajukan! Demi keamanan & tata kelola operasional, akun pengawas/spesialis memerlukan persetujuan (approval) Administrator sebelum dapat digunakan untuk login.`
         );
         setPassword('');
-      } else {
-        onLoginSuccess(employeeId);
+      } else if (res?.worker) {
+        onLoginSuccess(res.worker, isSharedDevice);
       }
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'Gagal mendaftar akun baru.';
@@ -324,6 +337,19 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                   className="w-full bg-zinc-950 border border-zinc-800 rounded-xl pl-9 pr-3 py-2.5 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-emerald-500"
                 />
               </div>
+            </div>
+
+            {/* Opsi Komputer Bersama / Mode Kiosk Gudang */}
+            <div className="flex items-center justify-between py-0.5 px-0.5">
+              <label className="flex items-center gap-2 cursor-pointer select-none text-zinc-400 hover:text-zinc-200 transition">
+                <input
+                  type="checkbox"
+                  checked={isSharedDevice}
+                  onChange={(e) => setIsSharedDevice(e.target.checked)}
+                  className="w-3.5 h-3.5 rounded bg-zinc-950 border-zinc-700 text-emerald-600 focus:ring-0 focus:ring-offset-0"
+                />
+                <span className="text-[11px]">Komputer Bersama / Kiosk (Auto-logout 30 mnt)</span>
+              </label>
             </div>
 
             <button

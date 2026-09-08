@@ -204,15 +204,18 @@ export class Audit5sService {
             if (rpcErr) {
               const { data: w } = await supabase
                 .from('workers')
-                .select('id, total_points')
+                .select('id, total_points, prestige_points')
                 .or(`id.eq.${picId},employee_id.eq.${picId}`)
                 .maybeSingle();
 
               if (w) {
+                const curTotal = Number(w.total_points || 0);
+                const curPr = Number(w.prestige_points || curTotal);
                 await supabase
                   .from('workers')
                   .update({
-                    total_points: (w.total_points || 0) + points,
+                    total_points: curTotal + points,
+                    prestige_points: curPr + points,
                     updated_at: new Date().toISOString(),
                   })
                   .eq('id', w.id);

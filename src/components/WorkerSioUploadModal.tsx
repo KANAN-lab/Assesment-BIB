@@ -26,6 +26,7 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
   worker,
   onSuccess,
 }) => {
+  const sioRewardPts = SystemConfigService.getConfig().sioRegisteredRewardPoints || 100;
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -45,17 +46,28 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState('Menyimpan...');
 
-  // Lock scroll
+  // Lock scroll and listen for Escape key
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === 'Escape') {
+          onClose();
+        }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+
+      return () => {
+        document.body.style.overflow = 'unset';
+        window.removeEventListener('keydown', handleKeyDown);
+      };
     } else {
       document.body.style.overflow = 'unset';
     }
     return () => {
       document.body.style.overflow = 'unset';
     };
-  }, [isOpen]);
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -152,7 +164,7 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
 
     try {
       setSaveStatus('Sinkronisasi lisensi ke database K3 & klaim reward...');
-      const rewardPts = SystemConfigService.getConfig().sioRegisteredRewardPoints || 100;
+      const rewardPts = sioRewardPts;
 
       // Check existing license to decide add or update
       const existingLicense = LicenseService.getLicenseByWorkerId(worker.id) || LicenseService.getLicenseByWorkerId(worker.employeeId);
@@ -228,7 +240,7 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
             <h3 className="text-sm sm:text-base font-black text-white flex items-center gap-2">
               <span>Unggah Lisensi SIO Mandiri</span>
               <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/30">
-                +{SystemConfigService.getConfig().sioRegisteredRewardPoints || 100} PTS
+                +{sioRewardPts} PTS
               </span>
             </h3>
             <p className="text-xs text-zinc-400 mt-0.5">
@@ -439,7 +451,7 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
               ) : (
                 <>
                   <Check className="w-3.5 h-3.5" />
-                  <span>Simpan & Verifikasi SIO (+100 PTS)</span>
+                  <span>Simpan & Verifikasi SIO (+{sioRewardPts} PTS)</span>
                 </>
               )}
             </button>

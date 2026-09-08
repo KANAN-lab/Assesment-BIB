@@ -80,6 +80,26 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
   const [originalSizeKb, setOriginalSizeKb] = useState<number | undefined>(undefined);
   const [compressedSizeKb, setCompressedSizeKb] = useState<number | undefined>(undefined);
 
+  useEffect(() => {
+    document.body.style.overflow = 'hidden';
+    const timer = setTimeout(() => {
+      closeBtnRef.current?.focus();
+    }, 50);
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      clearTimeout(timer);
+      document.body.style.overflow = 'unset';
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [onClose]);
+
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -221,7 +241,7 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
               <p className="text-xs text-zinc-400 mt-0.5 flex items-center gap-2">
                 <span>Dilaporkan oleh: <strong className="text-white">{workerName}</strong></span>
                 <span>·</span>
-                <span className="text-emerald-400 font-mono font-bold">+50 PTS Reward Ready</span>
+                <span className="text-emerald-400 font-mono font-bold">+{currentRewardPts} PTS Reward Ready</span>
               </p>
             </div>
           </div>
@@ -242,7 +262,7 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
             </div>
             <h3 className="text-lg font-bold text-white">Laporan Insiden K3 Berhasil Terkirim!</h3>
             <p className="text-xs text-zinc-400 max-w-md leading-relaxed">
-              Laporan Anda telah berhasil masuk ke antrean validasi Supervisor HSEQ. Poin reward <strong className="text-emerald-400">+50 PTS</strong> berstatus Pending dan akan aktif begitu diverifikasi.
+              Laporan Anda telah berhasil masuk ke antrean validasi Supervisor HSEQ. Poin reward <strong className="text-emerald-400">+{currentRewardPts} PTS</strong> berstatus Pending dan akan aktif begitu diverifikasi.
             </p>
 
             <div className="bg-zinc-950 border border-zinc-800 p-4 rounded-xl space-y-2 text-xs text-left w-full max-w-md">
@@ -481,7 +501,7 @@ export const IncidentReportModal: React.FC<IncidentReportModalProps> = ({
                   ) : (
                     <>
                       <ShieldAlert className="w-4 h-4" />
-                      <span>Kirim Laporan Insiden K3 (+50 PTS)</span>
+                      <span>Kirim Laporan Insiden K3 (+{currentRewardPts} PTS)</span>
                     </>
                   )}
                 </button>
