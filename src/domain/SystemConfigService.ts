@@ -11,6 +11,7 @@ import type { TierConfig } from '../types/assessment';
 export type DocumentType =
   | 'competency_matrix'
   | 'k3_incident'
+  | 'monthly_hse_dossier'
   | 'mhe_sio'
   | 'ppe_inventory'
   | 'reward_budget'
@@ -281,6 +282,9 @@ export class SystemConfigService {
         break;
       case 'k3_incident':
         template = config.docNumberTemplateK3Incident;
+        break;
+      case 'monthly_hse_dossier':
+        template = 'DAM/HSE-DOSSIER/{YEAR}/{MONTH}/{RANDOM}';
         break;
       case 'mhe_sio':
         template = config.docNumberTemplateMheSio;

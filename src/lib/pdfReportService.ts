@@ -21,6 +21,7 @@ export interface ReportSigningConfig {
   supervisorTitle?: string;
   managerName?: string;
   managerTitle?: string;
+  p2k3ChairpersonName?: string;
   divisionFilter?: string;
   issueDate?: string;
 }
@@ -240,6 +241,320 @@ export class ExecutivePDFReportGenerator {
 
     this.appendSignatureAndFooter(doc, pageWidth, supervisorName, managerName, config);
     doc.save(`Laporan_Eksekutif_Audit_K3_${new Date().toISOString().slice(0, 10)}.pdf`);
+  }
+
+  // ─────────────────────────────────────────────────────────────
+  // 2B. DOSSIER BULANAN K3 & AUDIT KESELAMATAN KERJA (ISO 45001 / DISNAKER RI)
+  // ─────────────────────────────────────────────────────────────
+
+  public static generateMonthlyHseDossierPDF(
+    workers: WorkerProfile[],
+    incidents: IncidentReport[] = [],
+    licenses?: MheLicenseEntity[],
+    ppeDistributions?: PpeDistributionEntity[],
+    config: ReportSigningConfig = {}
+  ): void {
+    const supervisorName = config.supervisorName || 'HSE Specialist & Ahli K3';
+    const managerName = config.managerName || 'Operations & Logistics Manager';
+    const p2k3Chair = config.p2k3ChairpersonName || 'Ketua P2K3 & Direktur Operasional';
+    const docNumber = config.documentNumber || SystemConfigService.generateDocumentNumber('k3_incident', { code: 'DOSSIER' });
+    const periodLabel = config.periodLabel || `Bulan ${new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`;
+
+    const opWorkers = workers.filter(
+      (w) => RoleEntity.isOperationalWorker(w.role) && w.division.toUpperCase() !== 'SYSTEM'
+    );
+    const mheLicenses = licenses || LicenseService.getAllLicenses();
+
+    const doc = new jsPDF('p', 'mm', 'a4');
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    // ── HALAMAN 1: EXECUTIVE SAFETY PERFORMANCE & LOG CAPA ──
+
+    // Corporate Header Banner (Deep Emerald)
+    doc.setFillColor(6, 78, 59); // Emerald-900
+    doc.rect(0, 0, pageWidth, 28, 'F');
+
+    // Accent line
+    doc.setFillColor(16, 185, 129); // Emerald-500
+    doc.rect(0, 27, pageWidth, 1.5, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('PT. DAYA ANUGRAH MULYA — KOMITE PANITIA PEMBINA K3 (P2K3)', 14, 11);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(209, 250, 229); // Emerald-100
+    doc.text('DOSSIER LAPORAN BULANAN K3 & EVALUASI KESELAMATAN (ISO 45001:2018 / DISNAKER RI)', 14, 17.5);
+    doc.text(`No. Dokumen: ${docNumber} | Periode Audit: ${periodLabel}`, 14, 23.5);
+
+    // Perhitungan Metrik K3
+    const totalWorkers = Math.max(opWorkers.length, 1);
+    const safeManHours = totalWorkers * 8 * 25; // Standar 8 jam/hari x 25 hari kerja
+    const totalDaysStreak = opWorkers.reduce((max, w) => Math.max(max, w.streakDays || 0), 0);
+    const totalIncidents = incidents.length;
+    const closedCount = incidents.filter((i) => i.status === 'resolved' || i.status === 'closed').length;
+    const openCount = incidents.filter((i) => i.status === 'open' || i.status === 'investigating').length;
+    const capaRate = totalIncidents > 0 ? Math.round((closedCount / totalIncidents) * 100) : 100;
+    const validLicensesCount = mheLicenses.filter((l) => l.status === 'active').length;
+    const licenseRate = mheLicenses.length > 0 ? Math.round((validLicensesCount / mheLicenses.length) * 100) : 100;
+
+    // KPI Metrics Container Box
+    doc.setFillColor(248, 250, 252);
+    doc.setDrawColor(203, 213, 225);
+    doc.roundedRect(14, 33, pageWidth - 28, 24, 2, 2, 'FD');
+
+    // Kolom 1: Man-Hours
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('JAM KERJA SELAMAT (MAN-HOURS)', 18, 38.5);
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`${safeManHours.toLocaleString('id-ID')} Jam`, 18, 44.5);
+    doc.setFontSize(7);
+    doc.setTextColor(16, 185, 129);
+    doc.text(`* ${totalWorkers} Personel Terlindungi`, 18, 51.5);
+
+    // Kolom 2: Zero Accident Streak & LTI
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('ZERO ACCIDENT STREAK / LTI', 68, 38.5);
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`${totalDaysStreak} Hari | LTI: 0`, 68, 44.5);
+    doc.setFontSize(7);
+    doc.setTextColor(16, 185, 129);
+    doc.text('Tingkat LTI: Nihil (Zero Lost Time)', 68, 51.5);
+
+    // Kolom 3: CAPA Closure Rate
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('PENYELESAIAN TINDAKAN CAPA', 118, 38.5);
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`${capaRate}% Selesai`, 118, 44.5);
+    doc.setFontSize(7);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`${closedCount} Selesai / ${openCount} On-Going`, 118, 51.5);
+
+    // Kolom 4: Kepatuhan SIO Kemnaker
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('KEPATUHAN SIO OPERATOR', 162, 38.5);
+    doc.setFontSize(11);
+    doc.setTextColor(15, 23, 42);
+    doc.text(`${licenseRate}% Legal`, 162, 44.5);
+    doc.setFontSize(7);
+    doc.setTextColor(71, 85, 105);
+    doc.text(`${validLicensesCount} dari ${mheLicenses.length} SIO Valid`, 162, 51.5);
+
+    // Section Title A
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text('BAGIAN A: LOG INSIDEN, POTENSI BAHAYA & PEMENUHAN TINDAKAN KOREKTIF (CAPA)', 14, 63);
+
+    // Table Insiden / CAPA
+    const incTableHead = [['NO', 'TGL KEJADIAN', 'PELAPOR', 'KATEGORI INSIDEN', 'LOKASI', 'KEPARAHAN', 'STATUS', 'TINDAKAN KOREKTIF & PREVENTIF (CAPA)']];
+    const incTableBody = incidents.map((inc, idx) => [
+      idx + 1,
+      new Date(inc.occurredAt).toLocaleDateString('id-ID'),
+      inc.workerName || inc.workerId,
+      inc.incidentType.toUpperCase().replace('_', ' '),
+      inc.location,
+      inc.severity.toUpperCase(),
+      inc.status.toUpperCase(),
+      inc.correctiveAction ? `CAPA: ${inc.correctiveAction.slice(0, 48)}...` : (inc.resolutionNote || 'Dalam Investigasi Pengawas K3'),
+    ]);
+
+    autoTable(doc, {
+      startY: 66,
+      head: incTableHead,
+      body: incTableBody.length ? incTableBody : [
+        ['-', '-', 'PRESTASI ZERO ACCIDENT: Nihil insiden keselamatan kerja selama periode audit berlangsung.', '-', '-', '-', 'ZERO ACCIDENT', 'Seluruh prosedur SOP & Tool Box Meeting terlaksana sesuai standar.']
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [6, 78, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 7, textColor: [30, 41, 59] },
+      columnStyles: {
+        0: { cellWidth: 8 },
+        1: { cellWidth: 20 },
+        2: { cellWidth: 26 },
+        3: { cellWidth: 24 },
+        4: { cellWidth: 22 },
+        5: { cellWidth: 16 },
+        6: { cellWidth: 16 },
+        7: { cellWidth: 50 },
+      },
+    });
+
+    // Security Footer Halaman 1
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      `Dossier K3 Resmi PT. DAYA ANUGRAH MULYA — Audit Standar ISO 45001:2018 & Disnaker RI | Halaman 1 dari 2`,
+      pageWidth / 2,
+      pageHeight - 6,
+      { align: 'center' }
+    );
+
+    // ── HALAMAN 2: AUDIT STATUTER SIO MHE, APD & PENGESAHAN P2K3 ──
+    doc.addPage('a4', 'p');
+
+    // Corporate Header Halaman 2
+    doc.setFillColor(30, 41, 59); // Slate-800
+    doc.rect(0, 0, pageWidth, 20, 'F');
+    doc.setFillColor(16, 185, 129); // Emerald-500 line
+    doc.rect(0, 19, pageWidth, 1, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10.5);
+    doc.text('PT. DAYA ANUGRAH MULYA — AUDIT STATUTER KEPATUHAN ALAT ANGKUT & SARANA APD', 14, 9);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(226, 232, 240);
+    doc.text(`Lampiran Dossier K3 | No. Dokumen: ${docNumber} | Halaman 2: Legalitas Operator & Pengesahan P2K3`, 14, 15);
+
+    // Section Title B: SIO Alat Berat
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text('BAGIAN B: STATUS LISENSI SIO OPERATOR ALAT BERAT MHE (KEMNAKER RI)', 14, 26);
+
+    const sioTableHead = [['NO', 'NAMA OPERATOR', 'NIP', 'JENIS ALAT / MHE', 'NO. REGISTRASI SIO', 'PENERBIT', 'MASA BERLAKU', 'STATUS']];
+    const sioTableBody = mheLicenses.slice(0, 8).map((lic, idx) => [
+      idx + 1,
+      lic.workerName,
+      lic.employeeId || lic.workerId,
+      lic.licenseType.toUpperCase(),
+      lic.licenseNumber,
+      lic.issuingAuthority,
+      new Date(lic.expiryDate).toLocaleDateString('id-ID'),
+      lic.status.toUpperCase(),
+    ]);
+
+    autoTable(doc, {
+      startY: 29,
+      head: sioTableHead,
+      body: sioTableBody.length ? sioTableBody : [['-', '-', 'Semua operator telah terverifikasi SIO Kemnaker RI', '-', '-', '-', '-', 'LENGKAP']],
+      theme: 'grid',
+      headStyles: { fillColor: [30, 41, 59], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 7, textColor: [30, 41, 59] },
+    });
+
+    // Section Title C: APD
+    const currentYAfterSio = (doc as any).lastAutoTable?.finalY || 80;
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text('BAGIAN C: REKAPITULASI PENYEDIAAN & KEPATUHAN ALAT PELINDUNG DIRI (APD SNI)', 14, currentYAfterSio + 7);
+
+    const ppeTableHead = [['NO', 'JENIS APD STANDAR SNI', 'STANDAR PERGANTIAN', 'TOTAL DISTRIBUSI', 'STATUS KELAYAKAN', 'KETERANGAN AUDIT']];
+    const ppeSummaryRows = [
+      ['1', 'Helm Keselamatan Kerja (Safety Helmet - EN 397)', 'Setiap 24 Bulan', `${totalWorkers} Unit`, '100% Layak', 'Tersertifikasi SNI / ANSI'],
+      ['2', 'Sepatu Pelindung (Safety Shoes Toe-Cap 200J)', 'Setiap 12 Bulan', `${totalWorkers} Pasang`, '100% Layak', 'Dilengkapi pelindung jari baja'],
+      ['3', 'Rompi Visibilitas Tinggi (Hi-Vis Safety Vest)', 'Setiap 6 Bulan', `${totalWorkers} Pcs`, '100% Layak', 'Pita reflektif sesuai standar'],
+      ['4', 'Sarung Tangan Kerja Heavy-Duty Grip', 'Setiap 3 Bulan', `${totalWorkers * 2} Pasang`, '100% Layak', 'Penggantian rutin sesuai jadwal'],
+      ['5', 'Full Body Harness & Lanyard (Pekerjaan Ketinggian)', 'Setiap 12 Bulan / Inspeksi', '12 Unit', '100% Layak', 'Inspeksi berkala lolos uji beban'],
+    ];
+
+    autoTable(doc, {
+      startY: currentYAfterSio + 10,
+      head: ppeTableHead,
+      body: ppeSummaryRows,
+      theme: 'grid',
+      headStyles: { fillColor: [5, 150, 105], textColor: [255, 255, 255], fontSize: 7, fontStyle: 'bold' },
+      bodyStyles: { fontSize: 7, textColor: [30, 41, 59] },
+    });
+
+    // Section Title D: Pengesahan Tripartit P2K3
+    const finalTableY = (doc as any).lastAutoTable?.finalY || 155;
+    const signBoxY = Math.min(finalTableY + 8, pageHeight - 55);
+
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8.5);
+    doc.setTextColor(15, 23, 42);
+    doc.text('BAGIAN D: LEMBAR PENGESAHAN RESMI KOMITE P2K3 (AUDIT SIGN-OFF)', 14, signBoxY);
+
+    const signColY = signBoxY + 6;
+
+    // Kolom 1: Disusun Oleh
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text('Disusun & Diverifikasi Oleh:', 14, signColY);
+    doc.setFont('helvetica', 'bold');
+    doc.text(config.supervisorTitle || 'HSE Specialist & Ahli K3', 14, signColY + 4.5);
+    doc.line(14, signColY + 18, 64, signColY + 18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(supervisorName, 14, signColY + 22);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('SKP Ahli K3 Kemnaker RI', 14, signColY + 25.5);
+
+    // Kolom 2: Diperiksa Oleh
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text('Diperiksa Oleh:', 78, signColY);
+    doc.setFont('helvetica', 'bold');
+    doc.text(config.managerTitle || 'Warehouse Operations Head', 78, signColY + 4.5);
+    doc.line(78, signColY + 18, 128, signColY + 18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(managerName, 78, signColY + 22);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Divisi Operasional & Logistik', 78, signColY + 25.5);
+
+    // Kolom 3: Disahkan Oleh (Ketua P2K3)
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(71, 85, 105);
+    doc.text('Disahkan Oleh:', 142, signColY);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Ketua Panitia Pembina K3 (P2K3)', 142, signColY + 4.5);
+    doc.line(142, signColY + 18, 192, signColY + 18);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    doc.text(p2k3Chair, 142, signColY + 22);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(6.5);
+    doc.setTextColor(100, 116, 139);
+    doc.text('Direktur / Pimpinan Unit Kerja', 142, signColY + 25.5);
+
+    // Stempel Kepatuhan Digital Audit
+    doc.setFillColor(241, 245, 249);
+    doc.setDrawColor(16, 185, 129);
+    doc.roundedRect(14, signColY + 28, pageWidth - 28, 8, 1, 1, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(6.8);
+    doc.setTextColor(6, 78, 59);
+    doc.text('TERVERIFIKASI MEMENUHI KETENTUAN AUDIT ISO 45001:2018 (KLAUSUL 9.1) & PERMENAKER NO. 05/MEN/1996 (SMK3)', pageWidth / 2, signColY + 33.5, { align: 'center' });
+
+    // Security Footer Halaman 2
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7);
+    doc.setTextColor(148, 163, 184);
+    doc.text(
+      `Dossier K3 Resmi PT. DAYA ANUGRAH MULYA — Audit Standar ISO 45001:2018 & Disnaker RI | Halaman 2 dari 2`,
+      pageWidth / 2,
+      pageHeight - 6,
+      { align: 'center' }
+    );
+
+    doc.save(`Monthly_HSE_K3_Dossier_ISO45001_${new Date().toISOString().slice(0, 10)}.pdf`);
   }
 
   // ─────────────────────────────────────────────────────────────

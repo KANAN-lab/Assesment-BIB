@@ -210,16 +210,50 @@ function rowToRewardHistory(row: RedemptionRow): RewardHistory {
   };
 }
 
+// ─── Sanitized Public Worker Columns (Keamanan Data: Tidak Pernah Men-Select Password) ───
+export const PUBLIC_WORKER_FIELDS = [
+  'id',
+  'user_id',
+  'email',
+  'name',
+  'employee_id',
+  'role',
+  'division',
+  'avatar',
+  'streak_days',
+  'total_points',
+  'operational_points',
+  'prestige_points',
+  'tier',
+  'bib_behavior',
+  'bib_integrity',
+  'bib_benchmark',
+  'bib_total_score',
+  'daily_quiz_completed',
+  'pre_shift_checklist_done',
+  'last_activity_date',
+  'must_change_password',
+  'status',
+  'resigned_at',
+  'resignation_reason',
+  'settlement_status',
+  'created_at',
+  'updated_at'
+].join(', ');
+
 // ─── Workers ─────────────────────────────────────────────────────────────────
 
 export async function fetchAllWorkers(): Promise<WorkerProfile[]> {
   try {
-    const { data, error } = await supabase.from('workers').select('*').order('bib_total_score', { ascending: false });
+    const { data, error } = await supabase
+      .from('workers')
+      .select(PUBLIC_WORKER_FIELDS)
+      .order('bib_total_score', { ascending: false });
     if (error) {
       console.warn('[fetchAllWorkers] Supabase error/unseeded table:', error.message);
       return [rowToWorkerProfile(FALLBACK_SYSADMIN_ROW)];
     }
-    return (data as WorkerRow[]).map(rowToWorkerProfile);
+    return (data as unknown as WorkerRow[]).map(rowToWorkerProfile);
   } catch {
     return [rowToWorkerProfile(FALLBACK_SYSADMIN_ROW)];
   }
@@ -227,7 +261,11 @@ export async function fetchAllWorkers(): Promise<WorkerProfile[]> {
 
 export async function fetchWorkerById(workerId: string): Promise<WorkerProfile | null> {
   try {
-    const { data, error } = await supabase.from('workers').select('*').eq('id', workerId).single();
+    const { data, error } = await supabase
+      .from('workers')
+      .select(PUBLIC_WORKER_FIELDS)
+      .eq('id', workerId)
+      .single();
     if (error) {
       if (workerId === 'w-sysadmin' || workerId === 'SYS-ADMIN') {
         return rowToWorkerProfile(FALLBACK_SYSADMIN_ROW);
@@ -235,7 +273,7 @@ export async function fetchWorkerById(workerId: string): Promise<WorkerProfile |
       if (error.code === 'PGRST116') return null; // not found
       return null;
     }
-    return rowToWorkerProfile(data as WorkerRow);
+    return rowToWorkerProfile(data as unknown as WorkerRow);
   } catch {
     if (workerId === 'w-sysadmin' || workerId === 'SYS-ADMIN') {
       return rowToWorkerProfile(FALLBACK_SYSADMIN_ROW);
@@ -412,11 +450,13 @@ export async function mutateWorkerRoleAndDivision(
   reason?: string
 ): Promise<{ previousRole: string; previousDivision: string }> {
   // 1. Fetch current worker details
-  const { data: worker, error: fetchErr } = await supabase
+  const { data, error: fetchErr } = await supabase
     .from('workers')
-    .select('*')
+    .select(PUBLIC_WORKER_FIELDS)
     .eq('id', workerId)
     .single();
+
+  const worker = data as unknown as WorkerRow | null;
 
   if (fetchErr || !worker) {
     throw new Error('Data pekerja tidak ditemukan di database.');
@@ -484,13 +524,13 @@ export async function fetchLeaderboard(): Promise<LeaderboardEntry[]> {
   try {
     const { data, error } = await supabase
       .from('workers')
-      .select('*')
+      .select(PUBLIC_WORKER_FIELDS)
       .order('bib_total_score', { ascending: false })
       .limit(50);
     if (error || !data) return [];
 
     // Filter secara ketat: Hanya tampilkan pekerja operasional biasa yang aktif (bukan System Administrator, bukan Supervisor, dan bukan status non-aktif/resigned)
-    const employeeOnly = (data as WorkerRow[]).filter((row) => {
+    const employeeOnly = (data as unknown as WorkerRow[]).filter((row) => {
       const sysRole = RoleEntity.resolveSystemRole(row.role);
       const isActive = !row.status || row.status === 'active';
       return sysRole === 'worker' && isActive;
@@ -856,33 +896,86 @@ export async function insertRedemption(
 
 // ─── Authentication Services (Overhauled Fail-Safe System) ─────────────────────
 
+// ─── Query Kolom Autentikasi (Terisolasi Khusus Internal Login) ──────────────
+const AUTH_WORKER_FIELDS = `${PUBLIC_WORKER_FIELDS}, password`;
+
+/**
+ * Pencarian akun pekerja terproteksi KHUSUS proses autentikasi (Login / Verifikasi Kredensial).
+ * Menyertakan hash/kolom password yang dibutuhkan untuk verifikasi keamanan internal.
+ */
+async function findWorkerForAuth(identifier: string): Promise<WorkerRow | null> {
+  const rawInput = String(identifier || '').trim();
+  if (!rawInput) return null;
+  const cleanDigits = rawInput.replace(/\D/g, '');
+  const cleanLower = rawInput.toLowerCase();
+
+  // 1. Direct equality queries (Eksak & Presisi)
+  const { data: byEmp } = await supabase.from('workers').select(AUTH_WORKER_FIELDS).eq('employee_id', rawInput).maybeSingle();
+  if (byEmp) return byEmp as unknown as WorkerRow;
+
+  const { data: byEmail } = await supabase.from('workers').select(AUTH_WORKER_FIELDS).eq('email', cleanLower).maybeSingle();
+  if (byEmail) return byEmail as unknown as WorkerRow;
+
+  const { data: byId } = await supabase.from('workers').select(AUTH_WORKER_FIELDS).eq('id', rawInput).maybeSingle();
+  if (byId) return byId as unknown as WorkerRow;
+
+  // 2. Targeted case-insensitive & partial match
+  const { data: byIlikeEmp } = await supabase.from('workers').select(AUTH_WORKER_FIELDS).ilike('employee_id', rawInput).maybeSingle();
+  if (byIlikeEmp) return byIlikeEmp as unknown as WorkerRow;
+
+  const { data: byIlikeEmail } = await supabase.from('workers').select(AUTH_WORKER_FIELDS).ilike('email', cleanLower).maybeSingle();
+  if (byIlikeEmail) return byIlikeEmail as unknown as WorkerRow;
+
+  if (cleanDigits && cleanDigits.length >= 4) {
+    const { data: byDigits } = await supabase.from('workers').select(AUTH_WORKER_FIELDS).ilike('employee_id', `%${cleanDigits}%`).limit(1);
+    if (byDigits && byDigits.length > 0) return byDigits[0] as unknown as WorkerRow;
+  }
+
+  // 3. Resilient fallback untuk System Administrator jika database belum terhubung
+  if (
+    cleanLower === 'sys-admin' ||
+    cleanLower === 'sysadmin' ||
+    cleanLower === 'system-admin' ||
+    cleanLower === 'system administrator' ||
+    cleanLower === 'admin@gappy.id' ||
+    cleanLower === 'w-sysadmin'
+  ) {
+    return FALLBACK_SYSADMIN_ROW;
+  }
+
+  return null;
+}
+
+/**
+ * Pencarian profil pekerja untuk fungsi publik / umum.
+ * KEAMANAN TINGGI: Hanya men-select PUBLIC_WORKER_FIELDS, kolom password TIDAK PERNAH dikirim via network.
+ */
 export async function findWorkerByIdentifier(identifier: string): Promise<WorkerRow | null> {
   const rawInput = String(identifier || '').trim();
   if (!rawInput) return null;
   const cleanDigits = rawInput.replace(/\D/g, ''); // Ekstrak digit angka "128000068"
   const cleanLower = rawInput.toLowerCase();
-  const cleanAlpha = cleanLower.replace(/[^a-z0-9]/g, '');
 
-  // 1. Direct equality queries (Eksak & Presisi)
-  const { data: byEmp } = await supabase.from('workers').select('*').eq('employee_id', rawInput).maybeSingle();
-  if (byEmp) return byEmp as WorkerRow;
+  // 1. Direct equality queries (Eksak & Presisi tanpa password)
+  const { data: byEmp } = await supabase.from('workers').select(PUBLIC_WORKER_FIELDS).eq('employee_id', rawInput).maybeSingle();
+  if (byEmp) return byEmp as unknown as WorkerRow;
 
-  const { data: byEmail } = await supabase.from('workers').select('*').eq('email', cleanLower).maybeSingle();
-  if (byEmail) return byEmail as WorkerRow;
+  const { data: byEmail } = await supabase.from('workers').select(PUBLIC_WORKER_FIELDS).eq('email', cleanLower).maybeSingle();
+  if (byEmail) return byEmail as unknown as WorkerRow;
 
-  const { data: byId } = await supabase.from('workers').select('*').eq('id', rawInput).maybeSingle();
-  if (byId) return byId as WorkerRow;
+  const { data: byId } = await supabase.from('workers').select(PUBLIC_WORKER_FIELDS).eq('id', rawInput).maybeSingle();
+  if (byId) return byId as unknown as WorkerRow;
 
   // 2. Targeted case-insensitive & partial match (Aman, tanpa download massal seluruh tabel)
-  const { data: byIlikeEmp } = await supabase.from('workers').select('*').ilike('employee_id', rawInput).maybeSingle();
-  if (byIlikeEmp) return byIlikeEmp as WorkerRow;
+  const { data: byIlikeEmp } = await supabase.from('workers').select(PUBLIC_WORKER_FIELDS).ilike('employee_id', rawInput).maybeSingle();
+  if (byIlikeEmp) return byIlikeEmp as unknown as WorkerRow;
 
-  const { data: byIlikeEmail } = await supabase.from('workers').select('*').ilike('email', cleanLower).maybeSingle();
-  if (byIlikeEmail) return byIlikeEmail as WorkerRow;
+  const { data: byIlikeEmail } = await supabase.from('workers').select(PUBLIC_WORKER_FIELDS).ilike('email', cleanLower).maybeSingle();
+  if (byIlikeEmail) return byIlikeEmail as unknown as WorkerRow;
 
   if (cleanDigits && cleanDigits.length >= 4) {
-    const { data: byDigits } = await supabase.from('workers').select('*').ilike('employee_id', `%${cleanDigits}%`).limit(1);
-    if (byDigits && byDigits.length > 0) return byDigits[0] as WorkerRow;
+    const { data: byDigits } = await supabase.from('workers').select(PUBLIC_WORKER_FIELDS).ilike('employee_id', `%${cleanDigits}%`).limit(1);
+    if (byDigits && byDigits.length > 0) return byDigits[0] as unknown as WorkerRow;
   }
 
   // 3. Resilient built-in fallback untuk System Administrator jika database belum terhubung / tabel belum dibuat
@@ -906,9 +999,9 @@ export async function fetchWorkerByUserId(userId: string): Promise<WorkerProfile
   const worker = await findWorkerByIdentifier(userId);
   if (worker) return rowToWorkerProfile(worker);
 
-  const { data } = await supabase.from('workers').select('*').eq('user_id', userId).maybeSingle();
+  const { data } = await supabase.from('workers').select(PUBLIC_WORKER_FIELDS).eq('user_id', userId).maybeSingle();
   if (!data) return null;
-  return rowToWorkerProfile(data as WorkerRow);
+  return rowToWorkerProfile(data as unknown as WorkerRow);
 }
 
 export async function fetchWorkerByEmployeeId(employeeId: string): Promise<WorkerProfile | null> {
@@ -925,11 +1018,11 @@ export async function linkWorkerToUser(workerId: string, userId: string, email: 
       email: email,
     })
     .eq('id', workerId)
-    .select('*')
+    .select(PUBLIC_WORKER_FIELDS)
     .single();
 
   if (error) throw new Error(`Gagal menautkan akun pekerja: ${error.message}`);
-  return rowToWorkerProfile(data as WorkerRow);
+  return rowToWorkerProfile(data as unknown as WorkerRow);
 }
 
 export async function signInWithNikOrEmail(identifier: string, password: string) {
@@ -940,7 +1033,7 @@ export async function signInWithNikOrEmail(identifier: string, password: string)
   await checkLoginRateLimit(cleanInput);
 
   try {
-    const workerRecord = await findWorkerByIdentifier(cleanInput);
+    const workerRecord = await findWorkerForAuth(cleanInput);
 
     if (!workerRecord) {
       await logLoginAttempt(cleanInput, false);
@@ -2117,18 +2210,18 @@ export async function updateIncidentCapaAndStatus(
       let worker: any = null;
 
       // Lookup 1: eq id
-      const res1 = await supabase.from('workers').select('*').eq('id', targetWorkerId).maybeSingle();
+      const res1 = await supabase.from('workers').select(PUBLIC_WORKER_FIELDS).eq('id', targetWorkerId).maybeSingle();
       worker = res1.data;
 
       // Lookup 2: eq employee_id (NIP)
       if (!worker) {
-        const res2 = await supabase.from('workers').select('*').eq('employee_id', targetWorkerId).maybeSingle();
+        const res2 = await supabase.from('workers').select(PUBLIC_WORKER_FIELDS).eq('employee_id', targetWorkerId).maybeSingle();
         worker = res2.data;
       }
 
       // Lookup 3: eq name
       if (!worker) {
-        const res3 = await supabase.from('workers').select('*').eq('name', targetWorkerId).maybeSingle();
+        const res3 = await supabase.from('workers').select(PUBLIC_WORKER_FIELDS).eq('name', targetWorkerId).maybeSingle();
         worker = res3.data;
       }
 
@@ -3001,17 +3094,17 @@ export async function deductWorkerPoints(
 
     // Lookup worker untuk verifikasi dan sinkronisasi state
     let worker: WorkerRow | null = null;
-    const res1 = await supabase.from('workers').select('*').eq('id', workerId).maybeSingle();
-    worker = res1.data as WorkerRow | null;
+    const res1 = await supabase.from('workers').select(PUBLIC_WORKER_FIELDS).eq('id', workerId).maybeSingle();
+    worker = res1.data as unknown as WorkerRow | null;
 
     if (!worker) {
-      const res2 = await supabase.from('workers').select('*').eq('employee_id', workerId).maybeSingle();
-      worker = res2.data as WorkerRow | null;
+      const res2 = await supabase.from('workers').select(PUBLIC_WORKER_FIELDS).eq('employee_id', workerId).maybeSingle();
+      worker = res2.data as unknown as WorkerRow | null;
     }
 
     if (!worker) {
-      const res3 = await supabase.from('workers').select('*').eq('name', workerId).maybeSingle();
-      worker = res3.data as WorkerRow | null;
+      const res3 = await supabase.from('workers').select(PUBLIC_WORKER_FIELDS).eq('name', workerId).maybeSingle();
+      worker = res3.data as unknown as WorkerRow | null;
     }
 
     if (worker) {
@@ -3090,17 +3183,17 @@ export async function refundWorkerPoints(
   try {
     // 1. Lookup worker terlebih dahulu untuk sinkronisasi state yang akurat
     let worker: WorkerRow | null = null;
-    const res1 = await supabase.from('workers').select('*').eq('id', workerId).maybeSingle();
-    worker = res1.data as WorkerRow | null;
+    const res1 = await supabase.from('workers').select(PUBLIC_WORKER_FIELDS).eq('id', workerId).maybeSingle();
+    worker = res1.data as unknown as WorkerRow | null;
 
     if (!worker) {
-      const res2 = await supabase.from('workers').select('*').eq('employee_id', workerId).maybeSingle();
-      worker = res2.data as WorkerRow | null;
+      const res2 = await supabase.from('workers').select(PUBLIC_WORKER_FIELDS).eq('employee_id', workerId).maybeSingle();
+      worker = res2.data as unknown as WorkerRow | null;
     }
 
     if (!worker) {
-      const res3 = await supabase.from('workers').select('*').eq('name', workerId).maybeSingle();
-      worker = res3.data as WorkerRow | null;
+      const res3 = await supabase.from('workers').select(PUBLIC_WORKER_FIELDS).eq('name', workerId).maybeSingle();
+      worker = res3.data as unknown as WorkerRow | null;
     }
 
     if (!worker) {

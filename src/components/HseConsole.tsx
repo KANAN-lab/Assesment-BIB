@@ -5,12 +5,16 @@ import {
   HardHat,
   Truck,
   FileCheck,
-  Search
+  Search,
+  FileText,
+  CheckCircle
 } from 'lucide-react';
 import { WorkerProfile, IncidentReport } from '../types/assessment';
 import { RoleEntity } from '../domain/RoleEntity';
 import { fetchIncidentReports, updateIncidentCapaAndStatus } from '../lib/supabaseService';
 import { LicenseService } from '../lib/licenseService';
+import { PpeService } from '../lib/ppeService';
+import { ExecutivePDFReportGenerator } from '../lib/pdfReportService';
 
 // Lazy-loaded specialized panels
 const SupervisorIncidentKanban = React.lazy(() =>
@@ -94,6 +98,34 @@ export const HseConsole: React.FC<HseConsoleProps> = ({
     return allLicenses.filter((l) => l.status === 'expiring_soon' || l.status === 'expired').length;
   }, [allLicenses]);
 
+  const [isGeneratingDossier, setIsGeneratingDossier] = useState(false);
+  const [dossierSuccess, setDossierSuccess] = useState(false);
+
+  const handleQuickPrintDossier = () => {
+    setIsGeneratingDossier(true);
+    try {
+      const ppeDist = PpeService.getAllDistributions();
+      ExecutivePDFReportGenerator.generateMonthlyHseDossierPDF(
+        operationalWorkers,
+        incidents,
+        allLicenses,
+        ppeDist,
+        {
+          supervisorName: currentUserName || 'HSE Specialist & Ahli K3',
+          supervisorTitle: 'HSE Specialist & Ahli K3',
+          managerName: 'Operations & Logistics Manager',
+          periodLabel: `Bulan ${new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })}`,
+        }
+      );
+      setDossierSuccess(true);
+      setTimeout(() => setDossierSuccess(false), 3500);
+    } catch (err) {
+      console.error('Gagal generate Dossier K3:', err);
+    } finally {
+      setIsGeneratingDossier(false);
+    }
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       {/* HSE Header Banner */}
@@ -120,24 +152,55 @@ export const HseConsole: React.FC<HseConsoleProps> = ({
             </div>
           </div>
 
-          {/* Quick Vital Stats Strip */}
-          <div className="grid grid-cols-3 gap-2.5 shrink-0">
-            <div className="bg-zinc-900/90 border border-zinc-800 px-3 py-2 rounded-xl text-center min-w-[100px]">
-              <div className="text-[9px] text-zinc-500 font-bold uppercase">Investigasi Aktif</div>
-              <div className="text-sm sm:text-base font-black text-amber-400">
-                {openIncidents.length} <span className="text-[10px] font-normal text-zinc-500">Tiket</span>
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 shrink-0">
+            {/* Quick One-Click Monthly HSE Dossier Button */}
+            <button
+              onClick={handleQuickPrintDossier}
+              disabled={isGeneratingDossier}
+              className={`px-4 py-2.5 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 shadow-lg shrink-0 ${
+                dossierSuccess
+                  ? 'bg-emerald-500 text-zinc-950 shadow-emerald-500/20'
+                  : 'bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white shadow-emerald-600/30 border border-emerald-400/40'
+              }`}
+              title="Cetak Laporan Lengkap Dossier Bulanan K3 (Standar ISO 45001 & Disnaker RI) dalam Satu Klik"
+            >
+              {isGeneratingDossier ? (
+                <>
+                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  <span>Menyusun Dossier...</span>
+                </>
+              ) : dossierSuccess ? (
+                <>
+                  <CheckCircle className="w-4 h-4 text-zinc-950" />
+                  <span>Dossier K3 Diunduh!</span>
+                </>
+              ) : (
+                <>
+                  <FileText className="w-4 h-4" />
+                  <span>Cetak Dossier K3 (ISO 45001)</span>
+                </>
+              )}
+            </button>
+
+            {/* Quick Vital Stats Strip */}
+            <div className="grid grid-cols-3 gap-2 shrink-0">
+              <div className="bg-zinc-900/90 border border-zinc-800 px-3 py-2 rounded-xl text-center min-w-[90px]">
+                <div className="text-[9px] text-zinc-500 font-bold uppercase">Investigasi</div>
+                <div className="text-sm sm:text-base font-black text-amber-400">
+                  {openIncidents.length} <span className="text-[10px] font-normal text-zinc-500">Tiket</span>
+                </div>
               </div>
-            </div>
-            <div className="bg-zinc-900/90 border border-zinc-800 px-3 py-2 rounded-xl text-center min-w-[100px]">
-              <div className="text-[9px] text-zinc-500 font-bold uppercase">SIO Kritis/Exp</div>
-              <div className="text-sm sm:text-base font-black text-rose-400">
-                {expiringLicensesCount} <span className="text-[10px] font-normal text-zinc-500">Unit</span>
+              <div className="bg-zinc-900/90 border border-zinc-800 px-3 py-2 rounded-xl text-center min-w-[90px]">
+                <div className="text-[9px] text-zinc-500 font-bold uppercase">SIO Kritis</div>
+                <div className="text-sm sm:text-base font-black text-rose-400">
+                  {expiringLicensesCount} <span className="text-[10px] font-normal text-zinc-500">Unit</span>
+                </div>
               </div>
-            </div>
-            <div className="bg-zinc-900/90 border border-zinc-800 px-3 py-2 rounded-xl text-center min-w-[100px]">
-              <div className="text-[9px] text-zinc-500 font-bold uppercase">Staf K3 Terlindungi</div>
-              <div className="text-sm sm:text-base font-black text-emerald-400">
-                {operationalWorkers.length} <span className="text-[10px] font-normal text-zinc-500">Orang</span>
+              <div className="bg-zinc-900/90 border border-zinc-800 px-3 py-2 rounded-xl text-center min-w-[90px]">
+                <div className="text-[9px] text-zinc-500 font-bold uppercase">Staf Terlindungi</div>
+                <div className="text-sm sm:text-base font-black text-emerald-400">
+                  {operationalWorkers.length} <span className="text-[10px] font-normal text-zinc-500">Org</span>
+                </div>
               </div>
             </div>
           </div>
