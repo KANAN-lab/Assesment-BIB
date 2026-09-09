@@ -1274,6 +1274,12 @@
   - [x] Validasi typecheck `npx tsc --noEmit` bersih (0 error).
   - [x] Menjalankan `python checker.py` (59 checks passed, 0 error).
   - [x] Validasi production build `npm run build` sukses.
+- [x] **5. Eliminasi Infinite Reload Loop & Stabilitas 'Pilih Rekan Kerja'**:
+  - [x] Deteksi akar masalah: Dependency `onClose` anonim dan ketiadaan ref guard transisi `isOpen` memicu eksekusi berulang `resetForm()` dan `fetchWorkers()` setiap kali `App.tsx` re-render.
+  - [x] Menambahkan `prevIsOpenRef` guard pada `KudoModal.tsx` sehingga inisialisasi hanya berjalan 1x saat modal dibuka.
+  - [x] Injeksi `initialWorkers` dari `allWorkers` di `App.tsx` dan module-level cache agar daftar rekan kerja tampil instan (0ms) tanpa spinner berulang.
+  - [x] Menambahkan `type="button"` eksplisit pada seluruh tombol modal untuk mencegah accidental submit.
+
 
 
 

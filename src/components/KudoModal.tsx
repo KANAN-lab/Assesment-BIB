@@ -10,10 +10,21 @@ interface KudoModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentWorkerId: string;
+  initialWorkers?: Array<{ id: string; name: string; avatar: string }>;
 }
 
-export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) {
-  const [workers, setWorkers] = useState<{ id: string; name: string; avatar: string }[]>([]);
+let cachedActiveWorkers: { id: string; name: string; avatar: string }[] = [];
+
+export function KudoModal({ isOpen, onClose, currentWorkerId, initialWorkers }: KudoModalProps) {
+  const [workers, setWorkers] = useState<{ id: string; name: string; avatar: string }[]>(() => {
+    if (initialWorkers && initialWorkers.length > 0) {
+      return initialWorkers.filter(w => w.id !== currentWorkerId);
+    }
+    if (cachedActiveWorkers.length > 0) {
+      return cachedActiveWorkers.filter(w => w.id !== currentWorkerId);
+    }
+    return [];
+  });
   const [loadingWorkers, setLoadingWorkers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -41,32 +52,53 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
     { label: 'Inisiatif', desc: 'Ide & aksi proaktif', icon: '💡', color: 'bg-amber-500/10 border-amber-500/20 text-amber-400 ring-amber-500' },
   ];
 
+  const prevIsOpenRef = useRef(false);
+
+  // Inisialisasi data HANYA saat modal pertama kali bertransisi dari closed ke open
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       document.body.style.overflow = 'hidden';
       const timer = setTimeout(() => {
         searchInputRef.current?.focus();
       }, 50);
 
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          onClose();
-        }
-      };
-      window.addEventListener('keydown', handleKeyDown);
-
-      fetchWorkers();
+      if (workers.length === 0) {
+        fetchWorkers();
+      } else {
+        fetchWorkersQuietly();
+      }
       fetchQuota();
       resetForm();
 
       return () => {
         clearTimeout(timer);
         document.body.style.overflow = 'unset';
-        window.removeEventListener('keydown', handleKeyDown);
       };
-    } else {
+    } else if (!isOpen && prevIsOpenRef.current) {
       document.body.style.overflow = 'unset';
     }
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen, currentWorkerId]);
+
+  // Sinkronisasi data awal pekerja jika tersedia
+  useEffect(() => {
+    if (initialWorkers && initialWorkers.length > 0 && workers.length === 0) {
+      const filtered = initialWorkers.filter(w => w.id !== currentWorkerId);
+      cachedActiveWorkers = filtered;
+      setWorkers(filtered);
+    }
+  }, [initialWorkers, currentWorkerId, workers.length]);
+
+  // Keyboard Escape Handler terisolasi tanpa memicu reset form
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, onClose]);
 
   const fetchQuota = async () => {
@@ -91,6 +123,7 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
         .eq('status', 'active');
         
       if (!error && data) {
+        cachedActiveWorkers = data;
         setWorkers(data);
       }
     } catch (err) {
@@ -98,6 +131,21 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
     } finally {
       setLoadingWorkers(false);
     }
+  };
+
+  const fetchWorkersQuietly = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('workers')
+        .select('id, name, avatar')
+        .neq('id', currentWorkerId)
+        .eq('status', 'active');
+        
+      if (!error && data) {
+        cachedActiveWorkers = data;
+        setWorkers(data);
+      }
+    } catch {}
   };
 
   const resetForm = () => {
@@ -159,8 +207,9 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
             <h2 className="text-base font-bold text-white">Kirim Kudo</h2>
           </div>
           <button 
+            type="button"
             onClick={onClose}
-            className="p-2 text-zinc-400 hover:text-white bg-zinc-800/50 hover:bg-zinc-800 rounded-xl transition"
+            className="p-2 text-zinc-400 hover:text-white bg-zinc-800/50 hover:bg-zinc-800 rounded-xl transition cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -231,6 +280,7 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
                       </div>
                     </div>
                     <button 
+                      type="button"
                       onClick={() => setSelectedReceiverId('')}
                       className="text-xs text-zinc-400 hover:text-white px-2 py-1 bg-zinc-900 rounded-md cursor-pointer"
                     >
@@ -262,6 +312,7 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
                           return (
                             <button
                               key={w.id}
+                              type="button"
                               disabled={isAlreadySent || (quotaInfo?.remainingQuota ?? 3) <= 0}
                               onClick={() => setSelectedReceiverId(w.id)}
                               className={`w-full flex items-center justify-between p-2 rounded-lg transition snap-start min-h-[44px] ${
@@ -307,8 +358,9 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
                     return (
                       <button
                         key={cat.label}
+                        type="button"
                         onClick={() => setSelectedCategory(cat.label)}
-                        className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl border min-h-[44px] transition ${
+                        className={`flex flex-col items-center justify-center p-3 sm:p-4 rounded-xl border min-h-[44px] transition cursor-pointer ${
                           isSelected 
                             ? `${cat.color} ring-1 ring-inset` 
                             : 'bg-zinc-800/50 border-zinc-700 hover:bg-zinc-800 hover:border-zinc-600 text-zinc-300'
@@ -408,6 +460,7 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
         {!submitSuccess && (
           <div className="p-4 border-t border-zinc-800 bg-zinc-900 absolute sm:relative bottom-0 left-0 right-0 z-10 shrink-0">
             <button
+              type="button"
               onClick={handleSubmit}
               disabled={isSubmitting || !selectedReceiverId || !selectedCategory || (quotaInfo?.remainingQuota ?? 3) <= 0}
               className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-zinc-800 disabled:text-zinc-500 disabled:cursor-not-allowed text-white font-bold text-sm px-4 py-3.5 sm:py-2.5 rounded-xl transition flex items-center justify-center gap-2 min-h-[44px] cursor-pointer"

@@ -283,6 +283,10 @@ export const App: React.FC = () => {
     setShowLoginModal(true);
   }, [currentWorker]);
 
+  const handleCloseKudoModal = useCallback(() => {
+    setShowKudoModal(false);
+  }, []);
+
   // ── Multi-Tab Cross-Tab Auth Synchronization ──
   useEffect(() => {
     const unsubscribe = AuthSessionService.onAuthChange((action, workerId) => {
@@ -1559,8 +1563,9 @@ export const App: React.FC = () => {
         {currentWorker && (
           <KudoModal 
             isOpen={showKudoModal} 
-            onClose={() => setShowKudoModal(false)} 
+            onClose={handleCloseKudoModal} 
             currentWorkerId={currentWorker.id} 
+            initialWorkers={allWorkers}
           />
         )}
 

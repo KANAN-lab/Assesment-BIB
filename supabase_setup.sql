@@ -1976,7 +1976,6 @@ CREATE INDEX IF NOT EXISTS idx_ppe_damage_status ON ppe_damage_reports(status, c
 CREATE INDEX IF NOT EXISTS idx_kaizen_author_status ON kaizen_suggestions(author_id, status, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_audit_5s_zone_date ON audit_5s_records(zone_id, audit_date DESC);
 CREATE INDEX IF NOT EXISTS idx_shift_handovers_date ON shift_handovers(shift_date DESC, status);
-CREATE INDEX IF NOT EXISTS idx_worker_kudos_receiver_date ON worker_kudos(receiver_id, created_at DESC);
 
 -- ─── 32. Authentication Security, Rate Limiting & Activity Audit Tables (Phase 34) ───
 -- Catatan: Tabel login_attempts didefinisikan di Section 12 dan activity_log di Section 13.
