@@ -265,7 +265,7 @@ export async function completeWorkerQuiz(
   // Fetch current worker to get streak and current total points
   const { data: worker, error: fetchErr } = await supabase
     .from('workers')
-    .select('streak_days, total_points, operational_points, prestige_points, daily_quiz_completed, tier')
+    .select('name, streak_days, total_points, operational_points, prestige_points, daily_quiz_completed, tier')
     .eq('id', workerId)
     .single();
 
@@ -308,6 +308,7 @@ export async function completeWorkerQuiz(
   try {
     await supabase.from('activity_log').insert({
       worker_id: workerId,
+      worker_name: worker.name,
       action: 'quiz_completed',
       detail: `Kuis Keselamatan K3 Harian Selesai: +${pointsEarned} PTS Operasional (Streak: ${streakDays} Hari)`,
     });
@@ -332,7 +333,7 @@ export async function completeWorkerChecklist(
 ): Promise<{ pointsEarned: number; newStreak: number; newTier: TierType }> {
   const { data: worker, error: fetchErr } = await supabase
     .from('workers')
-    .select('streak_days, total_points, operational_points, prestige_points, pre_shift_checklist_done, tier')
+    .select('name, streak_days, total_points, operational_points, prestige_points, pre_shift_checklist_done, tier')
     .eq('id', workerId)
     .single();
 
@@ -368,6 +369,7 @@ export async function completeWorkerChecklist(
   try {
     await supabase.from('activity_log').insert({
       worker_id: workerId,
+      worker_name: worker.name,
       action: 'checklist_completed',
       detail: `Pre-Shift Inspection Checklist Selesai: +${pointsEarned} PTS (Streak: ${newStreak} Hari)`,
     });
@@ -674,7 +676,7 @@ export async function fulfillRedemption(redemptionId: string, adminWorkerId: str
   // Ambil data penukaran terlebih dahulu untuk keperluan notifikasi & logging
   const { data: record } = await supabase
     .from('redemption_history')
-    .select('id, worker_id, item_title, redemption_code')
+    .select('id, worker_id, item_title, redemption_code, worker:workers!worker_id(name)')
     .eq('id', redemptionId)
     .maybeSingle();
 
@@ -710,6 +712,7 @@ export async function fulfillRedemption(redemptionId: string, adminWorkerId: str
     try {
       await supabase.from('activity_log').insert({
         worker_id: record.worker_id,
+        worker_name: (record as any)?.worker?.name,
         action: 'badge_awarded',
         detail: `Penyerahan Voucher Reward: "${record.item_title}" (${record.redemption_code}) oleh ${adminWorkerId}`,
       });
@@ -2201,14 +2204,32 @@ export async function logActivity(
 export async function fetchActivityLog(limit = 50): Promise<ActivityLog[]> {
   const { data, error } = await supabase
     .from('activity_log')
-    .select('*')
+    .select('*, workers(name)')
     .order('created_at', { ascending: false })
     .limit(limit);
-  if (error) return [];
+
+  if (error) {
+    // Fallback jika join schema cache belum reload
+    const fallback = await supabase
+      .from('activity_log')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (fallback.error) return [];
+    return (fallback.data ?? []).map((row: any) => ({
+      id: row.id,
+      workerId: row.worker_id ?? undefined,
+      workerName: row.worker_name ?? undefined,
+      action: row.action as ActivityAction,
+      detail: row.detail ?? undefined,
+      createdAt: row.created_at,
+    }));
+  }
+
   return (data ?? []).map((row: any) => ({
     id: row.id,
     workerId: row.worker_id ?? undefined,
-    workerName: row.worker_name ?? undefined,
+    workerName: row.worker_name || row.workers?.name || undefined,
     action: row.action as ActivityAction,
     detail: row.detail ?? undefined,
     createdAt: row.created_at,

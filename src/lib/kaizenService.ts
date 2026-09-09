@@ -55,6 +55,7 @@ export class KaizenService {
           if (retry.error) throw retry.error;
           await supabase.from('activity_log').insert({
             worker_id: authorId,
+            worker_name: (retry.data as any)?.author?.name,
             action: 'kaizen_submitted',
             detail: `Mengajukan ide Kaizen: "${input.title.slice(0, 30)}..."`,
           });
@@ -66,6 +67,7 @@ export class KaizenService {
       // Log activity
       await supabase.from('activity_log').insert({
         worker_id: authorId,
+        worker_name: (data as any)?.author?.name,
         action: 'kaizen_submitted',
         detail: `Mengajukan ide Kaizen: "${input.title.slice(0, 30)}..."`,
       });
@@ -194,7 +196,7 @@ export class KaizenService {
         if (pointDiff !== 0 && suggestion?.author_id) {
           const { data: worker } = await supabase
             .from('workers')
-            .select('id, total_points, prestige_points')
+            .select('id, name, total_points, prestige_points')
             .eq('id', suggestion.author_id)
             .maybeSingle();
 
@@ -216,6 +218,7 @@ export class KaizenService {
           if (pointDiff > 0) {
             await supabase.from('activity_log').insert({
               worker_id: suggestion.author_id,
+              worker_name: worker?.name,
               action: 'kaizen_approved',
               detail: `Poin Reward Kaizen: "${(suggestion.title || '').slice(0, 35)}..." (+${pointDiff} PTS)`,
             });

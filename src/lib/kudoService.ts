@@ -152,7 +152,7 @@ export class KudoService {
       // Update points penerima (+25 Operational PTS)
       const { data: recWorker } = await supabase
         .from('workers')
-        .select('total_points, operational_points, prestige_points')
+        .select('name, total_points, operational_points, prestige_points')
         .eq('id', receiverId)
         .maybeSingle();
 
@@ -172,7 +172,7 @@ export class KudoService {
       // Bonus pengirim (+${senderBonus} Operational PTS)
       const { data: sendWorker } = await supabase
         .from('workers')
-        .select('total_points, operational_points, prestige_points')
+        .select('name, total_points, operational_points, prestige_points')
         .eq('id', senderId)
         .maybeSingle();
 
@@ -194,11 +194,13 @@ export class KudoService {
         await supabase.from('activity_log').insert([
           {
             worker_id: receiverId,
+            worker_name: recWorker?.name,
             action: 'kudo_received',
             detail: `Menerima Kudo (${category}): +${rewardPoints} PTS`,
           },
           {
             worker_id: senderId,
+            worker_name: sendWorker?.name,
             action: 'kudo_sent',
             detail: `Mengirimkan Kudo (${category}): +${senderBonus} PTS`,
           },

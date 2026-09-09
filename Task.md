@@ -1238,6 +1238,26 @@
   - [x] Validasi typecheck `npx tsc --noEmit` bebas error (0 error).
   - [x] Jalankan `python checker.py` (59/59 checks passed).
 
+---
+
+## Phase 15: Activity Log Worker Name Resolution & 'Unknown' Audit Trail Fix
+
+- [x] **1. Analisis Kausalitas & Backfill Database**:
+  - [x] Identifikasi akar masalah: Operasi checklist, kuis, kudo, kaizen, dan audit log historis menyimpan `worker_id` tetapi mengosongkan `worker_name` (`null`).
+  - [x] Lakukan backfill otomatis pada 8 entri historis yang berstatus `worker_name: null` di tabel Supabase `activity_log` sehingga seluruh 39 entri log kini memiliki identitas pekerja yang valid (0 entri Unknown).
+- [x] **2. Database & SQL Auto-Fill Trigger**:
+  - [x] Pasang trigger `trg_fill_activity_log_worker_name` pada `supabase_setup.sql` dan `sql/patch_fix_database.sql` agar setiap `INSERT` baru dengan `worker_name` kosong otomatis diisi dari `workers.name`.
+  - [x] Lengkapi deklarasi dan parameter `worker_name` pada seluruh stored procedures (`rpc_complete_sop_module`, `rpc_review_kaizen_submission`, `rpc_distribute_ppe`, `rpc_issue_disciplinary_action`, `rpc_record_warehouse_5s_audit`).
+- [x] **3. Service & UI Defense-in-Depth Layer**:
+  - [x] Peningkatan `fetchActivityLog` di [`supabaseService.ts`](file:///d:/Coding%20Session/Komar/src/lib/supabaseService.ts) dengan PostgREST join `*, workers(name)`.
+  - [x] Peningkatan `ActivityLogPanel.tsx` untuk menerima prop `workers` dan melakukan pemetaan otomatis fallback `workerId` jika `workerName` belum dimuat atau bertuliskan `Unknown`.
+  - [x] Sinkronisasi pencatatan nama pada `completeWorkerChecklist`, `completeWorkerQuiz`, `fulfillRedemption`, `kaizenService.ts`, `kudoService.ts`, `audit5sService.ts`, dan `handoverService.ts`.
+- [x] **4. Verification & Quality Gates**:
+  - [x] Validasi typecheck `npx tsc --noEmit` bersih (0 error).
+  - [x] Validasi build Vite `npm run build` sukses (code 0).
+  - [x] Jalankan `python checker.py` (59/59 checks passed).
+
+
 
 
 

@@ -164,8 +164,10 @@ export class HandoverManager {
 
     // Catat ke activity_log audit trail
     try {
+      const { data: ackWorker } = await supabase.from('workers').select('name').eq('id', workerId).maybeSingle();
       supabase.from('activity_log').insert({
         worker_id: workerId,
+        worker_name: ackWorker?.name || 'Supervisor Shift',
         action: 'shift_handover',
         detail: `Konfirmasi Serah Terima Shift (${currentHandover?.shift_type || 'Shift'} - ${currentHandover?.handover_category || 'Operasional'})`,
       }).then(() => {}, () => {});

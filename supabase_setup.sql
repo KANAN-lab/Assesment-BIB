@@ -798,6 +798,23 @@ ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
 CREATE INDEX IF NOT EXISTS idx_activity_log_worker ON activity_log(worker_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_activity_log_recent ON activity_log(created_at DESC);
 
+-- Auto-fill worker_name from workers table if omitted on insert
+CREATE OR REPLACE FUNCTION trg_activity_log_fill_worker_name()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (NEW.worker_name IS NULL OR NEW.worker_name = 'Unknown') AND NEW.worker_id IS NOT NULL THEN
+    SELECT name INTO NEW.worker_name FROM workers WHERE id = NEW.worker_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_fill_activity_log_worker_name ON activity_log;
+CREATE TRIGGER trg_fill_activity_log_worker_name
+BEFORE INSERT ON activity_log
+FOR EACH ROW
+EXECUTE FUNCTION trg_activity_log_fill_worker_name();
+
 -- ─── 14. RLS Policies for New Tables ─────────────────────────────────────────
 
 ALTER TABLE announcements ENABLE ROW LEVEL SECURITY;
@@ -1090,6 +1107,7 @@ DECLARE
   v_sop_code TEXT;
   v_already_completed BOOLEAN;
   v_worker_exists BOOLEAN;
+  v_worker_name TEXT;
 BEGIN
   SELECT points_reward, title, code INTO v_points, v_sop_title, v_sop_code 
   FROM sop_modules WHERE id = p_sop_id;
@@ -1145,8 +1163,10 @@ BEGIN
       updated_at = now()
   WHERE id = p_worker_id;
 
-  INSERT INTO activity_log (worker_id, action, detail)
-  VALUES (p_worker_id, 'sop_completed', 'Menyelesaikan modul SOP: ' || v_sop_code || ' — ' || v_sop_title || ' (+ ' || v_points || ' PTS)');
+  SELECT name INTO v_worker_name FROM workers WHERE id = p_worker_id;
+
+  INSERT INTO activity_log (worker_id, worker_name, action, detail)
+  VALUES (p_worker_id, v_worker_name, 'sop_completed', 'Menyelesaikan modul SOP: ' || v_sop_code || ' — ' || v_sop_title || ' (+ ' || v_points || ' PTS)');
 
   RETURN jsonb_build_object(
     'success', true,
@@ -1258,6 +1278,7 @@ DECLARE
   v_prev_reward INTEGER;
   v_effective_reward INTEGER;
   v_point_diff INTEGER;
+  v_worker_name TEXT;
 BEGIN
   -- 1. Ambil data author & previous reward
   SELECT author_id, title, reward_points INTO v_author_id, v_title, v_prev_reward
@@ -1297,17 +1318,20 @@ BEGIN
     WHERE id = v_author_id;
 
     -- Catat log aktivitas untuk worker
+    SELECT name INTO v_worker_name FROM workers WHERE id = v_author_id;
     IF v_point_diff > 0 THEN
-      INSERT INTO activity_log (worker_id, action, detail)
+      INSERT INTO activity_log (worker_id, worker_name, action, detail)
       VALUES (
         v_author_id,
+        v_worker_name,
         'kaizen_approved',
         'Inovasi Kaizen Disetujui: "' || SUBSTRING(v_title FROM 1 FOR 30) || '" (+' || v_point_diff || ' PTS)'
       );
     ELSE
-      INSERT INTO activity_log (worker_id, action, detail)
+      INSERT INTO activity_log (worker_id, worker_name, action, detail)
       VALUES (
         v_author_id,
+        v_worker_name,
         'kaizen_approved',
         'Refund / Penyesuaian Poin Kaizen: "' || SUBSTRING(v_title FROM 1 FOR 30) || '" (' || v_point_diff || ' PTS)'
       );
@@ -1467,8 +1491,8 @@ BEGIN
     p_serial, CURRENT_DATE, p_replacement_date, 'active', p_notes
   );
 
-  INSERT INTO activity_log (worker_id, action, detail)
-  VALUES (p_worker_id, 'ppe_distributed', 'Penerimaan Distribusi APD: ' || v_item_name);
+  INSERT INTO activity_log (worker_id, worker_name, action, detail)
+  VALUES (p_worker_id, p_worker_name, 'ppe_distributed', 'Penerimaan Distribusi APD: ' || v_item_name);
 
   RETURN jsonb_build_object(
     'success', true,
@@ -1587,8 +1611,8 @@ BEGIN
     PERFORM deduct_worker_points(p_worker_id, p_point_deduction);
   END IF;
 
-  INSERT INTO activity_log (worker_id, action, detail)
-  VALUES (p_worker_id, 'disciplinary_issued', 'Penerbitan Sanksi ' || p_doc_ref || ' (-' || p_point_deduction || ' PTS)');
+  INSERT INTO activity_log (worker_id, worker_name, action, detail)
+  VALUES (p_worker_id, p_worker_name, 'disciplinary_issued', 'Penerbitan Sanksi ' || p_doc_ref || ' (-' || p_point_deduction || ' PTS)');
 
   RETURN jsonb_build_object(
     'success', true,
@@ -1732,8 +1756,8 @@ BEGIN
         updated_at = now()
     WHERE id = v_pic_id;
 
-    INSERT INTO activity_log (worker_id, action, detail)
-    VALUES (v_pic_id, 'audit_5s_completed', 'Reward Audit 5R Wilayah (' || v_zone_name || '): Predikat ' || p_rating || ' (+' || p_points_reward || ' PTS)');
+    INSERT INTO activity_log (worker_id, worker_name, action, detail)
+    VALUES (v_pic_id, v_pic_name, 'audit_5s_completed', 'Reward Audit 5R Wilayah (' || v_zone_name || '): Predikat ' || p_rating || ' (+' || p_points_reward || ' PTS)');
   END IF;
 
   RETURN jsonb_build_object(

@@ -103,8 +103,8 @@ BEGIN
     PERFORM deduct_worker_points(p_worker_id, p_point_deduction);
   END IF;
 
-  INSERT INTO activity_log (worker_id, action, detail)
-  VALUES (p_worker_id, 'disciplinary_issued', 'Penerbitan Sanksi ' || p_doc_ref || ' (-' || p_point_deduction || ' PTS)');
+  INSERT INTO activity_log (worker_id, worker_name, action, detail)
+  VALUES (p_worker_id, p_worker_name, 'disciplinary_issued', 'Penerbitan Sanksi ' || p_doc_ref || ' (-' || p_point_deduction || ' PTS)');
 
   RETURN jsonb_build_object(
     'success', true,
@@ -132,5 +132,28 @@ ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
   )
 );
 
--- 5. Berikan Izin Eksekusi Fungsi
+-- 5. Auto-Fill worker_name Trigger & Backfill Data Lama (Cegah 'Unknown' pada Audit Log)
+UPDATE activity_log al
+SET worker_name = w.name
+FROM workers w
+WHERE al.worker_id = w.id
+  AND (al.worker_name IS NULL OR al.worker_name = 'Unknown');
+
+CREATE OR REPLACE FUNCTION trg_activity_log_fill_worker_name()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF (NEW.worker_name IS NULL OR NEW.worker_name = 'Unknown') AND NEW.worker_id IS NOT NULL THEN
+    SELECT name INTO NEW.worker_name FROM workers WHERE id = NEW.worker_id;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_fill_activity_log_worker_name ON activity_log;
+CREATE TRIGGER trg_fill_activity_log_worker_name
+BEFORE INSERT ON activity_log
+FOR EACH ROW
+EXECUTE FUNCTION trg_activity_log_fill_worker_name();
+
+-- 6. Berikan Izin Eksekusi Fungsi
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;

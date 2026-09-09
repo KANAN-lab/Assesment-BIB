@@ -196,35 +196,34 @@ export class Audit5sService {
         const picId = zone.picWorkerId;
         (async () => {
           try {
+            const { data: w } = await supabase
+              .from('workers')
+              .select('id, name, total_points, prestige_points')
+              .or(`id.eq.${picId},employee_id.eq.${picId}`)
+              .maybeSingle();
+
             const { error: rpcErr } = await supabase.rpc('increment_worker_points', {
               p_worker_id: picId,
               p_points: points,
             });
 
-            if (rpcErr) {
-              const { data: w } = await supabase
+            if (rpcErr && w) {
+              const curTotal = Number(w.total_points || 0);
+              const curPr = Number(w.prestige_points || curTotal);
+              await supabase
                 .from('workers')
-                .select('id, total_points, prestige_points')
-                .or(`id.eq.${picId},employee_id.eq.${picId}`)
-                .maybeSingle();
-
-              if (w) {
-                const curTotal = Number(w.total_points || 0);
-                const curPr = Number(w.prestige_points || curTotal);
-                await supabase
-                  .from('workers')
-                  .update({
-                    total_points: curTotal + points,
-                    prestige_points: curPr + points,
-                    updated_at: new Date().toISOString(),
-                  })
-                  .eq('id', w.id);
-              }
+                .update({
+                  total_points: curTotal + points,
+                  prestige_points: curPr + points,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq('id', w.id);
             }
 
             try {
               await supabase.from('activity_log').insert({
                 worker_id: picId,
+                worker_name: w?.name || 'PIC 5R Gudang',
                 action: 'audit_5s_completed',
                 detail: `Insentif Audit 5R Wilayah ${zone.name} (Predikat ${rating}, Skor ${totalScore}%): +${points} PTS`,
               });

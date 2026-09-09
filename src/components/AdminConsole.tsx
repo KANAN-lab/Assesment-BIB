@@ -348,7 +348,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
 
         {activeTab === 'activity' && (
           <div className="card p-5">
-            <ActivityLogPanel logs={activityLogs} onRefresh={loadActivity} loading={activityLoading} />
+            <ActivityLogPanel logs={activityLogs} onRefresh={loadActivity} loading={activityLoading} workers={workers} />
           </div>
         )}
 

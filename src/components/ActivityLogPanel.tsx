@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Activity, LogIn, LogOut, Key, Shield, BookOpen, CheckCircle2, ShieldAlert, User, RefreshCw, Award, ArrowRightLeft, BookMarked, ShieldCheck, UserCheck, RotateCcw, XCircle, Hourglass, AlertOctagon, AlertTriangle, Radio, UserMinus } from 'lucide-react';
 import type { ActivityLog, ActivityAction } from '../types/assessment';
 
@@ -6,6 +6,7 @@ interface ActivityLogPanelProps {
   logs: ActivityLog[];
   onRefresh?: () => void;
   loading?: boolean;
+  workers?: { id: string; name: string }[];
 }
 
 const ACTION_CONFIG: Record<ActivityAction, { icon: React.ReactNode; label: string; color: string }> = {
@@ -55,8 +56,23 @@ function formatTimeAgo(iso: string): string {
   return `${days} hari lalu`;
 }
 
-export const ActivityLogPanel: React.FC<ActivityLogPanelProps> = ({ logs, onRefresh, loading }) => {
+export const ActivityLogPanel: React.FC<ActivityLogPanelProps> = ({ logs, onRefresh, loading, workers }) => {
   const [filterAction, setFilterAction] = useState<ActivityAction | 'all'>('all');
+
+  const workerMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (workers) {
+      for (const w of workers) {
+        if (w.id && w.name) {
+          map.set(w.id, w.name);
+          const cleanId = w.id.replace(/^w-/, '');
+          map.set(cleanId, w.name);
+          map.set(`w-${cleanId}`, w.name);
+        }
+      }
+    }
+    return map;
+  }, [workers]);
 
   const filtered = filterAction === 'all'
     ? logs
@@ -130,6 +146,11 @@ export const ActivityLogPanel: React.FC<ActivityLogPanelProps> = ({ logs, onRefr
         <div className="space-y-1 max-h-[420px] overflow-y-auto custom-scrollbar pr-1">
           {filtered.map((log) => {
             const cfg = ACTION_CONFIG[log.action] ?? ACTION_CONFIG.login;
+            const displayName =
+              (log.workerName && log.workerName !== 'Unknown' ? log.workerName : undefined) ||
+              (log.workerId ? workerMap.get(log.workerId) : undefined) ||
+              'Sistem Operasional';
+
             return (
               <div
                 key={log.id}
@@ -139,7 +160,7 @@ export const ActivityLogPanel: React.FC<ActivityLogPanelProps> = ({ logs, onRefr
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
                     <span className="text-xs font-bold text-white truncate">
-                      {log.workerName ?? 'Unknown'}
+                      {displayName}
                     </span>
                     <span className="text-[10px] text-zinc-600 whitespace-nowrap shrink-0">
                       {formatTimeAgo(log.createdAt)}
