@@ -641,7 +641,10 @@ INSERT INTO badges (id, name, description, icon, color, condition, threshold) VA
   ('badge-quiz-5',      'Siswa Teladan',       'Menyelesaikan 5 kuis harian',                    'book-open',    'cyan',    'quiz_count',    5),
   ('badge-quiz-20',     'Gappy AI Master',     'Menyelesaikan 20 kuis harian',                   'brain',        'violet',  'quiz_count',    20),
   ('badge-bib-80',      'Performa Tinggi',     'BIB Total Score ≥ 80',                           'shield-check', 'emerald', 'bib_score',     80),
-  ('badge-checklist-7', 'Safety Champion',     'Menyelesaikan pre-shift checklist 7 hari berturut', 'check-circle', 'green', 'checklist_streak', 7)
+  ('badge-checklist-7', 'Safety Champion',     'Menyelesaikan pre-shift checklist 7 hari berturut', 'check-circle', 'green', 'checklist_streak', 7),
+  ('kudo-safety-guardian', 'Safety Guardian',  'Meraih 5 apresiasi Kudo kategori Kerja Aman dari rekan kerja', 'shield', 'emerald', 'kudo_safety_count', 5),
+  ('kudo-team-harmony', 'Gudang Harmoni',      'Menerima apresiasi Kudo dari minimal 3 divisi gudang berbeda', 'users', 'indigo', 'kudo_div_count', 3),
+  ('kudo-super-cheer', 'Pemberi Semangat',     'Konsisten memberikan apresiasi Kudo kepada rekan kerja (minimal 6 kudo dikirim)', 'heart', 'amber', 'kudo_sent_count', 6)
 ON CONFLICT (id) DO NOTHING;
 
 -- ─── 11. Incident Reports & CAPA ─────────────────────────────────────────────
@@ -2015,14 +2018,19 @@ ALTER TABLE activity_log ADD CONSTRAINT activity_log_action_check CHECK (
 -- ─── 34. Peer-to-Peer Recognition (Anti-Fraud Worker Kudos & Unified RPC) ───
 
 CREATE TABLE IF NOT EXISTS worker_kudos (
-  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   sender_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
   receiver_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
   category TEXT NOT NULL,
   message TEXT NOT NULL DEFAULT '',
   points_awarded INTEGER NOT NULL DEFAULT 25,
+  is_pinned BOOLEAN NOT NULL DEFAULT false,
+  pinned_by TEXT REFERENCES workers(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+ALTER TABLE worker_kudos ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE worker_kudos ADD COLUMN IF NOT EXISTS pinned_by TEXT REFERENCES workers(id) ON DELETE SET NULL;
 
 -- Sinkronkan constraint kategori agar 100% cocok dengan frontend ('Kerja Aman', 'Bantuan Hebat', 'Team Player', 'Inisiatif')
 ALTER TABLE worker_kudos DROP CONSTRAINT IF EXISTS worker_kudos_category_check;
@@ -2047,6 +2055,31 @@ END $$;
 CREATE POLICY "allow_all_worker_kudos" ON worker_kudos FOR ALL TO public USING (true) WITH CHECK (true);
 GRANT ALL ON TABLE worker_kudos TO anon, authenticated, service_role;
 
+-- ─── 35. Interactive Kudo Reactions ───
+
+DROP TABLE IF EXISTS kudo_reactions CASCADE;
+
+CREATE TABLE IF NOT EXISTS kudo_reactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  kudo_id UUID NOT NULL REFERENCES worker_kudos(id) ON DELETE CASCADE,
+  worker_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  reaction_type TEXT NOT NULL CHECK (reaction_type IN ('clap', 'muscle', 'star')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(kudo_id, worker_id, reaction_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_kudo_reactions_kudo ON kudo_reactions(kudo_id);
+CREATE INDEX IF NOT EXISTS idx_kudo_reactions_worker ON kudo_reactions(worker_id);
+
+ALTER TABLE kudo_reactions ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "allow_all_kudo_reactions" ON kudo_reactions;
+END $$;
+
+CREATE POLICY "allow_all_kudo_reactions" ON kudo_reactions FOR ALL TO public USING (true) WITH CHECK (true);
+GRANT ALL ON TABLE kudo_reactions TO anon, authenticated, service_role;
+
 -- Drop overload signatures sebelumnya jika ada
 DROP FUNCTION IF EXISTS rpc_send_kudo(TEXT, TEXT, TEXT, TEXT, INTEGER);
 DROP FUNCTION IF EXISTS rpc_send_kudo(TEXT, TEXT, TEXT, TEXT);
@@ -2069,7 +2102,7 @@ DECLARE
   v_pair_recent_count INTEGER;
   v_sender_name TEXT;
   v_receiver_name TEXT;
-  v_kudo_id TEXT;
+  v_kudo_id UUID;
   v_sender_bonus INTEGER := COALESCE(p_sender_bonus, 10);
 BEGIN
   -- 1. Anti-Self: Tidak boleh mengirim kudo ke diri sendiri
@@ -2119,7 +2152,7 @@ BEGIN
   END IF;
 
   -- 4. Atomic Insert Kudo
-  v_kudo_id := gen_random_uuid()::text;
+  v_kudo_id := gen_random_uuid();
   INSERT INTO worker_kudos (id, sender_id, receiver_id, category, message, points_awarded, created_at)
   VALUES (v_kudo_id, p_sender_id, p_receiver_id, p_category, p_message, p_points, now());
 
@@ -2147,7 +2180,7 @@ BEGIN
   RETURN jsonb_build_object(
     'success', true,
     'message', 'Kudo apresiasi berhasil dikirimkan!',
-    'kudo_id', v_kudo_id,
+    'kudo_id', v_kudo_id::text,
     'points_awarded', p_points,
     'sender_bonus', v_sender_bonus,
     'remaining_quota', 3 - (v_sender_weekly_count + 1)

@@ -1,13 +1,74 @@
 import { supabase } from './supabaseClient';
-import { KudoEntity, KudoCategory } from '../types/kudos';
+import { KudoEntity, KudoCategory, KudoReactionType, KudoReactionSummary } from '../types/kudos';
 import { SystemConfigService } from '../domain/SystemConfigService';
 import { NotificationEngine } from '../domain/NotificationEngine';
+import { evaluateWorkerBadgesById } from './supabaseService';
 
 export interface KudoQuotaInfo {
   sentThisWeek: number;
   maxWeeklyQuota: number;
   remainingQuota: number;
   sentReceiverIds: string[];
+}
+
+export const KUDO_QUICK_TAGS: Record<KudoCategory, string[]> = {
+  'Kerja Aman': [
+    'Tertib APD Lengkap',
+    'Cek Rutin MHE / Forklift Teliti',
+    'Cepat Lapor Bahaya Area Staging',
+    'Patuhi Jalur Pejalan Kaki (Pedestrian Safe)',
+  ],
+  'Bantuan Hebat': [
+    'Bantu Angkat Beban Ergonomis',
+    'Bantu Rapikan Buffer Inbound/Outbound',
+    'Sigap Back-up Rekan Jam Sibuk',
+    'Bantu Pandu Manuver Forklift / Spotter',
+  ],
+  'Team Player': [
+    'Komunikasi Aktif saat Loading/Unloading',
+    'Jaga Ritme Kerja & Kekompakan Regu',
+    'Koordinasi Antar-Divisi Rapi',
+    'Aktif Saling Mengingatkan K3 Rekan',
+  ],
+  'Inisiatif': [
+    'Inisiatif 5R Area Kerja Bersih & Rapih',
+    'Peka Temukan Label Barcode Rusak',
+    'Rapikan Pallet Kosong Liar',
+    'Usulan Praktis Percepat Alur Operasional',
+  ],
+};
+
+const KUDO_REACTIONS_STORAGE_KEY = 'gappy_kudo_reactions_cache_v2';
+const KUDO_PINNED_STORAGE_KEY = 'gappy_kudo_pinned_cache_v1';
+
+function getLocalReactionsCache(): Record<string, Record<string, KudoReactionType[]>> {
+  try {
+    const raw = localStorage.getItem(KUDO_REACTIONS_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveLocalReactionsCache(cache: Record<string, Record<string, KudoReactionType[]>>) {
+  try {
+    localStorage.setItem(KUDO_REACTIONS_STORAGE_KEY, JSON.stringify(cache));
+  } catch {}
+}
+
+function getLocalPinnedKudos(): Set<string> {
+  try {
+    const raw = localStorage.getItem(KUDO_PINNED_STORAGE_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
+function saveLocalPinnedKudos(pinnedSet: Set<string>) {
+  try {
+    localStorage.setItem(KUDO_PINNED_STORAGE_KEY, JSON.stringify(Array.from(pinnedSet)));
+  } catch {}
 }
 
 export class KudoService {
@@ -133,6 +194,10 @@ export class KudoService {
           metadata: { senderId, category, points: rewardPoints },
         });
 
+        // Trigger evaluasi lencana otomatis
+        evaluateWorkerBadgesById(receiverId).catch(() => {});
+        evaluateWorkerBadgesById(senderId).catch(() => {});
+
         return result;
       }
 
@@ -232,6 +297,10 @@ export class KudoService {
         metadata: { senderId, category, points: rewardPoints },
       });
 
+      // Trigger evaluasi lencana otomatis
+      evaluateWorkerBadgesById(receiverId).catch(() => {});
+      evaluateWorkerBadgesById(senderId).catch(() => {});
+
       return {
         success: true,
         message: 'Kudo apresiasi berhasil dikirimkan!',
@@ -246,9 +315,156 @@ export class KudoService {
   }
 
   /**
+   * Mengambil rekap reaksi untuk daftar kudo IDs
+   */
+  static async getKudoReactionsBatch(
+    kudoIds: string[],
+    currentWorkerId?: string
+  ): Promise<Record<string, KudoReactionSummary>> {
+    const result: Record<string, KudoReactionSummary> = {};
+    for (const id of kudoIds) {
+      result[id] = { clap: 0, muscle: 0, star: 0, userReactions: [] };
+    }
+
+    // 1. Ambil dari Supabase (jika tabel kudo_reactions ada)
+    try {
+      const { data, error } = await supabase
+        .from('kudo_reactions')
+        .select('kudo_id, worker_id, reaction_type')
+        .in('kudo_id', kudoIds);
+
+      if (!error && data && data.length > 0) {
+        for (const row of data) {
+          const r = result[row.kudo_id];
+          if (r) {
+            const type = row.reaction_type as KudoReactionType;
+            if (type === 'clap') r.clap++;
+            else if (type === 'muscle') r.muscle++;
+            else if (type === 'star') r.star++;
+
+            if (currentWorkerId && (row.worker_id === currentWorkerId || row.worker_id === `w-${currentWorkerId}`)) {
+              if (!r.userReactions.includes(type)) r.userReactions.push(type);
+            }
+          }
+        }
+        return result;
+      }
+    } catch {}
+
+    // 2. Fallback: ambil dari local storage cache
+    const localCache = getLocalReactionsCache();
+    for (const id of kudoIds) {
+      const kudoReactions = localCache[id];
+      if (kudoReactions) {
+        const r = result[id];
+        for (const [workerId, types] of Object.entries(kudoReactions)) {
+          for (const type of types) {
+            if (type === 'clap') r.clap++;
+            else if (type === 'muscle') r.muscle++;
+            else if (type === 'star') r.star++;
+
+            if (currentWorkerId && (workerId === currentWorkerId || workerId === `w-${currentWorkerId}`)) {
+              if (!r.userReactions.includes(type)) r.userReactions.push(type);
+            }
+          }
+        }
+      }
+    }
+
+    return result;
+  }
+
+  /**
+   * Menambahkan atau menghapus reaksi (toggle) pada kartu kudo tertentu
+   */
+  static async toggleReaction(
+    kudoId: string,
+    workerId: string,
+    reactionType: KudoReactionType
+  ): Promise<{ success: boolean; summary: KudoReactionSummary }> {
+    // 1. Update local cache seketika
+    const localCache = getLocalReactionsCache();
+    if (!localCache[kudoId]) localCache[kudoId] = {};
+    if (!localCache[kudoId][workerId]) localCache[kudoId][workerId] = [];
+
+    const userTypes = localCache[kudoId][workerId];
+    const hasReaction = userTypes.includes(reactionType);
+
+    if (hasReaction) {
+      localCache[kudoId][workerId] = userTypes.filter((t) => t !== reactionType);
+    } else {
+      localCache[kudoId][workerId].push(reactionType);
+    }
+    saveLocalReactionsCache(localCache);
+
+    // 2. Sync ke Supabase tabel kudo_reactions
+    try {
+      if (hasReaction) {
+        await supabase
+          .from('kudo_reactions')
+          .delete()
+          .eq('kudo_id', kudoId)
+          .eq('worker_id', workerId)
+          .eq('reaction_type', reactionType);
+      } else {
+        await supabase
+          .from('kudo_reactions')
+          .insert({
+            kudo_id: kudoId,
+            worker_id: workerId,
+            reaction_type: reactionType,
+          });
+      }
+    } catch {}
+
+    // Dispatch realtime event
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('gappy_kudo_reaction_updated', { detail: { kudoId } }));
+    }
+
+    // Ambil rekap terbaru
+    const batch = await this.getKudoReactionsBatch([kudoId], workerId);
+    return {
+      success: true,
+      summary: batch[kudoId] || { clap: 0, muscle: 0, star: 0, userReactions: [] },
+    };
+  }
+
+  /**
+   * Toggle Pin Kudo oleh Pengawas / Admin
+   */
+  static async togglePinKudo(kudoId: string, adminWorkerId: string, pin: boolean): Promise<boolean> {
+    // Local set
+    const pinnedSet = getLocalPinnedKudos();
+    if (pin) {
+      pinnedSet.add(kudoId);
+    } else {
+      pinnedSet.delete(kudoId);
+    }
+    saveLocalPinnedKudos(pinnedSet);
+
+    // Database update
+    try {
+      await supabase
+        .from('worker_kudos')
+        .update({
+          is_pinned: pin,
+          pinned_by: pin ? adminWorkerId : null,
+        })
+        .eq('id', kudoId);
+    } catch {}
+
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('gappy_kudo_pinned_updated', { detail: { kudoId, pin } }));
+    }
+
+    return true;
+  }
+
+  /**
    * Mengambil feed kudo terbaru (maksimal 20) dan melakukan join dengan data pekerja
    */
-  static async getRecentKudos(limit: number = 20): Promise<KudoEntity[]> {
+  static async getRecentKudos(limit: number = 20, currentWorkerId?: string): Promise<KudoEntity[]> {
     const { data: kudosData, error: kudosError } = await supabase
       .from('worker_kudos')
       .select('*')
@@ -260,22 +476,30 @@ export class KudoService {
       return [];
     }
 
-    // Ambil semua worker untuk me-map nama dan avatar
+    // Ambil semua worker untuk me-map nama, avatar, divisi
     const { data: workersData, error: workersError } = await supabase
       .from('workers')
-      .select('id, employee_id, name, avatar');
+      .select('id, employee_id, name, avatar, division');
 
     const workersMap = new Map<string, any>();
     if (!workersError && workersData) {
-      workersData.forEach(w => {
+      workersData.forEach((w) => {
         workersMap.set(w.id, w);
         workersMap.set(w.employee_id, w);
+        const clean = w.id.replace(/^w-/, '');
+        workersMap.set(clean, w);
+        workersMap.set(`w-${clean}`, w);
       });
     }
 
-    return kudosData.map((kudo: any) => {
+    const kudoIds = kudosData.map((k: any) => k.id);
+    const reactionsMap = await this.getKudoReactionsBatch(kudoIds, currentWorkerId);
+    const localPinned = getLocalPinnedKudos();
+
+    const entities: KudoEntity[] = kudosData.map((kudo: any) => {
       const sender = workersMap.get(kudo.sender_id);
       const receiver = workersMap.get(kudo.receiver_id);
+      const isPinned = Boolean(kudo.is_pinned || localPinned.has(kudo.id));
 
       return {
         id: kudo.id,
@@ -283,13 +507,28 @@ export class KudoService {
         receiver_id: kudo.receiver_id,
         category: kudo.category as KudoCategory,
         message: kudo.message,
+        points_awarded: kudo.points_awarded || 25,
         created_at: kudo.created_at,
+        is_pinned: isPinned,
+        pinned_by: kudo.pinned_by,
         sender_name: sender?.name || kudo.sender_id,
         sender_avatar: sender?.avatar,
+        sender_division: sender?.division,
         receiver_name: receiver?.name || kudo.receiver_id,
-        receiver_avatar: receiver?.avatar
+        receiver_avatar: receiver?.avatar,
+        receiver_division: receiver?.division,
+        reactions: reactionsMap[kudo.id] || { clap: 0, muscle: 0, star: 0, userReactions: [] },
       };
     });
+
+    // Pinned kudo selalu ditaruh di urutan paling atas
+    entities.sort((a, b) => {
+      if (a.is_pinned && !b.is_pinned) return -1;
+      if (!a.is_pinned && b.is_pinned) return 1;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+
+    return entities;
   }
 
   /**
@@ -306,22 +545,29 @@ export class KudoService {
       return [];
     }
 
-    // Ambil data pengirim
     const { data: workersData } = await supabase
       .from('workers')
-      .select('id, employee_id, name, avatar');
+      .select('id, employee_id, name, avatar, division');
 
     const workersMap = new Map<string, any>();
     if (workersData) {
-      workersData.forEach(w => {
+      workersData.forEach((w) => {
         workersMap.set(w.id, w);
         workersMap.set(w.employee_id, w);
+        const clean = w.id.replace(/^w-/, '');
+        workersMap.set(clean, w);
+        workersMap.set(`w-${clean}`, w);
       });
     }
+
+    const kudoIds = kudosData.map((k: any) => k.id);
+    const reactionsMap = await this.getKudoReactionsBatch(kudoIds, workerId);
+    const localPinned = getLocalPinnedKudos();
 
     return kudosData.map((kudo: any) => {
       const sender = workersMap.get(kudo.sender_id);
       const receiver = workersMap.get(kudo.receiver_id);
+      const isPinned = Boolean(kudo.is_pinned || localPinned.has(kudo.id));
 
       return {
         id: kudo.id,
@@ -329,11 +575,17 @@ export class KudoService {
         receiver_id: kudo.receiver_id,
         category: kudo.category as KudoCategory,
         message: kudo.message,
+        points_awarded: kudo.points_awarded || 25,
         created_at: kudo.created_at,
+        is_pinned: isPinned,
+        pinned_by: kudo.pinned_by,
         sender_name: sender?.name || kudo.sender_id,
         sender_avatar: sender?.avatar,
+        sender_division: sender?.division,
         receiver_name: receiver?.name || kudo.receiver_id,
-        receiver_avatar: receiver?.avatar
+        receiver_avatar: receiver?.avatar,
+        receiver_division: receiver?.division,
+        reactions: reactionsMap[kudo.id] || { clap: 0, muscle: 0, star: 0, userReactions: [] },
       };
     });
   }

@@ -1765,13 +1765,70 @@ export async function checkAndAwardBadges(
       case 'bib_score':        eligible = worker.bibScores.totalScore >= badge.threshold; break;
       case 'quiz_count':       eligible = (extra.quizCount ?? 0) >= badge.threshold; break;
       case 'checklist_streak': eligible = (extra.checklistStreak ?? 0) >= badge.threshold; break;
+      case 'kudo_safety_count': {
+        try {
+          const { count } = await supabase
+            .from('worker_kudos')
+            .select('*', { count: 'exact', head: true })
+            .eq('receiver_id', worker.id)
+            .eq('category', 'Kerja Aman');
+          eligible = (count ?? 0) >= badge.threshold;
+        } catch {}
+        break;
+      }
+      case 'kudo_div_count': {
+        try {
+          const { data: kd } = await supabase
+            .from('worker_kudos')
+            .select('sender:workers!sender_id(division)')
+            .eq('receiver_id', worker.id);
+          const divSet = new Set<string>();
+          if (kd) {
+            for (const item of kd as any[]) {
+              if (item.sender?.division) divSet.add(item.sender.division);
+            }
+          }
+          eligible = divSet.size >= badge.threshold;
+        } catch {}
+        break;
+      }
+      case 'kudo_sent_count': {
+        try {
+          const { count } = await supabase
+            .from('worker_kudos')
+            .select('*', { count: 'exact', head: true })
+            .eq('sender_id', worker.id);
+          eligible = (count ?? 0) >= badge.threshold;
+        } catch {}
+        break;
+      }
     }
     if (eligible) {
       const result = await awardBadge(worker.id, badge.id);
-      if (result) awarded.push(result);
+      if (result) {
+        awarded.push(result);
+        NotificationEngine.addNotification({
+          recipientId: worker.id,
+          recipientRole: 'worker',
+          type: 'reward',
+          title: `🏆 Lencana Baru Diraih: ${badge.name}`,
+          message: `Selamat! Anda berhasil meraih lencana "${badge.name}": ${badge.description}`,
+        });
+      }
     }
   }
   return awarded;
+}
+
+/** Mengevaluasi dan memberikan badge yang berhak didapat oleh pekerja berdasarkan workerId */
+export async function evaluateWorkerBadgesById(workerId: string): Promise<WorkerBadge[]> {
+  try {
+    const worker = await fetchWorkerById(workerId);
+    if (!worker) return [];
+    return await checkAndAwardBadges(worker);
+  } catch {
+    return [];
+  }
 }
 
 // ─── Incident Reports ─────────────────────────────────────────────────────────

@@ -157,3 +157,39 @@ EXECUTE FUNCTION trg_activity_log_fill_worker_name();
 
 -- 6. Berikan Izin Eksekusi Fungsi
 GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
+
+-- 7. Kudo Pinned Columns
+ALTER TABLE worker_kudos ADD COLUMN IF NOT EXISTS is_pinned BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE worker_kudos ADD COLUMN IF NOT EXISTS pinned_by TEXT REFERENCES workers(id) ON DELETE SET NULL;
+
+-- 8. Kudo Reactions Table
+DROP TABLE IF EXISTS kudo_reactions CASCADE;
+
+CREATE TABLE IF NOT EXISTS kudo_reactions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  kudo_id UUID NOT NULL REFERENCES worker_kudos(id) ON DELETE CASCADE,
+  worker_id TEXT NOT NULL REFERENCES workers(id) ON DELETE CASCADE,
+  reaction_type TEXT NOT NULL CHECK (reaction_type IN ('clap', 'muscle', 'star')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(kudo_id, worker_id, reaction_type)
+);
+
+CREATE INDEX IF NOT EXISTS idx_kudo_reactions_kudo ON kudo_reactions(kudo_id);
+CREATE INDEX IF NOT EXISTS idx_kudo_reactions_worker ON kudo_reactions(worker_id);
+
+ALTER TABLE kudo_reactions ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "allow_all_kudo_reactions" ON kudo_reactions;
+END $$;
+
+CREATE POLICY "allow_all_kudo_reactions" ON kudo_reactions FOR ALL TO public USING (true) WITH CHECK (true);
+GRANT ALL ON TABLE kudo_reactions TO anon, authenticated, service_role;
+
+-- 9. Seed Kudo Badges
+INSERT INTO badges (id, name, description, icon, color, condition, threshold) VALUES
+  ('kudo-safety-guardian', 'Safety Guardian',  'Meraih 5 apresiasi Kudo kategori Kerja Aman dari rekan kerja', 'shield', 'emerald', 'kudo_safety_count', 5),
+  ('kudo-team-harmony', 'Gudang Harmoni',      'Menerima apresiasi Kudo dari minimal 3 divisi gudang berbeda', 'users', 'indigo', 'kudo_div_count', 3),
+  ('kudo-super-cheer', 'Pemberi Semangat',     'Konsisten memberikan apresiasi Kudo kepada rekan kerja (minimal 6 kudo dikirim)', 'heart', 'amber', 'kudo_sent_count', 6)
+ON CONFLICT (id) DO NOTHING;
+

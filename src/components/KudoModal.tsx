@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabaseClient';
-import { KudoService, KudoQuotaInfo } from '../lib/kudoService';
+import { KudoService, KudoQuotaInfo, KUDO_QUICK_TAGS } from '../lib/kudoService';
 import { KudoCategory } from '../types/kudos';
 import { SystemConfigService } from '../domain/SystemConfigService';
-import { X, Award, Search, Loader2, CheckCircle2, ShieldCheck, AlertCircle } from 'lucide-react';
+import { X, Award, Search, Loader2, CheckCircle2, ShieldCheck, AlertCircle, Sparkles } from 'lucide-react';
 
 interface KudoModalProps {
   isOpen: boolean;
@@ -325,13 +325,72 @@ export function KudoModal({ isOpen, onClose, currentWorkerId }: KudoModalProps) 
 
               {/* Step 3: Message */}
               <div className="space-y-3 pb-24 sm:pb-0">
-                <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-                  3. Pesan (Opsional)
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+                    3. Pesan (Opsional)
+                  </label>
+                  <span className={`text-[10px] ${message.length > 150 ? 'text-rose-400 font-bold' : 'text-zinc-500'}`}>
+                    {message.length}/150
+                  </span>
+                </div>
+
+                {/* Quick-Tag Lapangan Presets */}
+                {selectedCategory && KUDO_QUICK_TAGS[selectedCategory] && (
+                  <div className="p-2.5 bg-zinc-850/80 rounded-xl border border-zinc-800 space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-zinc-400 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-amber-400" />
+                        Preset Cepat Lapangan (Klik untuk isi otomatis):
+                      </span>
+                      {message && (
+                        <button
+                          type="button"
+                          onClick={() => setMessage('')}
+                          className="text-[10px] text-zinc-500 hover:text-zinc-300 underline cursor-pointer"
+                        >
+                          Bersihkan
+                        </button>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {KUDO_QUICK_TAGS[selectedCategory].map((tag, idx) => {
+                        const isAdded = message.includes(tag);
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              setMessage(prev => {
+                                if (!prev) return tag;
+                                if (prev.includes(tag)) {
+                                  // remove tag if already there
+                                  const cleaned = prev.replace(new RegExp(`(,\\s*)?${tag}(,\\s*)?`), ', ').trim();
+                                  return cleaned.replace(/^,\s*|,\s*$/g, '');
+                                }
+                                const combined = `${prev.trim()}, ${tag}`;
+                                return combined.length <= 150 ? combined : combined.slice(0, 150);
+                              });
+                            }}
+                            className={`text-[11px] font-semibold px-2 py-1 rounded-lg border transition cursor-pointer flex items-center gap-1 active:scale-95 ${
+                              isAdded
+                                ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-300'
+                                : 'bg-zinc-800 border-zinc-700/80 text-zinc-300 hover:bg-zinc-700 hover:text-white hover:border-zinc-600'
+                            }`}
+                          >
+                            <span>{isAdded ? '✓' : '+'}</span>
+                            <span>{tag}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
                 <textarea 
                   value={message}
+                  maxLength={150}
                   onChange={e => setMessage(e.target.value)}
-                  placeholder="Tulis ucapan terima kasih singkat..."
+                  placeholder="Tulis ucapan terima kasih atau klik preset cepat di atas..."
                   className="w-full bg-zinc-800 border border-zinc-700 rounded-xl text-white text-[16px] sm:text-sm px-3 py-2.5 h-20 resize-none focus:outline-none focus:border-emerald-500/60"
                 />
                 

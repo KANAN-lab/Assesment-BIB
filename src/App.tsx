@@ -1328,7 +1328,10 @@ export const App: React.FC = () => {
             )}
 
             {/* Kudo Wall / Tembok Apresiasi */}
-            <KudoWall />
+            <KudoWall 
+              currentWorkerId={currentWorker?.id} 
+              currentUserRole={currentWorker?.role} 
+            />
 
             {/* Standar & Kepatuhan ISO & Regulasi K3 (Paling Bawah) */}
             <IsoComplianceBanner />
