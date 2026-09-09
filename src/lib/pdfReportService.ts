@@ -158,7 +158,7 @@ export class ExecutivePDFReportGenerator {
     });
 
     this.appendSignatureAndFooter(doc, pageWidth, supervisorName, managerName, config);
-    doc.save(`Laporan_Eksekutif_Matriks_Kompetensi_${new Date().toISOString().slice(0, 10)}.pdf`);
+    this.savePdf(doc, `Laporan_Eksekutif_Matriks_Kompetensi_${new Date().toISOString().slice(0, 10)}.pdf`);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -240,7 +240,7 @@ export class ExecutivePDFReportGenerator {
     });
 
     this.appendSignatureAndFooter(doc, pageWidth, supervisorName, managerName, config);
-    doc.save(`Laporan_Eksekutif_Audit_K3_${new Date().toISOString().slice(0, 10)}.pdf`);
+    this.savePdf(doc, `Laporan_Eksekutif_Audit_K3_${new Date().toISOString().slice(0, 10)}.pdf`);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -554,7 +554,7 @@ export class ExecutivePDFReportGenerator {
       { align: 'center' }
     );
 
-    doc.save(`Monthly_HSE_K3_Dossier_ISO45001_${new Date().toISOString().slice(0, 10)}.pdf`);
+    this.savePdf(doc, `Monthly_HSE_K3_Dossier_ISO45001_${new Date().toISOString().slice(0, 10)}.pdf`);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -638,7 +638,7 @@ export class ExecutivePDFReportGenerator {
     });
 
     this.appendSignatureAndFooter(doc, pageWidth, supervisorName, managerName, config);
-    doc.save(`Laporan_Eksekutif_Legalitas_SIO_MHE_${new Date().toISOString().slice(0, 10)}.pdf`);
+    this.savePdf(doc, `Laporan_Eksekutif_Legalitas_SIO_MHE_${new Date().toISOString().slice(0, 10)}.pdf`);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -723,7 +723,7 @@ export class ExecutivePDFReportGenerator {
     });
 
     this.appendSignatureAndFooter(doc, pageWidth, supervisorName, managerName, config);
-    doc.save(`Laporan_Eksekutif_Inventaris_APD_${new Date().toISOString().slice(0, 10)}.pdf`);
+    this.savePdf(doc, `Laporan_Eksekutif_Inventaris_APD_${new Date().toISOString().slice(0, 10)}.pdf`);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -805,7 +805,7 @@ export class ExecutivePDFReportGenerator {
     });
 
     this.appendSignatureAndFooter(doc, pageWidth, supervisorName, managerName, config);
-    doc.save(`Laporan_Eksekutif_Anggaran_Reward_${new Date().toISOString().slice(0, 10)}.pdf`);
+    this.savePdf(doc, `Laporan_Eksekutif_Anggaran_Reward_${new Date().toISOString().slice(0, 10)}.pdf`);
   }
 
   // ─────────────────────────────────────────────────────────────
@@ -1044,6 +1044,35 @@ export class ExecutivePDFReportGenerator {
       { align: 'center' }
     );
 
-    doc.save(`BAP_Insiden_K3_${incident.id.slice(0, 8)}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    this.savePdf(doc, `BAP_Insiden_K3_${incident.id.slice(0, 8)}_${new Date().toISOString().slice(0, 10)}.pdf`);
+  }
+
+  /**
+   * Helper Download PDF yang 100% kompatibel di semua browser (Chrome, Edge, Firefox, Mobile PWA).
+   * Mencegah bug browser di mana file terunduh dengan nama Blob UUID tanpa ekstensi .pdf.
+   */
+  public static savePdf(doc: jsPDF, filename: string): void {
+    const safeFilename = filename.toLowerCase().endsWith('.pdf') ? filename : `${filename}.pdf`;
+    try {
+      const pdfBlob = doc.output('blob');
+      const blobWithMime = new Blob([pdfBlob], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blobWithMime);
+      const link = document.createElement('a');
+      link.style.display = 'none';
+      link.href = url;
+      link.download = safeFilename;
+      link.setAttribute('download', safeFilename);
+      document.body.appendChild(link);
+      link.click();
+      setTimeout(() => {
+        if (document.body.contains(link)) {
+          document.body.removeChild(link);
+        }
+        URL.revokeObjectURL(url);
+      }, 1000);
+    } catch (err) {
+      console.warn('[pdfReportService] Fallback to native doc.save:', err);
+      doc.save(safeFilename);
+    }
   }
 }
