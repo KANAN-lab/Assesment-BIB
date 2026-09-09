@@ -4,24 +4,33 @@ import { supabase } from '../lib/supabaseClient';
 import { KudoService, KudoQuotaInfo, KUDO_QUICK_TAGS } from '../lib/kudoService';
 import { KudoCategory } from '../types/kudos';
 import { SystemConfigService } from '../domain/SystemConfigService';
+import { RoleEntity } from '../domain/RoleEntity';
 import { X, Award, Search, Loader2, CheckCircle2, ShieldCheck, AlertCircle, Sparkles } from 'lucide-react';
+
+interface KudoWorkerItem {
+  id: string;
+  name: string;
+  avatar: string;
+  role?: string;
+  division?: string;
+}
 
 interface KudoModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentWorkerId: string;
-  initialWorkers?: Array<{ id: string; name: string; avatar: string }>;
+  initialWorkers?: KudoWorkerItem[];
 }
 
-let cachedActiveWorkers: { id: string; name: string; avatar: string }[] = [];
+let cachedActiveWorkers: KudoWorkerItem[] = [];
 
 export function KudoModal({ isOpen, onClose, currentWorkerId, initialWorkers }: KudoModalProps) {
-  const [workers, setWorkers] = useState<{ id: string; name: string; avatar: string }[]>(() => {
+  const [workers, setWorkers] = useState<KudoWorkerItem[]>(() => {
     if (initialWorkers && initialWorkers.length > 0) {
-      return initialWorkers.filter(w => w.id !== currentWorkerId);
+      return initialWorkers.filter(w => w.id !== currentWorkerId && !RoleEntity.isSystemAdmin(w));
     }
     if (cachedActiveWorkers.length > 0) {
-      return cachedActiveWorkers.filter(w => w.id !== currentWorkerId);
+      return cachedActiveWorkers.filter(w => w.id !== currentWorkerId && !RoleEntity.isSystemAdmin(w));
     }
     return [];
   });
@@ -118,13 +127,14 @@ export function KudoModal({ isOpen, onClose, currentWorkerId, initialWorkers }: 
     try {
       const { data, error } = await supabase
         .from('workers')
-        .select('id, name, avatar')
+        .select('id, name, avatar, role, division')
         .neq('id', currentWorkerId)
         .eq('status', 'active');
         
       if (!error && data) {
-        cachedActiveWorkers = data;
-        setWorkers(data);
+        const nonAdmin = (data as KudoWorkerItem[]).filter(w => !RoleEntity.isSystemAdmin(w));
+        cachedActiveWorkers = nonAdmin;
+        setWorkers(nonAdmin);
       }
     } catch (err) {
       console.error(err);
@@ -137,13 +147,14 @@ export function KudoModal({ isOpen, onClose, currentWorkerId, initialWorkers }: 
     try {
       const { data, error } = await supabase
         .from('workers')
-        .select('id, name, avatar')
+        .select('id, name, avatar, role, division')
         .neq('id', currentWorkerId)
         .eq('status', 'active');
         
       if (!error && data) {
-        cachedActiveWorkers = data;
-        setWorkers(data);
+        const nonAdmin = (data as KudoWorkerItem[]).filter(w => !RoleEntity.isSystemAdmin(w));
+        cachedActiveWorkers = nonAdmin;
+        setWorkers(nonAdmin);
       }
     } catch {}
   };

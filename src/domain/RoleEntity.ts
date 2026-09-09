@@ -117,6 +117,13 @@ export class RoleEntity {
     return this.resolveSystemRole(roleName) === 'worker';
   }
 
+  public static isSystemAdmin(worker: { role?: string; division?: string } | string): boolean {
+    const role = typeof worker === 'string' ? worker : (worker?.role || '');
+    const div = typeof worker === 'string' ? '' : (worker?.division || '');
+    if (div && div.toUpperCase() === 'SYSTEM') return true;
+    return this.resolveSystemRole(role) === 'admin';
+  }
+
   public static isManagementRole(role: SystemRole): boolean {
     return role !== 'worker';
   }

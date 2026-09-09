@@ -7,6 +7,7 @@ import { HandoverManager } from '../lib/handoverService';
 import { ShiftType, ConditionStatus, HandoverCategory, HandoverInput } from '../types/handover';
 import { WorkerProfile } from '../types/assessment';
 import { fetchAllWorkers } from '../lib/supabaseService';
+import { RoleEntity } from '../domain/RoleEntity';
 
 let cachedHandoverWorkers: WorkerProfile[] = [];
 
@@ -28,9 +29,9 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId, initialWo
   
   const [workers, setWorkers] = useState<WorkerProfile[]>(() => {
     if (initialWorkers && initialWorkers.length > 0) {
-      return initialWorkers.filter(w => w.id !== currentWorkerId);
+      return initialWorkers.filter(w => w.id !== currentWorkerId && !RoleEntity.isSystemAdmin(w));
     }
-    return cachedHandoverWorkers.filter(w => w.id !== currentWorkerId);
+    return cachedHandoverWorkers.filter(w => w.id !== currentWorkerId && !RoleEntity.isSystemAdmin(w));
   });
 
   const { submit: idempSubmit, isSubmitting: loading, idempotencyError, clearIdempotencyError } = useIdempotentSubmit({
@@ -48,16 +49,18 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId, initialWo
         notesRef.current?.focus();
       }, 50);
 
-      // Inisialisasi daftar pekerja dari cache/initialWorkers terlebih dahulu
+      // Inisialisasi daftar pekerja dari cache/initialWorkers terlebih dahulu (keluarkan System Administrator)
       if (initialWorkers && initialWorkers.length > 0) {
-        cachedHandoverWorkers = initialWorkers;
-        setWorkers(initialWorkers.filter(w => w.id !== currentWorkerId));
+        const filtered = initialWorkers.filter(w => w.id !== currentWorkerId && !RoleEntity.isSystemAdmin(w));
+        cachedHandoverWorkers = filtered;
+        setWorkers(filtered);
       } else if (cachedHandoverWorkers.length > 0) {
-        setWorkers(cachedHandoverWorkers.filter(w => w.id !== currentWorkerId));
+        setWorkers(cachedHandoverWorkers.filter(w => w.id !== currentWorkerId && !RoleEntity.isSystemAdmin(w)));
       } else {
         fetchAllWorkers().then(data => {
-          cachedHandoverWorkers = data;
-          setWorkers(data.filter(w => w.id !== currentWorkerId));
+          const filtered = data.filter(w => w.id !== currentWorkerId && !RoleEntity.isSystemAdmin(w));
+          cachedHandoverWorkers = filtered;
+          setWorkers(filtered);
         }).catch(err => {
           console.error('Error fetching workers:', err);
         });
