@@ -12,6 +12,7 @@ import { safeLocalStorageSetItem } from '../lib/storageSanitizer';
 import { SystemConfigService } from './SystemConfigService';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { savePdf } from '../lib/pdfReportService';
 
 const STORAGE_KEY = 'gappy_safety_patrol_records';
 
@@ -381,7 +382,7 @@ export class SafetyPatrolService {
     doc.text('Head of Safety & Operations', 14 + colW, signY + 27);
 
     // Save PDF
-    doc.save(`BAP_Gemba_Patrol_${record.id}_${new Date().toISOString().slice(0, 10)}.pdf`);
+    savePdf(doc, `BAP_Gemba_Patrol_${record.id}_${new Date().toISOString().slice(0, 10)}.pdf`);
   }
 
   // ─── Local Storage Helpers ─────────────────────────────────────

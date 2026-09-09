@@ -2348,18 +2348,23 @@ GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_
 -- Log operasional bernilai tinggi (points_refunded, checklist, quiz, incident, sop, kudo) 
 -- TIDAK AKAN PERNAH DIHAPUS.
 CREATE OR REPLACE FUNCTION clean_ephemeral_activity_logs(p_days_retention INTEGER DEFAULT 7)
-RETURNS INTEGER AS $$
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
 DECLARE
   v_deleted INTEGER;
+  v_days INTEGER := COALESCE(p_days_retention, 7);
 BEGIN
   DELETE FROM activity_log
   WHERE action IN ('login', 'logout')
-    AND created_at < (now() - (p_days_retention || ' days')::INTERVAL);
+    AND created_at < (now() - (v_days || ' days')::INTERVAL);
   
   GET DIAGNOSTICS v_deleted = ROW_COUNT;
   RETURN v_deleted;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 GRANT EXECUTE ON FUNCTION clean_ephemeral_activity_logs(INTEGER) TO anon, authenticated, service_role;
 

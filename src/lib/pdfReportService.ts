@@ -1076,3 +1076,5 @@ export class ExecutivePDFReportGenerator {
     }
   }
 }
+
+export const savePdf = ExecutivePDFReportGenerator.savePdf;

@@ -11,6 +11,7 @@ import { LicenseService } from '../../lib/licenseService';
 import { PpeService } from '../../lib/ppeService';
 import { SystemConfigService } from '../../domain/SystemConfigService';
 import { MheLicenseEntity } from '../../types/license';
+import { savePdf } from '../../lib/pdfReportService';
 
 export interface IsoClauseMapping {
   id: string;
@@ -449,7 +450,7 @@ export const AdminIsoCompliancePanel: React.FC<AdminIsoCompliancePanelProps> = (
         doc.text('( Tanda Tangan & Cap )', 14 + colWidth * 2.1, finalY + 22);
       }
 
-      doc.save(`DOSSIER_AUDIT_KEPATUHAN_ISO_${new Date().toISOString().slice(0, 10)}.pdf`);
+      savePdf(doc, `DOSSIER_AUDIT_KEPATUHAN_ISO_${new Date().toISOString().slice(0, 10)}.pdf`);
       showToast('Dossier Kepatuhan ISO & SMK3 berhasil diunduh dalam format PDF!');
     } catch (err: any) {
       showToast(err.message || 'Gagal mengekspor PDF.');

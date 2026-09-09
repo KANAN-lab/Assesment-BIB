@@ -9,6 +9,7 @@ import autoTable from 'jspdf-autotable';
 import { safeLocalStorageSetItem } from './storageSanitizer';
 import { supabase } from './supabaseClient';
 import { deductWorkerPoints, refundWorkerPoints } from './supabaseService';
+import { savePdf } from './pdfReportService';
 
 const STORAGE_KEY = 'gappy_disciplinary_actions_v2';
 const EVENT_UPDATED = 'gappy_disciplinary_updated';
@@ -467,7 +468,7 @@ export class DisciplinaryService {
       { align: 'center' }
     );
 
-    doc.save(`Surat_Pembinaan_K3_${action.documentRefNumber.replace(/\//g, '_')}.pdf`);
+    savePdf(doc, `Surat_Pembinaan_K3_${action.documentRefNumber.replace(/\//g, '_')}.pdf`);
   }
 
   // ─────────────────────────────────────────────────────────────

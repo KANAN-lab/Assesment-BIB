@@ -15,6 +15,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { safeLocalStorageSetItem } from './storageSanitizer';
 import { supabase } from './supabaseClient';
+import { savePdf } from './pdfReportService';
 
 const ZONES_STORAGE_KEY = 'gappy_5s_zones_v2';
 const RECORDS_STORAGE_KEY = 'gappy_5s_audit_records_v2';
@@ -375,7 +376,7 @@ export class Audit5sService {
       { align: 'center' }
     );
 
-    doc.save(`Laporan_Audit_5R_${record.zoneName.replace(/\s+/g, '_')}_${record.auditDate}.pdf`);
+    savePdf(doc, `Laporan_Audit_5R_${record.zoneName.replace(/\s+/g, '_')}_${record.auditDate}.pdf`);
   }
 
   // ─────────────────────────────────────────────────────────────

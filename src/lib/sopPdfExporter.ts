@@ -1,5 +1,6 @@
 import { SopModule } from '../types/sop';
 import { SystemConfigService } from '../domain/SystemConfigService';
+import { savePdf } from './pdfReportService';
 
 export const SopPdfExporter = {
   /**
@@ -228,6 +229,6 @@ export const SopPdfExporter = {
     doc.text('Lembar Dokumen Sah PT. DAYA ANUGRAH MULYA • Dilarang menggandakan tanpa otorisasi HSE/Ops', margin + 3, footerY + 8);
 
     // Save File
-    doc.save(`POSTER_SOP_${module.code.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`);
+    savePdf(doc, `POSTER_SOP_${module.code.replace(/[^a-zA-Z0-9_-]/g, '_')}.pdf`);
   },
 };

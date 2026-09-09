@@ -44,18 +44,23 @@ $$;
 
 -- 2. Pasang Stored Procedure Pruning Anti-Bloat (Skema 3)
 CREATE OR REPLACE FUNCTION clean_ephemeral_activity_logs(p_days_retention INTEGER DEFAULT 7)
-RETURNS INTEGER AS $$
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, pg_temp
+AS $$
 DECLARE
   v_deleted INTEGER;
+  v_days INTEGER := COALESCE(p_days_retention, 7);
 BEGIN
   DELETE FROM activity_log
   WHERE action IN ('login', 'logout')
-    AND created_at < (now() - (p_days_retention || ' days')::INTERVAL);
+    AND created_at < (now() - (v_days || ' days')::INTERVAL);
   
   GET DIAGNOSTICS v_deleted = ROW_COUNT;
   RETURN v_deleted;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$;
 
 -- 3. Sinkronisasi Smart Auto-Deduct pada Sanksi Disiplin K3
 CREATE OR REPLACE FUNCTION rpc_issue_disciplinary_action(
