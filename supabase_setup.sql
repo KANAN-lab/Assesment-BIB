@@ -889,6 +889,7 @@ UPDATE workers
 SET total_points = 0, bib_total_score = 0, bib_behavior = 0, bib_integrity = 0, bib_benchmark = 0, tier = 'Novice Operational'
 WHERE employee_id = 'SYS-ADMIN' OR LOWER(role) LIKE '%administrator%';
 
+DROP VIEW IF EXISTS public.v_operational_leaderboard CASCADE;
 CREATE OR REPLACE VIEW public.v_operational_leaderboard
 WITH (security_invoker = true) AS
 SELECT
@@ -913,6 +914,8 @@ WHERE LOWER(role) NOT IN ('system administrator', 'administrator', 'sysadmin', '
   AND UPPER(division) != 'SYSTEM'
   AND status = 'active'
 ORDER BY bib_total_score DESC, total_points DESC;
+
+GRANT SELECT ON public.v_operational_leaderboard TO anon, authenticated, service_role;
 
 -- ─── 17. Atomic Database RPC Functions (LEGACY — superseded by rpc_redeem_reward_fcfs) ───
 
