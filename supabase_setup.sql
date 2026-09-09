@@ -889,9 +889,26 @@ UPDATE workers
 SET total_points = 0, bib_total_score = 0, bib_behavior = 0, bib_integrity = 0, bib_benchmark = 0, tier = 'Novice Operational'
 WHERE employee_id = 'SYS-ADMIN' OR LOWER(role) LIKE '%administrator%';
 
-CREATE OR REPLACE VIEW v_operational_leaderboard AS
-SELECT *
-FROM workers
+CREATE OR REPLACE VIEW public.v_operational_leaderboard
+WITH (security_invoker = true) AS
+SELECT
+  id,
+  employee_id,
+  name,
+  role,
+  division,
+  avatar,
+  total_points,
+  operational_points,
+  prestige_points,
+  tier,
+  bib_behavior,
+  bib_integrity,
+  bib_benchmark,
+  bib_total_score,
+  streak_days,
+  status
+FROM public.workers
 WHERE LOWER(role) NOT IN ('system administrator', 'administrator', 'sysadmin', 'supervisor logistik', 'supervisor', 'pengawas')
   AND UPPER(division) != 'SYSTEM'
   AND status = 'active'
