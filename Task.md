@@ -1280,6 +1280,31 @@
   - [x] Injeksi `initialWorkers` dari `allWorkers` di `App.tsx` dan module-level cache agar daftar rekan kerja tampil instan (0ms) tanpa spinner berulang.
   - [x] Menambahkan `type="button"` eksplisit pada seluruh tombol modal untuk mencegah accidental submit.
 
+---
+
+## Phase 17: Eliminasi Auto-Reload Data di Seluruh Modul & Stabilisasi Polling UX
+
+- [x] **1. Audit & Root Cause Analysis Auto-Reload Global**:
+  - [x] Menemukan pemicu utama: Background polling `setInterval(syncWorkerData, 8000)` di [`App.tsx`](file:///d:/Coding%20Session/Komar/src/App.tsx) mengeksekusi 4 query network setiap 8 detik dan memanggil `setAllWorkers` & `setLeaderboard` tanpa membandingkan kesamaan data. Karena array baru selalu dibuat di memori, seluruh komponen `App` me-re-render terus-menerus setiap 8 detik.
+  - [x] Menemukan dampak fatal pada formulir modal (khususnya Log Serah Terima `ShiftHandoverModal.tsx`): `onClose` inline berganti referensi setiap 8 detik -> `useEffect` di modal terpanggil ulang saat modal terbuka -> form ter-reset ke nilai default ('Pagi', 'MHE & Peralatan', 'Aman', notes kosong '') dan dropdown pekerja di-fetch ulang, menyebabkan teks yang sedang diketik user lenyap di tengah jalan.
+- [x] **2. Stabilisasi Modal Log Serah Terima (`ShiftHandoverModal.tsx`)**:
+  - [x] Memasang `prevIsOpenRef` guard agar form reset dan pemuatan data pengawas hanya dieksekusi 1x saat transisi modal dari tertutup ke terbuka.
+  - [x] Menambahkan prop `initialWorkers` dan module cache `cachedHandoverWorkers` untuk menghilangkan loading spinner dan reload berulang.
+  - [x] Memisahkan event listener Escape ke `useEffect` terisolasi dan menambahkan `type="button"` pada tombol kontrol.
+  - [x] Mengirimkan custom event `gappy_handover_submitted` saat submit berhasil.
+- [x] **3. Reaktif Kanban Serah Terima (`HandoverKanbanBoard.tsx`)**:
+  - [x] Menambahkan event listener `gappy_handover_submitted` di `useEffect` sehingga board langsung memperbarui data baru secara instan tanpa perlu reload manual atau polling agresif.
+- [x] **4. Optimasi Global Background Polling (`App.tsx`)**:
+  - [x] Menerapkan **Global Modal Pause Guard**: Jika user sedang membuka modal apapun (`showShiftHandoverModal`, `showKaizenModal`, `showIncidentModal`, `showDailyQuizModal`, `showChecklistModal`, `showKudoModal`, `showHistoryCenterModal`, dll.), sinkronisasi otomatis langsung di-pause untuk mencegah gangguan input/interaksi form.
+  - [x] Menerapkan **Deep Reference Equality Check**: `setAllWorkers`, `setLeaderboard`, dan `setRedemptionHistory` hanya memperbarui state jika data benar-benar berubah secara nilai. Jika identik, referensi objek lama dipertahankan (`return prev`), sehingga React tidak me-re-render seluruh aplikasi.
+  - [x] Menurunkan frekuensi polling dari 8 detik menjadi 30 detik (hemat bandwidth hingga 73% dan memanfaatkan Supabase Realtime Channel yang sudah aktif).
+  - [x] Membungkus seluruh modal close handler di `App.tsx` dengan `useCallback` stabil.
+- [x] **5. Quality Gates & Live Verification**:
+  - [x] `npx tsc --noEmit` bersih (0 error).
+  - [x] `python checker.py` 59/59 passed.
+  - [x] `npm run build` sukses (bundle produksi 29.94s).
+  - [x] Uji live browser subagent membuktikan ketikan teks dan pilihan form Log Serah Terima tetap utuh setelah menunggu 10+ detik tanpa reload.
+
 
 
 

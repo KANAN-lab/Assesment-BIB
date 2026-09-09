@@ -287,6 +287,54 @@ export const App: React.FC = () => {
     setShowKudoModal(false);
   }, []);
 
+  const handleCloseShiftHandoverModal = useCallback(() => {
+    setShowShiftHandoverModal(false);
+  }, []);
+
+  const handleCloseKaizenModal = useCallback(() => {
+    setShowKaizenModal(false);
+  }, []);
+
+  const handleCloseIncidentModal = useCallback(() => {
+    setShowIncidentModal(false);
+  }, []);
+
+  const handleCloseDailyQuizModal = useCallback(() => {
+    setShowDailyQuizModal(false);
+  }, []);
+
+  const handleCloseChecklistModal = useCallback(() => {
+    setShowChecklistModal(false);
+  }, []);
+
+  const handleCloseProfilePicModal = useCallback(() => {
+    setShowProfilePicModal(false);
+  }, []);
+
+  const handleCloseDigitalIdModal = useCallback(() => {
+    setShowDigitalIdModal(false);
+  }, []);
+
+  const handleCloseWorkerSioModal = useCallback(() => {
+    setShowWorkerSioModal(false);
+  }, []);
+
+  const handleCloseHistoryCenterModal = useCallback(() => {
+    setShowHistoryCenterModal(false);
+  }, []);
+
+  const handleCloseCompetencyModal = useCallback(() => {
+    setShowCompetencyModal(false);
+  }, []);
+
+  const handleCloseSopModal = useCallback(() => {
+    setShowSopModal(false);
+  }, []);
+
+  const handleCloseMatrixAuditModal = useCallback(() => {
+    setMatrixAuditWorker(null);
+  }, []);
+
   // ── Multi-Tab Cross-Tab Auth Synchronization ──
   useEffect(() => {
     const unsubscribe = AuthSessionService.onAuthChange((action, workerId) => {
@@ -372,13 +420,28 @@ export const App: React.FC = () => {
     };
   }, []);
 
-  // ── Auto Sync Effect: Tarik poin & data worker terbaru dari Supabase setiap 8 detik ──
+  // ── Auto Sync Effect: Tarik poin & data worker terbaru dari Supabase berkala (30s) ──
   useEffect(() => {
     if (!currentWorker) return;
 
     const syncWorkerData = async () => {
-      // Jeda sinkronisasi berkala jika modal riwayat sedang dibuka oleh user agar tidak mengganggu interaksi/scroll
-      if (showHistoryCenterModal) return;
+      // Jeda sinkronisasi berkala jika ADA MODAL APAPUN yang sedang dibuka oleh user agar interaksi/input form tidak terganggu
+      const isAnyModalOpen = Boolean(
+        showHistoryCenterModal ||
+        showShiftHandoverModal ||
+        showKudoModal ||
+        showKaizenModal ||
+        showIncidentModal ||
+        showDailyQuizModal ||
+        showChecklistModal ||
+        showProfilePicModal ||
+        showDigitalIdModal ||
+        showWorkerSioModal ||
+        showCompetencyModal ||
+        showSopModal ||
+        matrixAuditWorker
+      );
+      if (isAnyModalOpen) return;
 
       try {
         const [updatedWorker, updatedWorkers, updatedLb] = await Promise.all([
@@ -413,7 +476,11 @@ export const App: React.FC = () => {
               prev.tier !== updatedWorker.tier ||
               prev.streakDays !== updatedWorker.streakDays ||
               prev.dailyQuizCompleted !== updatedWorker.dailyQuizCompleted ||
-              prev.preShiftChecklistDone !== updatedWorker.preShiftChecklistDone
+              prev.preShiftChecklistDone !== updatedWorker.preShiftChecklistDone ||
+              prev.name !== updatedWorker.name ||
+              prev.avatar !== updatedWorker.avatar ||
+              prev.role !== updatedWorker.role ||
+              prev.status !== updatedWorker.status
             ) {
               AuthSessionService.saveCachedWorker(updatedWorker);
               return updatedWorker;
@@ -421,22 +488,85 @@ export const App: React.FC = () => {
             return prev;
           });
         }
-        if (updatedWorkers.length > 0) setAllWorkers(updatedWorkers);
-        if (updatedLb.length > 0) setLeaderboard(updatedLb);
 
-        // Sinkronisasi riwayat reward berkala agar status pembatalan/penyerahan langsung ter-update
+        // Cek kesamaan allWorkers sebelum update state agar tidak memicu re-render cascade
+        if (updatedWorkers.length > 0) {
+          setAllWorkers((prev) => {
+            if (
+              prev.length === updatedWorkers.length &&
+              prev.every((w, i) => {
+                const u = updatedWorkers[i];
+                return (
+                  u &&
+                  w.id === u.id &&
+                  w.totalPoints === u.totalPoints &&
+                  w.status === u.status &&
+                  w.name === u.name &&
+                  w.tier === u.tier
+                );
+              })
+            ) {
+              return prev; // data identik, pertahankan referensi state lama
+            }
+            return updatedWorkers;
+          });
+        }
+
+        // Cek kesamaan leaderboard sebelum update state
+        if (updatedLb.length > 0) {
+          setLeaderboard((prev) => {
+            if (
+              prev.length === updatedLb.length &&
+              prev.every((item, i) => {
+                const u = updatedLb[i];
+                return u && item.workerId === u.workerId && item.totalPoints === u.totalPoints && item.rank === u.rank;
+              })
+            ) {
+              return prev; // data identik, pertahankan referensi state lama
+            }
+            return updatedLb;
+          });
+        }
+
+        // Sinkronisasi riwayat reward berkala
         if (currentWorker?.id) {
           const updatedHist = await fetchRedemptionHistory(currentWorker.id).catch(() => []);
-          if (updatedHist.length > 0) setRedemptionHistory(updatedHist);
+          if (updatedHist.length > 0) {
+            setRedemptionHistory((prev) => {
+              if (
+                prev.length === updatedHist.length &&
+                prev.every((h, i) => h.id === updatedHist[i]?.id && h.status === updatedHist[i]?.status)
+              ) {
+                return prev;
+              }
+              return updatedHist;
+            });
+          }
         }
       } catch {
         // silent sync
       }
     };
 
-    const interval = setInterval(syncWorkerData, 8000);
+    const interval = setInterval(syncWorkerData, 30000);
     return () => clearInterval(interval);
-  }, [currentWorker, handleLogout, showHistoryCenterModal]);
+  }, [
+    currentWorker,
+    handleLogout,
+    showHistoryCenterModal,
+    showShiftHandoverModal,
+    showKudoModal,
+    showKaizenModal,
+    showIncidentModal,
+    showDailyQuizModal,
+    showChecklistModal,
+    showProfilePicModal,
+    showDigitalIdModal,
+    showWorkerSioModal,
+    showCompetencyModal,
+    showSopModal,
+    matrixAuditWorker,
+  ]);
 
   // Listen for real-time points_awarded events to update local React state instantly
   useEffect(() => {
@@ -1455,7 +1585,7 @@ export const App: React.FC = () => {
             workerId={currentWorker.id}
             workerName={currentWorker.name}
             workerTier={currentWorker.tier}
-            onClose={() => setShowDailyQuizModal(false)}
+            onClose={handleCloseDailyQuizModal}
             onCompleteQuiz={handleCompleteQuiz}
           />
         )}
@@ -1465,7 +1595,7 @@ export const App: React.FC = () => {
             streakDays={currentWorker.streakDays}
             workerRole={currentWorker.role}
             workerDivision={currentWorker.division}
-            onClose={() => setShowChecklistModal(false)}
+            onClose={handleCloseChecklistModal}
             onCompleteChecklist={handleCompleteChecklist}
           />
         )}
@@ -1475,7 +1605,7 @@ export const App: React.FC = () => {
             currentAvatar={currentWorker.avatar}
             workerName={currentWorker.name}
             workerId={currentWorker.id}
-            onClose={() => setShowProfilePicModal(false)}
+            onClose={handleCloseProfilePicModal}
             onSaveAvatar={handleSaveAvatar}
           />
         )}
@@ -1493,7 +1623,7 @@ export const App: React.FC = () => {
           <CompetencyAuditModal
             worker={matrixAuditWorker}
             initialScores={matrixInitialScores}
-            onClose={() => setMatrixAuditWorker(null)}
+            onClose={handleCloseMatrixAuditModal}
             onSaveScores={handleSaveMatrixScores}
           />
         )}
@@ -1509,7 +1639,7 @@ export const App: React.FC = () => {
           <IncidentReportModal
             workerId={currentWorker.id}
             workerName={currentWorker.name}
-            onClose={() => setShowIncidentModal(false)}
+            onClose={handleCloseIncidentModal}
             onSuccess={(report) => {
               setShowIncidentModal(false);
               logActivity(currentWorker.id, currentWorker.name, 'incident_reported', `Jenis: ${report.incidentType} · Lokasi: ${report.location}`).catch(() => {});
@@ -1520,7 +1650,7 @@ export const App: React.FC = () => {
         {currentWorker && (
           <WorkerHistoryCenterModal
             isOpen={showHistoryCenterModal}
-            onClose={() => setShowHistoryCenterModal(false)}
+            onClose={handleCloseHistoryCenterModal}
             workerId={currentWorker.id}
             workerName={currentWorker.name}
             initialTab={historyCenterInitialTab}
@@ -1531,7 +1661,7 @@ export const App: React.FC = () => {
           <WorkerCompetencyModal
             worker={currentWorker}
             competencyScores={matrixInitialScores}
-            onClose={() => setShowCompetencyModal(false)}
+            onClose={handleCloseCompetencyModal}
           />
         )}
 
@@ -1541,7 +1671,7 @@ export const App: React.FC = () => {
             workerName={currentWorker.name}
             workerDivision={currentWorker.division}
             workerRole={currentWorker.role}
-            onClose={() => setShowSopModal(false)}
+            onClose={handleCloseSopModal}
             onRewardEarned={(points, message) => {
               if (currentWorker) {
                 loadDataForWorker(currentWorker.id);
@@ -1572,15 +1702,16 @@ export const App: React.FC = () => {
         {currentWorker && (
           <ShiftHandoverModal
             isOpen={showShiftHandoverModal}
-            onClose={() => setShowShiftHandoverModal(false)}
+            onClose={handleCloseShiftHandoverModal}
             currentWorkerId={currentWorker.id}
+            initialWorkers={allWorkers}
           />
         )}
 
         {currentWorker && (
           <KaizenSubmissionModal
             isOpen={showKaizenModal}
-            onClose={() => setShowKaizenModal(false)}
+            onClose={handleCloseKaizenModal}
             currentWorkerId={currentWorker.id}
             currentWorkerName={currentWorker.name}
             onSubmitted={() => {
@@ -1600,7 +1731,7 @@ export const App: React.FC = () => {
         {showDigitalIdModal && currentWorker && (
           <WorkerDigitalIdModal
             isOpen={showDigitalIdModal}
-            onClose={() => setShowDigitalIdModal(false)}
+            onClose={handleCloseDigitalIdModal}
             worker={currentWorker}
           />
         )}
@@ -1608,7 +1739,7 @@ export const App: React.FC = () => {
         {showWorkerSioModal && currentWorker && (
           <WorkerSioUploadModal
             isOpen={showWorkerSioModal}
-            onClose={() => setShowWorkerSioModal(false)}
+            onClose={handleCloseWorkerSioModal}
             worker={currentWorker}
             onSuccess={(newLic) => {
               setWorkerLicense(newLic);

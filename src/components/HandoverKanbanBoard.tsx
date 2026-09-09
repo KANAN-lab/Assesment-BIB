@@ -43,6 +43,13 @@ export function HandoverKanbanBoard() {
 
   useEffect(() => {
     fetchHandovers();
+    const handleSubmitted = () => {
+      fetchHandovers();
+    };
+    window.addEventListener('gappy_handover_submitted', handleSubmitted);
+    return () => {
+      window.removeEventListener('gappy_handover_submitted', handleSubmitted);
+    };
   }, []);
 
   // Filter out 'Selesai' older than 24 hours unless showArchived is true (delegated to ShiftHandoverManager)

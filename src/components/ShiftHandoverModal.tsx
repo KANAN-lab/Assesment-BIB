@@ -8,21 +8,31 @@ import { ShiftType, ConditionStatus, HandoverCategory, HandoverInput } from '../
 import { WorkerProfile } from '../types/assessment';
 import { fetchAllWorkers } from '../lib/supabaseService';
 
+let cachedHandoverWorkers: WorkerProfile[] = [];
+
 interface ShiftHandoverModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentWorkerId: string;
+  initialWorkers?: WorkerProfile[];
 }
 
-export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId }: ShiftHandoverModalProps) {
+export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId, initialWorkers }: ShiftHandoverModalProps) {
   const [shiftType, setShiftType] = useState<ShiftType>('Pagi');
   const [handoverCategory, setHandoverCategory] = useState<HandoverCategory>('MHE & Peralatan');
   const [conditionStatus, setConditionStatus] = useState<ConditionStatus>('Aman');
   const [notes, setNotes] = useState('');
   const [nextSupervisorId, setNextSupervisorId] = useState<string>('');
   const notesRef = useRef<HTMLTextAreaElement>(null);
+  const prevIsOpenRef = useRef(false);
   
-  const [workers, setWorkers] = useState<WorkerProfile[]>([]);
+  const [workers, setWorkers] = useState<WorkerProfile[]>(() => {
+    if (initialWorkers && initialWorkers.length > 0) {
+      return initialWorkers.filter(w => w.id !== currentWorkerId);
+    }
+    return cachedHandoverWorkers.filter(w => w.id !== currentWorkerId);
+  });
+
   const { submit: idempSubmit, isSubmitting: loading, idempotencyError, clearIdempotencyError } = useIdempotentSubmit({
     workerId: currentWorkerId,
     formType: 'handover',
@@ -30,28 +40,30 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId }: ShiftHa
   });
   const [error, setError] = useState<string | null>(null);
 
+  // Inisialisasi modal HANYA 1x saat bertransisi dari false -> true
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !prevIsOpenRef.current) {
       document.body.style.overflow = 'hidden';
       const timer = setTimeout(() => {
         notesRef.current?.focus();
       }, 50);
 
-      const handleKeyDown = (e: KeyboardEvent) => {
-        if (e.key === 'Escape') {
-          onClose();
-        }
-      };
-      window.addEventListener('keydown', handleKeyDown);
-
-      fetchAllWorkers().then(data => {
-        // Exclude current worker from the list
-        setWorkers(data.filter(w => w.id !== currentWorkerId));
-      }).catch(err => {
-        console.error('Error fetching workers:', err);
-      });
+      // Inisialisasi daftar pekerja dari cache/initialWorkers terlebih dahulu
+      if (initialWorkers && initialWorkers.length > 0) {
+        cachedHandoverWorkers = initialWorkers;
+        setWorkers(initialWorkers.filter(w => w.id !== currentWorkerId));
+      } else if (cachedHandoverWorkers.length > 0) {
+        setWorkers(cachedHandoverWorkers.filter(w => w.id !== currentWorkerId));
+      } else {
+        fetchAllWorkers().then(data => {
+          cachedHandoverWorkers = data;
+          setWorkers(data.filter(w => w.id !== currentWorkerId));
+        }).catch(err => {
+          console.error('Error fetching workers:', err);
+        });
+      }
       
-      // Reset form
+      // Reset form ke default hanya saat baru dibuka
       setShiftType('Pagi');
       setHandoverCategory('MHE & Peralatan');
       setConditionStatus('Aman');
@@ -59,15 +71,29 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId }: ShiftHa
       setNextSupervisorId('');
       setError(null);
 
+      prevIsOpenRef.current = true;
       return () => {
         clearTimeout(timer);
-        document.body.style.overflow = 'unset';
-        window.removeEventListener('keydown', handleKeyDown);
       };
-    } else {
+    } else if (!isOpen && prevIsOpenRef.current) {
       document.body.style.overflow = 'unset';
+      prevIsOpenRef.current = false;
     }
-  }, [isOpen, currentWorkerId, onClose]);
+  }, [isOpen, currentWorkerId, initialWorkers]);
+
+  // Listener tombol Escape
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onClose]);
 
   if (!isOpen) return null;
 
@@ -100,6 +126,7 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId }: ShiftHa
       };
 
       await HandoverManager.submitHandover(currentWorkerId, input, idemp);
+      window.dispatchEvent(new CustomEvent('gappy_handover_submitted', { detail: { workerId: currentWorkerId } }));
       onClose();
     }).catch((err: any) => {
       setError(err.message || 'Gagal mengirim handover.');
@@ -124,6 +151,7 @@ export function ShiftHandoverModal({ isOpen, onClose, currentWorkerId }: ShiftHa
             <h2 className="text-base font-bold text-white">Log Serah Terima</h2>
           </div>
           <button 
+            type="button"
             onClick={onClose}
             className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-zinc-900 transition"
           >
