@@ -1299,7 +1299,7 @@ export const App: React.FC = () => {
                     <div>
                       <div className="text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Skor BIB</div>
                       <div className="text-xs sm:text-sm font-black text-white leading-tight">
-                        {currentWorker.bibScores.totalScore.toFixed(1)} <span className="text-[10px] font-normal text-zinc-500">/ 5.0</span>
+                        {currentWorker.bibScores.totalScore.toFixed(1)} <span className="text-[10px] font-normal text-zinc-500">/ 100</span>
                       </div>
                     </div>
                   </div>
