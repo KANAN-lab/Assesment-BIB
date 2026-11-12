@@ -58,7 +58,7 @@ Aplikasi dibangun menggunakan **Atomic Chunk Splitting & On-Demand Micro-Loading
 | :--- | :--- |
 | **NIK / Employee ID** | `SYS-ADMIN` |
 | **Email Admin** | `irnando.arkadiantika@pt-dam-id.com` |
-| **Password Default** | `Aleale#@!123` |
+| **Password Default** | `**********` |
 | **Role** | `System Administrator` |
 | **Status** | `active` (Bypass Approval) |
 
