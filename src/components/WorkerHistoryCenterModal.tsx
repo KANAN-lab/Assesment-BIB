@@ -48,6 +48,7 @@ import {
 } from '../lib/disciplinaryService';
 import { fetchAllSopModules, fetchWorkerSopProgress } from '../lib/sopService';
 import { supabase } from '../lib/supabaseClient';
+import { formatIndonesianDateTime } from '../lib/dateUtils';
 import { SystemConfigService } from '../domain/SystemConfigService';
 import { KaizenSuggestionEntity, KaizenCategory, KaizenStatus } from '../types/kaizen';
 import { IncidentReport, RewardHistory } from '../types/assessment';
@@ -1291,7 +1292,7 @@ export function WorkerHistoryCenterModal({
                       <div key={r.id} className="bg-zinc-900/70 border border-zinc-800 rounded-2xl p-4 flex items-center justify-between">
                         <div>
                           <h4 className="font-bold text-xs sm:text-sm text-white">{r.itemTitle}</h4>
-                          <p className="text-[10px] text-zinc-500">Kode: {r.redemptionCode} · {r.redeemedAt && !isNaN(new Date(r.redeemedAt).getTime()) ? new Date(r.redeemedAt).toLocaleDateString('id-ID') : '-'}</p>
+                          <p className="text-[10px] text-zinc-500">Kode: {r.redemptionCode} · {formatIndonesianDateTime(r.redeemedAt)}</p>
                         </div>
                         <div className="text-right">
                           <span className={`text-xs font-bold block ${r.status === 'cancelled' ? 'text-zinc-500 line-through' : 'text-rose-400'}`}>

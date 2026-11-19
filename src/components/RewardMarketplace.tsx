@@ -7,6 +7,7 @@ import { SystemConfigService } from '../domain/SystemConfigService';
 import { PaginationControls } from './PaginationControls';
 import { VoucherQRCode } from './VoucherQRCode';
 import { SwalService } from '../domain/SwalService';
+import { formatIndonesianDateTime, formatIndonesianDate } from '../lib/dateUtils';
 import {
   Coins,
   CheckCircle,
@@ -755,9 +756,9 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                         </span>
                       </div>
                       <div className="text-[10px] text-zinc-400 flex items-center gap-3 flex-wrap">
-                        <span>Waktu: {history.redeemedAt}</span>
+                        <span>Waktu: {formatIndonesianDateTime(history.redeemedAt)}</span>
                         {history.expiryDate && (
-                          <span>Masa Berlaku: {new Date(history.expiryDate).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                          <span>Masa Berlaku: {formatIndonesianDate(history.expiryDate)}</span>
                         )}
                         {history.fulfilledByName && (
                           <span className="text-emerald-400">Oleh: {history.fulfilledByName}</span>
@@ -843,7 +844,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                       </div>
                       <div>
                         <div className="text-xs font-bold text-white">{h.itemTitle}</div>
-                        <div className="text-[10px] text-zinc-500">Waktu Klaim: {h.redeemedAt} · Voucher <code className="bg-zinc-900 px-1 py-0.5 rounded text-emerald-400 font-mono">{h.redemptionCode}</code></div>
+                        <div className="text-[10px] text-zinc-500">Waktu Klaim: {formatIndonesianDateTime(h.redeemedAt)} · Voucher <code className="bg-zinc-900 px-1 py-0.5 rounded text-emerald-400 font-mono">{h.redemptionCode}</code></div>
                       </div>
                     </div>
                     <span className="text-xs font-black text-amber-400">-{h.pointsSpent} PTS</span>

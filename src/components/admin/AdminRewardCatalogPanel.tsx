@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import {
   ShoppingBag, Plus, Search, AlertTriangle, History, Coins, PackagePlus,
   Edit2, Trash2, X, Check, Loader2, AlertCircle, PackageCheck,
-  PenTool, RotateCcw, FileSignature, Eye
+  PenTool, RotateCcw, FileSignature, Eye, QrCode
 } from 'lucide-react';
 import { RewardItem, TierType, WorkerProfile } from '../../types/assessment';
 import { CustomDataTable, DataTableColumn } from '../CustomDataTable';
@@ -17,6 +17,8 @@ import {
 } from '../../lib/supabaseService';
 import { SystemConfigService } from '../../domain/SystemConfigService';
 import { SwalService } from '../../domain/SwalService';
+import { RewardVoucherScannerModal } from '../RewardVoucherScannerModal';
+import { formatIndonesianDateTime } from '../../lib/dateUtils';
 
 interface AdminRewardCatalogPanelProps {
   rewardCatalog: RewardItem[];
@@ -27,6 +29,8 @@ interface AdminRewardCatalogPanelProps {
   onRestockReward?: (rewardId: string, addStock: number) => Promise<void> | void;
   onDeleteReward?: (rewardId: string) => Promise<void> | void;
   showToast: (msg: string) => void;
+  /** Tampilkan tombol Siklus Reset Bulanan. Default true (hanya untuk Admin Console). */
+  showMonthlyReset?: boolean;
 }
 
 export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = ({
@@ -38,6 +42,7 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
   onRestockReward,
   onDeleteReward,
   showToast,
+  showMonthlyReset = true,
 }) => {
   const [allRedemptions, setAllRedemptions] = useState<AdminRedemptionRecord[]>([]);
   const [loadingRedemptions, setLoadingRedemptions] = useState(false);
@@ -61,6 +66,7 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
   const [receiverName, setReceiverName] = useState('');
   const [receiverNik, setReceiverNik] = useState('');
   const [viewingSignatureUrl, setViewingSignatureUrl] = useState<string | null>(null);
+  const [showVoucherScanner, setShowVoucherScanner] = useState(false);
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
@@ -351,7 +357,16 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
         <span className="font-black text-amber-400">-{log.pointsSpent} PTS</span>
       ),
     },
-    { key: 'redeemedAt', header: 'Waktu Penukaran', sortable: true },
+    {
+      key: 'redeemedAt',
+      header: 'Waktu Penukaran',
+      sortable: true,
+      render: (log) => (
+        <span className="text-xs text-zinc-300 whitespace-nowrap">
+          {formatIndonesianDateTime(log.redeemedAt)}
+        </span>
+      ),
+    },
     {
       key: 'redemptionCode',
       header: 'Kode Voucher Digital',
@@ -650,20 +665,32 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
               <History className="w-3.5 h-3.5" />
               <span>Audit Penukaran Staf ({allRedemptions.length})</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => setShowVoucherScanner(true)}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/30"
+              title="Pindai QR voucher pekerja untuk verifikasi & serah terima cepat"
+            >
+              <QrCode className="w-3.5 h-3.5" />
+              <span>Scan Voucher</span>
+            </button>
           </div>
 
           {rewardSubTab === 'catalog' && (
             <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={handleExecuteMonthlyReset}
-                disabled={isExecutingReset}
-                className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-                title="Siklus Tutup Buku: Reset Poin Operasional Bulanan & Lindungi Poin Prestasi"
-              >
-                {isExecutingReset ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
-                <span>Siklus Reset Bulanan</span>
-              </button>
+              {showMonthlyReset && (
+                <button
+                  type="button"
+                  onClick={handleExecuteMonthlyReset}
+                  disabled={isExecutingReset}
+                  className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+                  title="Siklus Tutup Buku: Reset Poin Operasional Bulanan & Lindungi Poin Prestasi"
+                >
+                  {isExecutingReset ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                  <span>Siklus Reset Bulanan</span>
+                </button>
+              )}
 
               <button
                 type="button"
@@ -1097,6 +1124,10 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
                   <span className="text-zinc-400 text-[11px]">Poin Ditukarkan:</span>
                   <span className="font-bold text-amber-400 font-mono">-{fulfillingLog.pointsSpent} PTS</span>
                 </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-zinc-400 text-[11px]">Waktu Penukaran:</span>
+                  <span className="text-zinc-300 text-[11px] font-semibold">{formatIndonesianDateTime(fulfillingLog.redeemedAt)}</span>
+                </div>
               </div>
 
               {/* Input Nama Penerima Fisik */}
@@ -1211,6 +1242,14 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
         </div>,
         document.body
       )}
+
+      {/* ─── MODAL: SCAN QR VOUCHER REWARD ─── */}
+      <RewardVoucherScannerModal
+        isOpen={showVoucherScanner}
+        onClose={() => setShowVoucherScanner(false)}
+        allRedemptions={allRedemptions}
+        onFulfill={(log) => handleOpenFulfillModal(log)}
+      />
     </div>
   );
 };

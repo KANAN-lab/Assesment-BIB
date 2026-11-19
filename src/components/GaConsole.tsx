@@ -196,6 +196,7 @@ export const GaConsole: React.FC<GaConsoleProps> = ({
             onRestockReward={onRestockReward}
             onDeleteReward={onDeleteReward}
             showToast={() => {}}
+            showMonthlyReset={false}
           />
         )}
 
