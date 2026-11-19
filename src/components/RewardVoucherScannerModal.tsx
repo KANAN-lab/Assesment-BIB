@@ -30,6 +30,8 @@ export const RewardVoucherScannerModal: React.FC<RewardVoucherScannerModalProps>
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const scanIntervalRef = useRef<number | null>(null);
+  const qrScannerRef = useRef<any>(null);
+  const lookupRef = useRef<(code: string) => void>(() => {});
   const inputRef = useRef<HTMLInputElement | null>(null);
 
   // Reset state when modal opens/closes
@@ -80,8 +82,54 @@ export const RewardVoucherScannerModal: React.FC<RewardVoucherScannerModalProps>
     }
   }, [allRedemptions]);
 
-  // Camera scanner using BarcodeDetector API
+  lookupRef.current = lookupRedemption;
+
+  // Pilih pemindai: BarcodeDetector bawaan browser (Chrome/Android),
+  // atau library qr-scanner sebagai fallback (iOS Safari/Chrome iOS, Firefox, dll.)
   const startCamera = async () => {
+    setCameraError(null);
+    if ('BarcodeDetector' in window) {
+      await startNativeCamera();
+    } else {
+      await startFallbackCamera();
+    }
+  };
+
+  // Fallback untuk browser tanpa BarcodeDetector (termasuk semua browser di iOS)
+  const startFallbackCamera = async () => {
+    try {
+      const { default: QrScanner } = await import('qr-scanner');
+      if (!videoRef.current) return;
+      const scanner = new QrScanner(
+        videoRef.current,
+        (result) => {
+          const rawValue = result.data;
+          if (rawValue) {
+            setSearchQuery(rawValue);
+            lookupRef.current(rawValue);
+          }
+        },
+        {
+          preferredCamera: 'environment',
+          returnDetailedScanResult: true,
+          highlightScanRegion: false,
+          highlightCodeOutline: false,
+          maxScansPerSecond: 5,
+        }
+      );
+      qrScannerRef.current = scanner;
+      await scanner.start();
+      setCameraActive(true);
+      setIsScanning(true);
+    } catch (err: any) {
+      console.warn('Camera access error:', err);
+      setCameraError('Kamera tidak dapat diakses atau izin ditolak. Gunakan input kode voucher secara manual di bawah.');
+      stopCamera();
+    }
+  };
+
+  // Pemindai native menggunakan BarcodeDetector API
+  const startNativeCamera = async () => {
     try {
       setCameraError(null);
       const stream = await navigator.mediaDevices.getUserMedia({
@@ -102,6 +150,11 @@ export const RewardVoucherScannerModal: React.FC<RewardVoucherScannerModalProps>
   };
 
   const stopCamera = () => {
+    if (qrScannerRef.current) {
+      qrScannerRef.current.stop();
+      qrScannerRef.current.destroy();
+      qrScannerRef.current = null;
+    }
     if (scanIntervalRef.current) {
       clearInterval(scanIntervalRef.current);
       scanIntervalRef.current = null;
@@ -128,20 +181,13 @@ export const RewardVoucherScannerModal: React.FC<RewardVoucherScannerModalProps>
             const rawValue = barcodes[0].rawValue;
             if (rawValue) {
               setSearchQuery(rawValue);
-              lookupRedemption(rawValue);
+              lookupRef.current(rawValue);
             }
           }
         } catch {
           // Frame detection error, skip silently
         }
       }, 350);
-    } else {
-      // BarcodeDetector not available — fallback to manual input only
-      setCameraError(
-        'Browser ini belum mendukung pembacaan QR otomatis (BarcodeDetector API). ' +
-        'Gunakan Google Chrome terbaru untuk fitur scan otomatis, atau ketik kode voucher secara manual.'
-      );
-      stopCamera();
     }
   };
 
@@ -202,8 +248,8 @@ export const RewardVoucherScannerModal: React.FC<RewardVoucherScannerModalProps>
 
         {/* Camera Scanner Box */}
         <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-3 relative overflow-hidden text-center mb-4">
-          {cameraActive ? (
-            <div className="relative aspect-video max-h-52 bg-black rounded-lg overflow-hidden flex items-center justify-center">
+          {/* <video> selalu ter-render agar videoRef tersedia sebelum stream dipasang */}
+            <div className={cameraActive ? 'relative aspect-video max-h-52 bg-black rounded-lg overflow-hidden flex items-center justify-center' : 'hidden'}>
               <video
                 ref={videoRef}
                 autoPlay
@@ -233,7 +279,7 @@ export const RewardVoucherScannerModal: React.FC<RewardVoucherScannerModalProps>
                 Matikan Kamera
               </button>
             </div>
-          ) : (
+          {!cameraActive && (
             <div className="py-5 flex flex-col items-center justify-center space-y-2">
               <div className="w-12 h-12 rounded-full bg-cyan-950/60 border border-cyan-500/30 flex items-center justify-center">
                 <Camera className="w-6 h-6 text-cyan-400" />
