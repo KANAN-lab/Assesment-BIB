@@ -99,7 +99,15 @@ export const RewardVoucherScannerModal: React.FC<RewardVoucherScannerModalProps>
   const startFallbackCamera = async () => {
     try {
       const { default: QrScanner } = await import('qr-scanner');
-      if (!videoRef.current) return;
+      // Tampilkan area video SEBELUM kamera dinyalakan: iOS tidak memutar <video> yang display:none
+      setCameraActive(true);
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      );
+      if (!videoRef.current) {
+        stopCamera();
+        return;
+      }
       const scanner = new QrScanner(
         videoRef.current,
         (result) => {
@@ -119,11 +127,11 @@ export const RewardVoucherScannerModal: React.FC<RewardVoucherScannerModalProps>
       );
       qrScannerRef.current = scanner;
       await scanner.start();
-      setCameraActive(true);
       setIsScanning(true);
     } catch (err: any) {
       console.warn('Camera access error:', err);
-      setCameraError('Kamera tidak dapat diakses atau izin ditolak. Gunakan input kode voucher secara manual di bawah.');
+      const detail = err?.name || err?.message || String(err);
+      setCameraError(`Kamera tidak dapat diakses atau izin ditolak (${detail}). Gunakan input kode voucher secara manual di bawah.`);
       stopCamera();
     }
   };
