@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Play,
   Check,
+  AlertTriangle,
 } from 'lucide-react';
 import { SopModule, SopCategory, WorkerSopProgress } from '../types/sop';
 import {
@@ -26,6 +27,7 @@ import {
   calculateSopCompliance,
 } from '../lib/sopService';
 import { SystemConfigService } from '../domain/SystemConfigService';
+import { TrainingAssignmentService } from '../domain/TrainingAssignmentService';
 import { SopSlideshowModal } from './SopSlideshowModal';
 
 interface SopLibraryModalProps {
@@ -35,6 +37,7 @@ interface SopLibraryModalProps {
   workerRole?: string;
   onClose: () => void;
   onRewardEarned?: (points: number, message: string) => void;
+  initialModuleCode?: string;
 }
 
 export const SopLibraryModal: React.FC<SopLibraryModalProps> = ({
@@ -44,6 +47,7 @@ export const SopLibraryModal: React.FC<SopLibraryModalProps> = ({
   workerRole,
   onClose,
   onRewardEarned,
+  initialModuleCode,
 }) => {
   const [modules, setModules] = useState<SopModule[]>([]);
   const [progressMap, setProgressMap] = useState<Record<string, WorkerSopProgress>>({});
@@ -52,6 +56,7 @@ export const SopLibraryModal: React.FC<SopLibraryModalProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('Semua');
   const [filterMandatoryOnly, setFilterMandatoryOnly] = useState(false);
   const [activeReadingModule, setActiveReadingModule] = useState<SopModule | null>(null);
+  const [assignedModuleCodes, setAssignedModuleCodes] = useState<string[]>([]);
 
   // Load SOP modules & worker progress
   const loadData = async () => {
@@ -63,6 +68,20 @@ export const SopLibraryModal: React.FC<SopLibraryModalProps> = ({
       ]);
       setModules(mods);
       setProgressMap(prog);
+
+      // Load active gap training assignments
+      const activeAssignments = TrainingAssignmentService.getActiveAssignmentsForWorker(workerId);
+      setAssignedModuleCodes(activeAssignments.map((a) => a.moduleCode.toUpperCase()));
+
+      // Auto-open requested module if initialModuleCode is passed
+      if (initialModuleCode && mods && mods.length > 0) {
+        const found = mods.find(
+          (m) => m.code.toUpperCase() === initialModuleCode.toUpperCase()
+        );
+        if (found) {
+          setActiveReadingModule(found);
+        }
+      }
     } catch (err) {
       console.error('Gagal memuat katalog SOP:', err);
     } finally {
@@ -94,6 +113,18 @@ export const SopLibraryModal: React.FC<SopLibraryModalProps> = ({
       // Refresh progress
       const updatedProg = await fetchWorkerSopProgress(workerId);
       setProgressMap(updatedProg);
+
+      // Mark gap re-training assignment as completed & notify supervisor
+      const completedModuleCode = activeReadingModule?.code || sopId;
+      TrainingAssignmentService.markAssignmentCompleted(
+        workerId,
+        completedModuleCode,
+        _workerName
+      );
+
+      // Refresh assigned list
+      const activeAssignments = TrainingAssignmentService.getActiveAssignmentsForWorker(workerId);
+      setAssignedModuleCodes(activeAssignments.map((a) => a.moduleCode.toUpperCase()));
 
       if (res.pointsAdded > 0 && onRewardEarned) {
         onRewardEarned(res.pointsAdded, res.message);
@@ -301,6 +332,11 @@ export const SopLibraryModal: React.FC<SopLibraryModalProps> = ({
                         </div>
 
                         <div className="flex items-center gap-1">
+                          {assignedModuleCodes.includes(item.code.toUpperCase()) && !isCompleted && (
+                            <span className="bg-rose-950/90 text-rose-300 text-[9px] font-black px-1.5 py-0.5 rounded border border-rose-800/80 uppercase animate-pulse flex items-center gap-0.5" title="Ditugaskan otomatis dari hasil audit kompetensi BIB">
+                              <AlertTriangle className="w-2.5 h-2.5" /> Re-Training
+                            </span>
+                          )}
                           {item.isMandatory && (
                             <span className="bg-amber-950/80 text-amber-300 text-[9px] font-black px-1.5 py-0.5 rounded border border-amber-800/60 uppercase">
                               Wajib

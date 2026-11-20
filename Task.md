@@ -1330,6 +1330,33 @@
   - [x] Seluruh perubahan terisolasi pada lapisan frontend (UI/UX).
   - [x] Bebas dari mutasi skema database, drop schema, reset data, atau eksekusi fungsi destruktif.
 
+---
+
+## Phase 39: Implementasi Auto-Recommend SOP Training Berbasis Audit Matriks Kompetensi (Opsi B: 100% Otomatis Sistem)
+
+- [x] **1. Layanan Evaluasi & Penugasan Otomatis (`TrainingAssignmentService.ts`)**:
+  - [x] Integrasi pemetaan kategori matriks ke modul SOP (`CATEGORY_SOP_MAP`) mencakup EHS/HSE, Forklift/MHE/Reach Truck, Pergudangan/Pallet/Interlocking, Inbound/Timbangan, 5S/Staging, dan Outbound/Anti-ODOL.
+  - [x] Deteksi otomatis skor per kategori di bawah standar minimal (< 75% atau gap $\ge 25\%$).
+  - [x] Penetapan batas waktu (*deadline*) otomatis selama 7 hari kalender.
+  - [x] Mekanisme *idempotency guard* (pencegahan penugasan modul yang sama dalam kurun waktu 14 hari).
+  - [x] Dual-persistence: fallback instan dan sinkronisasi realtime melalui CustomEvent (`bib_training_assignments_updated`).
+  - [x] Penyelesaian loop (*close the loop*): verifikasi ketuntasan materi + kelulusan kuis SOP ($\ge 80\%$) otomatis menandai status selesai dan mencatat log notifikasi supervisor/HR.
+- [x] **2. Komponen Kartu Alert Tugas Re-Training Pekerja (`WorkerTrainingAssignmentCard.tsx`)**:
+  - [x] Banner interaktif di dashboard pekerja yang hanya muncul jika ada modul penugasan aktif.
+  - [x] Menampilkan nama modul, kode SOP, kategori kompetensi yang di bawah standar, nilai gap, batas waktu (deadline), dan sisa hari pengerjaan.
+  - [x] Tombol tindakan langsung 'Mulai Pelatihan SOP' untuk membuka modul yang ditugaskan secara terfokus.
+- [x] **3. Integrasi & Deep-Linking Modul Perpustakaan SOP (`SopLibraryModal.tsx`)**:
+  - [x] Penambahan prop `initialModuleCode?: string` untuk auto-open modul yang ditugaskan secara instan.
+  - [x] Label penanda visual badge `[Re-Training]` pada daftar modul yang sedang ditugaskan.
+  - [x] Pemicu otomatis `TrainingAssignmentService.markAssignmentCompleted` saat pekerja lulus kuis checkpoint ($\ge 80\%$).
+- [x] **4. Hookup Alur Audit Supervisor & Admin (`App.tsx`)**:
+  - [x] Pemicu asinkron & non-blocking `TrainingAssignmentService.evaluateAndAutoAssign()` di dalam `handleSaveMatrixScores`.
+  - [x] SweetAlert dialog informasi otomatis ketika penugasan berhasil diterbitkan tanpa mengganggu alur penyimpanan audit.
+  - [x] Penyematan `WorkerTrainingAssignmentCard` pada tampilan dashboard pekerja.
+- [x] **5. Proteksi Data Produksi Live**:
+  - [x] Tidak ada operasi destruktif DDL/drop table/alter table pada Supabase.
+  - [x] Eksekusi non-blocking diisolasi dengan `try/catch` sehingga kegagalan jaringan notifikasi tidak akan membatalkan penyimpanan skor audit pekerja.
+
 
 
 

@@ -88,6 +88,9 @@ import { RoleEntity } from './domain/RoleEntity';
 import { WorkerEntity } from './domain/WorkerEntity';
 import { SystemConfigService } from './domain/SystemConfigService';
 import { PermissionService } from './domain/PermissionService';
+import { TrainingAssignmentService } from './domain/TrainingAssignmentService';
+import { WorkerTrainingAssignmentCard } from './components/WorkerTrainingAssignmentCard';
+import { SwalService } from './domain/SwalService';
 
 import { Zap, ShieldCheck, Flame, Coins, Trophy, CheckCircle2, AlertCircle, Loader2, Camera, ShieldAlert, BookOpen, Award, Sparkles, Lightbulb, History, QrCode, Truck } from 'lucide-react';
 
@@ -110,6 +113,7 @@ export const App: React.FC = () => {
   const [showIncidentModal, setShowIncidentModal] = useState(false);
   const [showCompetencyModal, setShowCompetencyModal] = useState(false);
   const [showSopModal, setShowSopModal] = useState(false);
+  const [initialSopModuleCode, setInitialSopModuleCode] = useState<string | undefined>(undefined);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showKudoModal, setShowKudoModal] = useState(false);
   const [showShiftHandoverModal, setShowShiftHandoverModal] = useState(false);
@@ -327,8 +331,14 @@ export const App: React.FC = () => {
     setShowCompetencyModal(false);
   }, []);
 
+  const handleOpenAssignedSop = useCallback((moduleCode: string) => {
+    setInitialSopModuleCode(moduleCode);
+    setShowSopModal(true);
+  }, []);
+
   const handleCloseSopModal = useCallback(() => {
     setShowSopModal(false);
+    setInitialSopModuleCode(undefined);
   }, []);
 
   const handleCloseMatrixAuditModal = useCallback(() => {
@@ -1042,6 +1052,7 @@ export const App: React.FC = () => {
   ) => {
     if (!matrixAuditWorker) return;
     const workerId = matrixAuditWorker.id;
+    const targetWorker = matrixAuditWorker;
 
     try {
       await saveWorkerCompetencyScores(
@@ -1052,6 +1063,23 @@ export const App: React.FC = () => {
       );
 
       setMatrixAuditWorker(null);
+
+      // Auto-Recommend SOP Training (Opsi B: Otomatis jika nilai < 75%)
+      TrainingAssignmentService.evaluateAndAutoAssign(
+        targetWorker,
+        scores,
+        currentWorker ? `${currentWorker.name} (${currentWorker.role})` : 'Supervisor Logistik'
+      ).then((assignments) => {
+        if (assignments && assignments.length > 0) {
+          SwalService.alert({
+            title: 'Tugas Re-Training Diterbitkan Otomatis',
+            text: `Sistem mendeteksi ${assignments.length} kategori kompetensi di bawah target standar (< 75%). Modul SOP K3 wajib telah otomatis ditugaskan ke profil ${targetWorker.name} dengan batas waktu pengerjaan 7 hari kalender.`,
+            icon: 'info',
+          }).catch(() => {});
+        }
+      }).catch((err) => {
+        console.warn('[AutoTrainingDispatcher] Non-blocking warning:', err);
+      });
 
       const updatedWorkers = await fetchAllWorkers();
       setAllWorkers(updatedWorkers);
@@ -1423,6 +1451,12 @@ export const App: React.FC = () => {
               <HandoverKanbanBoard />
             </div>
 
+            {/* Alert Penugasan Re-Training Mandatori Kompetensi K3 */}
+            <WorkerTrainingAssignmentCard
+              workerId={currentWorker.id}
+              onOpenSopModule={handleOpenAssignedSop}
+            />
+
             {/* Target & Performance Summary Card */}
             <PerformanceSummaryCard
               worker={currentWorker}
@@ -1671,6 +1705,7 @@ export const App: React.FC = () => {
             workerName={currentWorker.name}
             workerDivision={currentWorker.division}
             workerRole={currentWorker.role}
+            initialModuleCode={initialSopModuleCode}
             onClose={handleCloseSopModal}
             onRewardEarned={(points, message) => {
               if (currentWorker) {
