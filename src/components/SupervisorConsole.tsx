@@ -8,7 +8,7 @@ import {
   Search, Flame, ShieldCheck, Award, ChevronRight,
   BarChart3, CheckCircle, AlertTriangle, Download,
   ShieldAlert, Clock, CheckCircle2, History, Loader2, AlertCircle,
-  Lightbulb, Sparkles, Truck, HardHat, FileText, QrCode
+  Lightbulb, Sparkles, Truck, HardHat, FileText, QrCode, GraduationCap
 } from 'lucide-react';
 import {
   RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ResponsiveContainer, Tooltip as RechartsTooltip
@@ -30,6 +30,7 @@ const ExecutiveReportPanel = React.lazy(() => import('./ExecutiveReportPanel').t
 const DisciplinaryPanel = React.lazy(() => import('./DisciplinaryPanel').then(m => ({ default: m.DisciplinaryPanel })));
 const Audit5sPanel = React.lazy(() => import('./Audit5sPanel').then(m => ({ default: m.Audit5sPanel })));
 const SafetyPatrolKanban = React.lazy(() => import('./SafetyPatrolKanban').then(m => ({ default: m.SafetyPatrolKanban })));
+const TrainingMonitoringPanel = React.lazy(() => import('./TrainingMonitoringPanel').then(m => ({ default: m.TrainingMonitoringPanel })));
 
 import { KaizenService } from '../lib/kaizenService';
 import { SystemConfigService } from '../domain/SystemConfigService';
@@ -55,7 +56,7 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
     return workers.filter((w) => RoleEntity.isOperationalWorker(w.role) && w.division.toUpperCase() !== 'SYSTEM');
   }, [workers]);
 
-  const [activeTab, setActiveTab] = useState<'team' | 'incidents' | 'gemba' | 'kaizen' | 'licenses' | 'ppe' | 'disciplinary' | 'audit-5s' | 'reports' | 'audit-history'>('team');
+  const [activeTab, setActiveTab] = useState<'team' | 'incidents' | 'gemba' | 'kaizen' | 'licenses' | 'ppe' | 'disciplinary' | 'audit-5s' | 'reports' | 'audit-history' | 'retraining'>('team');
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -245,7 +246,7 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
     return 'text-rose-400';
   };
 
-  type SupervisorTabKey = 'team' | 'incidents' | 'gemba' | 'kaizen' | 'licenses' | 'ppe' | 'disciplinary' | 'audit-5s' | 'reports' | 'audit-history';
+  type SupervisorTabKey = 'team' | 'incidents' | 'gemba' | 'kaizen' | 'licenses' | 'ppe' | 'disciplinary' | 'audit-5s' | 'reports' | 'audit-history' | 'retraining';
 
   interface SupervisorTabItem {
     key: SupervisorTabKey;
@@ -267,6 +268,7 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
       tabs: [
         { key: 'team', label: 'Tim & Matrix Audit', sublabel: 'Evaluasi Kompetensi BIB', icon: UserCheck },
         { key: 'audit-history', label: 'Riwayat Sesi Audit', sublabel: 'Arsip Log Penilaian Skor', icon: History },
+        { key: 'retraining', label: 'Monitoring Re-Training', sublabel: 'Progres Gap SOP Otomatis', icon: GraduationCap },
       ],
     },
     {
@@ -617,6 +619,13 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
             </div>
           )}
         </div>
+      )}
+
+      {/* ─ RETRAINING MONITORING TAB ─ */}
+      {activeTab === 'retraining' && (
+        <React.Suspense fallback={<SkeletonLoader />}>
+          <TrainingMonitoringPanel workers={operationalWorkers} currentUserName="Supervisor Operasional" />
+        </React.Suspense>
       )}
 
       {/* ─ TEAM TAB ─ */}

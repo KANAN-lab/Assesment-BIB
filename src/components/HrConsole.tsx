@@ -29,6 +29,9 @@ const ExecutiveReportPanel = React.lazy(() =>
 const CompetencyGapAnalysisModal = React.lazy(() =>
   import('./CompetencyGapAnalysisModal').then((m) => ({ default: m.CompetencyGapAnalysisModal }))
 );
+const TrainingMonitoringPanel = React.lazy(() =>
+  import('./TrainingMonitoringPanel').then((m) => ({ default: m.TrainingMonitoringPanel }))
+);
 
 interface HrConsoleProps {
   workers: WorkerProfile[];
@@ -37,7 +40,7 @@ interface HrConsoleProps {
   onOpenMatrixAudit?: (worker: WorkerProfile) => void;
 }
 
-type HrTab = 'competency' | 'sop-curriculum' | 'quiz-bank' | 'disciplinary' | 'reports';
+type HrTab = 'competency' | 'retraining' | 'sop-curriculum' | 'quiz-bank' | 'disciplinary' | 'reports';
 
 export const HrConsole: React.FC<HrConsoleProps> = ({
   workers = [],
@@ -141,6 +144,18 @@ export const HrConsole: React.FC<HrConsoleProps> = ({
         >
           <Users className="w-3.5 h-3.5" />
           <span>Evaluasi Matriks & Kompetensi BIB</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('retraining')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl font-bold text-xs transition shrink-0 ${
+            activeTab === 'retraining'
+              ? 'bg-purple-600 text-white shadow-md shadow-purple-600/20'
+              : 'bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white border border-zinc-800'
+          }`}
+        >
+          <GraduationCap className="w-3.5 h-3.5" />
+          <span>Monitoring Re-Training</span>
         </button>
 
         <button
@@ -319,6 +334,13 @@ export const HrConsole: React.FC<HrConsoleProps> = ({
               </div>
             </div>
           </div>
+        )}
+
+        {activeTab === 'retraining' && (
+          <TrainingMonitoringPanel
+            workers={operationalWorkers}
+            currentUserName={currentUserName}
+          />
         )}
 
         {activeTab === 'sop-curriculum' && <SopManagementPanel />}
