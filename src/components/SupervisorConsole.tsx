@@ -694,7 +694,7 @@ export const SupervisorConsole: React.FC<SupervisorConsoleProps> = ({
                       fillOpacity={0.35}
                     />
                     <RechartsTooltip
-                      content={({ active, payload }) => {
+                      content={({ active, payload }: any) => {
                         if (active && payload && payload.length) {
                           const data = payload[0].payload;
                           return (

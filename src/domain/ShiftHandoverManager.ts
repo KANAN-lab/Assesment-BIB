@@ -1,12 +1,75 @@
 import { ShiftHandoverEntity, HandoverStatus, ConditionStatus } from '../types/handover';
+import { NotificationEngine } from './NotificationEngine';
 
 /**
  * ShiftHandoverManager (OOP Domain Service & State Machine)
  * Encapsulates the business rules for operational shift handover:
- * valid status transitions, condition escalation, and 24-hour auto-archival policies.
+ * valid status transitions, condition escalation, 90-minute overdue detection, and 24-hour auto-archival policies.
  */
 export class ShiftHandoverManager {
   public static readonly ARCHIVE_EXPIRATION_HOURS = 24;
+  public static readonly OVERDUE_MINUTES_THRESHOLD = 90;
+
+  /**
+   * Menghitung selisih durasi dalam menit sejak log handover dibuat
+   */
+  public static getElapsedMinutes(createdAtStr: string): number {
+    const itemTime = new Date(createdAtStr).getTime();
+    if (isNaN(itemTime)) return 0;
+    return Math.max(0, Math.floor((Date.now() - itemTime) / (60 * 1000)));
+  }
+
+  /**
+   * Evaluasi apakah handover belum dikonfirmasi (unacknowledged) dan telah melewati batas toleransi 90 menit
+   */
+  public static isOverdue(item: ShiftHandoverEntity): boolean {
+    if (item.acknowledged_at) return false;
+    if (item.status === 'Selesai') return false;
+    const elapsed = ShiftHandoverManager.getElapsedMinutes(item.created_at);
+    return elapsed >= ShiftHandoverManager.OVERDUE_MINUTES_THRESHOLD;
+  }
+
+  /**
+   * Memeriksa daftar handover aktif dan mengirimkan notifikasi eskalasi otomatis ke Supervisor
+   * Dilengkapi Cooldown Guard (4 jam) agar tidak membanjiri notifikasi pengguna.
+   */
+  public static checkAndEscalateOverdue(handovers: ShiftHandoverEntity[]): ShiftHandoverEntity[] {
+    const overdueList = handovers.filter((h) => ShiftHandoverManager.isOverdue(h));
+
+    overdueList.forEach((item) => {
+      const cooldownKey = `bib_handover_escalated_${item.id}`;
+      const lastEscalated = localStorage.getItem(cooldownKey);
+      const now = Date.now();
+      const fourHoursMs = 4 * 60 * 60 * 1000;
+
+      if (!lastEscalated || now - Number(lastEscalated) > fourHoursMs) {
+        try {
+          const minutes = ShiftHandoverManager.getElapsedMinutes(item.created_at);
+          const hours = Math.floor(minutes / 60);
+          const remMin = minutes % 60;
+          const timeText = hours > 0 ? `${hours} jam ${remMin} menit` : `${minutes} menit`;
+
+          NotificationEngine.addNotification({
+            recipientId: item.next_supervisor_id || 'supervisor',
+            recipientRole: 'supervisor',
+            title: '⚠️ Eskalasi Serah Terima: Belum Dikonfirmasi',
+            message: `Catatan serah terima Shift ${item.shift_type} (${item.handover_category}) dari ${item.author_name || 'Petugas'} belum dikonfirmasi selama ${timeText} (Status: ${item.condition_status}). Harap tindak lanjuti serah terima shift ini.`,
+            type: 'system',
+            metadata: {
+              handoverId: item.id,
+              escalatedAt: new Date().toISOString(),
+              elapsedMinutes: minutes,
+            },
+          });
+          localStorage.setItem(cooldownKey, String(now));
+        } catch (e) {
+          console.warn('[ShiftHandoverManager] Non-blocking escalation warning:', e);
+        }
+      }
+    });
+
+    return overdueList;
+  }
 
   /**
    * Evaluates if an archived completed handover is older than the expiration threshold.

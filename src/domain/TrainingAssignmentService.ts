@@ -322,6 +322,7 @@ export class TrainingAssignmentService {
 
           // Kirim notifikasi konfirmasi ke Supervisor & HR
           NotificationEngine.addNotification({
+            recipientId: 'supervisor',
             recipientRole: 'supervisor',
             title: '✅ Re-Training Kompetensi Selesai',
             message: `Operator ${workerName || item.workerName || 'Pekerja'} telah menyelesaikan modul ${item.moduleTitle} (${item.moduleCode}) tepat waktu.`,

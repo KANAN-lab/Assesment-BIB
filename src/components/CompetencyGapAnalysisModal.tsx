@@ -237,7 +237,7 @@ export const CompetencyGapAnalysisModal: React.FC<CompetencyGapAnalysisModalProp
                   <XAxis dataKey="category" tick={{ fill: '#a1a1aa', fontSize: 10 }} />
                   <YAxis domain={[0, 100]} tick={{ fill: '#a1a1aa', fontSize: 10 }} />
                   <Tooltip
-                    content={({ active, payload }) => {
+                    content={({ active, payload }: any) => {
                       if (active && payload && payload.length) {
                         const data = payload[0].payload;
                         return (

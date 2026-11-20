@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
   AlertCircle,
+  AlertTriangle,
   Clock,
   CheckCircle2,
   RefreshCw,
@@ -34,6 +35,8 @@ export function HandoverKanbanBoard() {
       setLoading(true);
       const data = await HandoverManager.getHandoverHistory(100);
       setHandovers(data);
+      // Deteksi dan auto-eskalasi handover yang tertunda > 90 menit ke Supervisor
+      ShiftHandoverManager.checkAndEscalateOverdue(data);
     } catch (err) {
       console.error('Failed to load handovers', err);
     } finally {
@@ -56,6 +59,10 @@ export function HandoverKanbanBoard() {
   const { visible: visibleHandovers, archivedCount } = useMemo(() => {
     return ShiftHandoverManager.partitionActiveAndArchived(handovers, showArchived);
   }, [handovers, showArchived]);
+
+  const overdueCount = useMemo(() => {
+    return handovers.filter((h) => ShiftHandoverManager.isOverdue(h)).length;
+  }, [handovers]);
 
   // Handle Drag and Drop for Desktop
   const handleDragStart = (e: React.DragEvent, id: string) => {
@@ -114,12 +121,19 @@ export function HandoverKanbanBoard() {
   };
 
   const renderCard = (item: ShiftHandoverEntity) => {
+    const isOverdue = ShiftHandoverManager.isOverdue(item);
+    const elapsedMinutes = ShiftHandoverManager.getElapsedMinutes(item.created_at);
+
     return (
       <div
         key={item.id}
         draggable
         onDragStart={(e) => handleDragStart(e, item.id)}
-        className="bg-zinc-900/90 border border-zinc-800 hover:border-zinc-700 rounded-2xl p-4 transition-all shadow-md hover:shadow-lg flex flex-col justify-between group cursor-grab active:cursor-grabbing"
+        className={`bg-zinc-900/90 rounded-2xl p-4 transition-all shadow-md hover:shadow-lg flex flex-col justify-between group cursor-grab active:cursor-grabbing border ${
+          isOverdue
+            ? 'border-rose-500/80 shadow-[0_0_15px_rgba(244,63,94,0.25)] ring-1 ring-rose-500/40'
+            : 'border-zinc-800 hover:border-zinc-700'
+        }`}
       >
         <div>
           {/* Header Card: Author & Timestamp */}
@@ -135,9 +149,20 @@ export function HandoverKanbanBoard() {
                 <p className="text-[10px] text-zinc-500">Shift {item.shift_type}</p>
               </div>
             </div>
-            <span className="text-[10px] font-medium text-zinc-400 bg-zinc-800/80 px-2 py-0.5 rounded-full border border-zinc-700/50">
-              {new Date(item.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
-            </span>
+            <div className="flex items-center gap-1.5 flex-wrap justify-end">
+              {isOverdue && (
+                <span
+                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black bg-rose-500/20 text-rose-300 border border-rose-500/50 animate-pulse"
+                  title={`Serah terima belum dikonfirmasi selama ${Math.floor(elapsedMinutes / 60)} jam ${elapsedMinutes % 60} menit`}
+                >
+                  <AlertTriangle className="w-3 h-3 text-rose-400 shrink-0" />
+                  <span>OVERDUE {Math.floor(elapsedMinutes / 60)}j {elapsedMinutes % 60}m</span>
+                </span>
+              )}
+              <span className="text-[10px] font-medium text-zinc-400 bg-zinc-800/80 px-2 py-0.5 rounded-full border border-zinc-700/50">
+                {new Date(item.created_at).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+              </span>
+            </div>
           </div>
 
           {/* Badges: Category & Condition Status */}
@@ -175,6 +200,11 @@ export function HandoverKanbanBoard() {
               <span className="inline-flex items-center gap-1 text-emerald-400 font-medium">
                 <CheckCircle2 className="w-3.5 h-3.5" />
                 <span>Dibaca: {item.acknowledged_by_name || 'Rekan'}</span>
+              </span>
+            ) : isOverdue ? (
+              <span className="inline-flex items-center gap-1 text-rose-400 font-bold animate-pulse">
+                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                <span>Belum Dikonfirmasi (&gt; 90 Menit)</span>
               </span>
             ) : (
               <span className="inline-flex items-center gap-1 text-zinc-500 font-medium">
@@ -285,6 +315,15 @@ export function HandoverKanbanBoard() {
               <span className="bg-indigo-500/20 text-indigo-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-indigo-500/30">
                 Tim Lapangan
               </span>
+              {overdueCount > 0 && (
+                <span
+                  className="bg-rose-500/20 text-rose-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-rose-500/40 flex items-center gap-1 animate-pulse"
+                  title="Ada catatan serah terima yang belum dikonfirmasi lebih dari 90 menit"
+                >
+                  <AlertTriangle className="w-3 h-3 text-rose-400 shrink-0" />
+                  <span>{overdueCount} Overdue</span>
+                </span>
+              )}
             </div>
             <p className="text-xs text-zinc-400 mt-0.5">
               Pantau dan tindak lanjuti catatan serah terima operasional, 5R, & MHE secara transparan.

@@ -1357,6 +1357,57 @@
   - [x] Tidak ada operasi destruktif DDL/drop table/alter table pada Supabase.
   - [x] Eksekusi non-blocking diisolasi dengan `try/catch` sehingga kegagalan jaringan notifikasi tidak akan membatalkan penyimpanan skor audit pekerja.
 
+---
+
+## Phase 40: Rangkaian Peningkatan Kematangan Operasional Gudang & K3 (Operational Maturity Suite)
+
+### Task 40.1: Eskalasi Otomatis Shift Handover Kanban
+- [x] **Objective**: Mencegah kelalaian informasi pergantian shift logistik dengan mendeteksi handover yang belum di-acknowledge setelah ambang batas waktu.
+- [x] **Acceptance Criteria**:
+  - [x] **AC1**: Jika status handover masih belum di-acknowledge setelah > 90 menit dari waktu pembuatan, kartu kanban menampilkan indikator visual `[OVERDUE]` dengan border aksen merah kedip dan chip rekap di header.
+  - [x] **AC2**: Sistem secara otomatis memicu notifikasi peringatan eskalasi prioritas tinggi ke Supervisor yang sedang bertugas (`checkAndEscalateOverdue` dengan cooldown 4 jam).
+  - [x] **AC3**: Audit trail mencatat waktu acknowledge aktual beserta catatan durasi keterlambatan di `activity_log`.
+- [x] **Affected Files**: `src/components/HandoverKanbanBoard.tsx`, `src/lib/handoverService.ts`, `src/domain/ShiftHandoverManager.ts`.
+
+### Task 40.2: Pelacakan Status Hadiah Multi-Tahap (GA Reward Fulfillment)
+- [ ] **Objective**: Memberikan transparansi status penukaran hadiah kepada pekerja dan memangkas waktu bolak-balik ke kantor GA.
+- [ ] **Acceptance Criteria**:
+  - **AC1**: Memperluas status voucher penukaran: `pending` (menunggu) $\rightarrow$ `processing` (sedang disiapkan) $\rightarrow$ `ready_for_pickup` (siap diambil) $\rightarrow$ `completed` (selesai diserahkan).
+  - **AC2**: GA memiliki tombol aksi cepat untuk menandai "Sedang Disiapkan" dan "Siap Diambil".
+  - **AC3**: Ketika status berubah menjadi `ready_for_pickup`, sistem memicu notifikasi instan ke dashboard pekerja agar segera membawa QR code ke GA.
+- [ ] **Affected Files**: `src/components/admin/AdminRewardCatalogPanel.tsx`, `src/components/RewardMarketplace.tsx`, `src/lib/supabaseService.ts`, `src/types/assessment.ts`.
+
+### Task 40.3: Koreksi Manual Fleksibel pada Upload SIO MHE (Human-in-the-Loop OCR)
+- [ ] **Objective**: Mencegah data salah input pada lisensi operator akibat foto buram atau silau pencahayaan gudang.
+- [ ] **Acceptance Criteria**:
+  - **AC1**: Setelah foto SIO dianalisis oleh Gemini OCR, sistem menampilkan modal review berdampingan (foto asli vs form hasil ekstraksi AI).
+  - **AC2**: Operator dapat langsung mengedit nomor SIO, tipe alat (Forklift/Reach Truck), dan tanggal kedaluwarsa sebelum disimpan ke database.
+  - **AC3**: Validasi format tanggal Indonesia/WIB mencegah kesalahan urutan hari dan bulan.
+- [ ] **Affected Files**: `src/components/WorkerSioUploadModal.tsx`, `src/lib/sioAiService.ts`, `src/lib/licenseService.ts`.
+
+### Task 40.4: Alur CAPA (Corrective Action & Preventive Action) Insiden K3
+- [ ] **Objective**: Memastikan setiap laporan insiden/kondisi bahaya memiliki penanggung jawab riil dan bukti perbaikan fisik di lapangan.
+- [ ] **Acceptance Criteria**:
+  - **AC1**: Saat validasi insiden, HSE/Supervisor dapat menugaskan PIC dan menentukan batas waktu penyelesaian (due date).
+  - **AC2**: PIC yang ditugaskan dapat mengunggah foto bukti perbaikan (*After*) dan catatan tindakan penanganan.
+  - **AC3**: Kasus hanya dapat ditutup (*Closed*) setelah diverifikasi oleh tim HSE, memberikan poin keselamatan (*Safety Points*) bagi pelapor dan PIC.
+- [ ] **Affected Files**: `src/components/SupervisorIncidentValidationModal.tsx`, `src/components/HseConsole.tsx`, `src/domain/SafetyPatrolService.ts`.
+
+### Task 40.5: Dashboard Rekap Monitoring Re-Training & Komparasi Radar Historis
+- [ ] **Objective**: Memberikan visibilitas kepada Supervisor & HR terhadap kepatuhan training pekerja dan memantau pertumbuhan kompetensi antar-periode.
+- [ ] **Acceptance Criteria**:
+  - **AC1**: Tab khusus di Supervisor & HR Console menampilkan tabel rekap seluruh pekerja yang memiliki tugas re-training aktif (nama modul, alasan gap, sisa hari, dan status).
+  - **AC2**: Grafik Radar BIB mendukung mode komparasi *overlay* (Skor Audit Saat Ini vs Skor Audit Periode Sebelumnya).
+- [ ] **Affected Files**: `src/components/BibRadarChart.tsx`, `src/components/SupervisorConsole.tsx`, `src/components/HrConsole.tsx`, `src/domain/TrainingAssignmentService.ts`.
+
+### Task 40.6: Kalkulator Manfaat Kaizen & Tag Budaya Kerja Kudo
+- [ ] **Objective**: Mengukur dampak nyata ide perbaikan berkesinambungan dan memperkuat budaya kerja positif.
+- [ ] **Acceptance Criteria**:
+  - **AC1**: Form pengajuan Kaizen memiliki opsi kategori dampak (*Cost Saving*, *Time Saving*, *Safety/5S*, *Quality*) beserta input estimasi nilai efisiensi.
+  - **AC2**: Papan Kaizen dapat diurutkan berdasarkan potensi dampak terbesar.
+  - **AC3**: Pengiriman Kudo menyediakan pilihan tag nilai budaya kerja (`#SafetyFirst`, `#SolidTeamwork`, `#QuickResponse`, `#ZeroMistake`).
+- [ ] **Affected Files**: `src/components/KaizenSubmissionModal.tsx`, `src/components/KaizenKanbanBoard.tsx`, `src/components/KudoModal.tsx`, `src/components/KudoWall.tsx`.
+
 
 
 

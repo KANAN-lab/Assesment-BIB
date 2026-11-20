@@ -145,7 +145,7 @@ export class HandoverManager {
     // Ambil data serah terima untuk notifikasi & audit trail
     const { data: currentHandover } = await supabase
       .from('shift_handovers')
-      .select('author_id, shift_type, handover_category')
+      .select('author_id, shift_type, handover_category, created_at')
       .eq('id', handoverId)
       .maybeSingle();
 
@@ -165,11 +165,21 @@ export class HandoverManager {
     // Catat ke activity_log audit trail
     try {
       const { data: ackWorker } = await supabase.from('workers').select('name').eq('id', workerId).maybeSingle();
+      let delayAudit = '';
+      if (currentHandover?.created_at) {
+        const elapsed = Math.floor((Date.now() - new Date(currentHandover.created_at).getTime()) / (60 * 1000));
+        if (elapsed >= 90) {
+          const hours = Math.floor(elapsed / 60);
+          const remMin = elapsed % 60;
+          delayAudit = ` [Overdue: ${hours > 0 ? `${hours}j ` : ''}${remMin}m]`;
+        }
+      }
+
       supabase.from('activity_log').insert({
         worker_id: workerId,
         worker_name: ackWorker?.name || 'Supervisor Shift',
         action: 'shift_handover',
-        detail: `Konfirmasi Serah Terima Shift (${currentHandover?.shift_type || 'Shift'} - ${currentHandover?.handover_category || 'Operasional'})`,
+        detail: `Konfirmasi Serah Terima Shift (${currentHandover?.shift_type || 'Shift'} - ${currentHandover?.handover_category || 'Operasional'})${delayAudit}`,
       }).then(() => {}, () => {});
     } catch {}
 

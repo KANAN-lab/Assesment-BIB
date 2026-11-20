@@ -153,7 +153,7 @@ export const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ workers }) => {
                   outerRadius={80}
                   dataKey="value"
                   paddingAngle={3}
-                  label={({ name, percent }) => `${(percent * 100).toFixed(0)}%`}
+                  label={({ name, percent }: any) => `${((percent || 0) * 100).toFixed(0)}%`}
                   labelLine={false}
                 >
                   {tierData.map((entry, i) => {
@@ -164,7 +164,7 @@ export const AdminAnalytics: React.FC<AdminAnalyticsProps> = ({ workers }) => {
                   })}
                 </Pie>
                 <Legend
-                  formatter={(value) => <span style={{ fontSize: 10, color: '#a1a1aa' }}>{value}</span>}
+                  formatter={(value: any) => <span style={{ fontSize: 10, color: '#a1a1aa' }}>{value}</span>}
                 />
                 <Tooltip
                   contentStyle={{ background: '#18181b', border: '1px solid #3f3f46', borderRadius: 8, fontSize: 11 }}
