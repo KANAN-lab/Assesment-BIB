@@ -51,8 +51,13 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
   const [rootCause, setRootCause] = useState(incident.rootCause || '');
   const [correctiveAction, setCorrectiveAction] = useState(incident.correctiveAction || '');
   const [assignedPic, setAssignedPic] = useState(incident.assignedPic || 'Supervisor HSEQ');
+  const [picWorkerId, setPicWorkerId] = useState<string | undefined>(incident.picWorkerId);
   const [dueDate, setDueDate] = useState(
     incident.dueDate || new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 10)
+  );
+  const [afterPhotoUrl, setAfterPhotoUrl] = useState(incident.afterPhotoUrl || '');
+  const [capaStatus, setCapaStatus] = useState<IncidentReport['capaStatus']>(
+    incident.capaStatus || (incident.status === 'resolved' || incident.status === 'closed' ? 'verified_closed' : 'pending_action')
   );
   const [resolutionNote, setResolutionNote] = useState(incident.resolutionNote || '');
   const [loading, setLoading] = useState(false);
@@ -118,6 +123,52 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
     return parts.join('\n');
   };
 
+  const handleAfterPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        const maxDim = 800;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+        setAfterPhotoUrl(compressedBase64);
+        if (capaStatus === 'pending_action') {
+          setCapaStatus('action_taken');
+        }
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const picSelectOptions: SelectOption[] = [
+    { value: 'Supervisor HSEQ', label: 'Supervisor HSEQ', sublabel: 'Koordinator Keselamatan' },
+    { value: 'Tim SHE / K3 Lapangan', label: 'Tim SHE / K3 Lapangan', sublabel: 'Patroli K3 & Gemba' },
+    { value: 'Teknisi / Workshop MHE', label: 'Teknisi / Workshop MHE', sublabel: 'Perbaikan Armada/Fasilitas' },
+    ...workers.map((w) => ({
+      value: `worker:${w.id}`,
+      label: w.name,
+      sublabel: `${w.employeeId} · ${w.role} · ${w.division}`,
+    })),
+  ];
+
   const reporterWorker = workers.find((w) => w.id === incident.workerId || w.employeeId === incident.workerId);
 
   const handleValidateAndSave = async (approved: boolean) => {
@@ -128,6 +179,19 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
     if (use5Why && (why1.trim() || why5.trim())) {
       const summary = generate5WhySummary();
       finalRootCause = finalRootCause ? `${finalRootCause}\n\n${summary}` : summary;
+    }
+
+    if (approved && (status === 'resolved' || status === 'closed')) {
+      if (!finalRootCause.trim()) {
+        setError('Akar masalah (Root Cause) wajib diisi sebelum insiden diselesaikan atau ditutup.');
+        setLoading(false);
+        return;
+      }
+      if (!correctiveAction.trim()) {
+        setError('Rencana tindakan korektif & preventif (CAPA) wajib diisi sebelum insiden diselesaikan atau ditutup.');
+        setLoading(false);
+        return;
+      }
     }
 
     try {
@@ -141,6 +205,9 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
         correctiveAction,
         assignedPic,
         dueDate,
+        afterPhotoUrl: afterPhotoUrl.trim() || undefined,
+        capaStatus: approved ? (status === 'resolved' || status === 'closed' ? 'verified_closed' : capaStatus) : 'verified_closed',
+        picWorkerId,
         resolutionNote,
         validatorName: 'Supervisor HSEQ',
       });
@@ -489,21 +556,139 @@ export const SupervisorIncidentValidationModal: React.FC<SupervisorIncidentValid
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-bold text-zinc-300 mb-1">PIC Penanggung Jawab</label>
-                  <input
-                    type="text"
-                    value={assignedPic}
-                    onChange={(e) => setAssignedPic(e.target.value)}
-                    className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
+                  <SearchableSelect
+                    value={picWorkerId ? `worker:${picWorkerId}` : assignedPic}
+                    onChange={(val) => {
+                      if (val.startsWith('worker:')) {
+                        const wId = val.replace('worker:', '');
+                        const w = workers.find((x) => x.id === wId);
+                        setPicWorkerId(wId);
+                        setAssignedPic(w?.name || 'Pekerja Lapangan');
+                      } else {
+                        setPicWorkerId(undefined);
+                        setAssignedPic(val);
+                      }
+                    }}
+                    placeholder="Pilih PIC Penanggung Jawab..."
+                    searchPlaceholder="Cari personil K3 / teknisi / pekerja..."
+                    options={picSelectOptions}
                   />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-zinc-300 mb-1">Target Selesai (Due Date)</label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-bold text-zinc-300">Target Selesai (Due Date)</label>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setDueDate(new Date(Date.now() + 86400000).toISOString().slice(0, 10))}
+                        className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700"
+                        title="Tenggat 24 Jam untuk Kritis / Darurat"
+                      >
+                        +24 Jam
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDueDate(new Date(Date.now() + 86400000 * 3).toISOString().slice(0, 10))}
+                        className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700"
+                        title="Tenggat 3 Hari Standar"
+                      >
+                        +3 Hari
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDueDate(new Date(Date.now() + 86400000 * 7).toISOString().slice(0, 10))}
+                        className="text-[9px] px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700"
+                        title="Tenggat 7 Hari Lanjut"
+                      >
+                        +7 Hari
+                      </button>
+                    </div>
+                  </div>
                   <input
                     type="date"
                     value={dueDate}
                     onChange={(e) => setDueDate(e.target.value)}
                     className="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500"
                   />
+                </div>
+              </div>
+
+              {/* Status Pelaksanaan CAPA */}
+              <div>
+                <label className="block text-xs font-bold text-zinc-300 mb-1.5">
+                  Status Pelaksanaan Tindakan CAPA Fisik
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: 'pending_action', label: '1. Dalam Proses', desc: 'Belum Ada Tindakan' },
+                    { id: 'action_taken', label: '2. Tindakan Selesai', desc: 'Fisik Sudah Diperbaiki' },
+                    { id: 'verified_closed', label: '3. Terverifikasi Tuntas', desc: 'Selesai & Diverifikasi' },
+                  ].map((item) => (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => setCapaStatus(item.id as any)}
+                      className={`p-2 rounded-xl border text-left transition ${
+                        capaStatus === item.id
+                          ? 'bg-emerald-500/15 border-emerald-500 text-white shadow-sm'
+                          : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                      }`}
+                    >
+                      <div className="text-[11px] font-bold">{item.label}</div>
+                      <div className="text-[9px] text-zinc-500">{item.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Bukti Foto Penyelesaian (After Photo) */}
+              <div className="p-3 bg-zinc-900/80 rounded-xl border border-zinc-800 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-zinc-300 flex items-center gap-1.5">
+                    <ImageIcon className="w-3.5 h-3.5 text-emerald-400" />
+                    Bukti Foto Sesudah Perbaikan (After Photo)
+                  </span>
+                  {afterPhotoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setAfterPhotoUrl('')}
+                      className="text-[10px] text-rose-400 hover:underline"
+                    >
+                      Hapus Foto
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <label className="cursor-pointer px-3 py-2 bg-zinc-800 hover:bg-zinc-700 border border-zinc-700 rounded-xl text-xs font-bold text-zinc-200 flex items-center gap-1.5 transition shrink-0">
+                    <Download className="w-3.5 h-3.5 rotate-180 text-emerald-400" />
+                    <span>Unggah Bukti Selesai</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleAfterPhotoUpload}
+                    />
+                  </label>
+
+                  {afterPhotoUrl ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-12 h-12 rounded-lg overflow-hidden border border-emerald-500/40 bg-black shrink-0">
+                        <img
+                          src={afterPhotoUrl}
+                          alt="After Foto CAPA"
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <span className="text-[11px] text-emerald-400 font-semibold">
+                        ✓ Foto perbaikan terlampir (HD terkompresi)
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-[11px] text-zinc-500 italic">
+                      Opsional: Lampirkan foto kondisi area setelah diperbaiki.
+                    </span>
+                  )}
                 </div>
               </div>
             </div>

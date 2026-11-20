@@ -14,6 +14,9 @@ export interface IncidentValidationInput {
   correctiveAction: string;
   assignedPic: string;
   dueDate: string;
+  afterPhotoUrl?: string;
+  capaStatus?: 'pending_action' | 'action_taken' | 'verified_closed';
+  picWorkerId?: string;
   resolutionNote?: string;
   validatorName?: string;
 }
@@ -47,6 +50,9 @@ export class IncidentManager {
       correctiveAction: input.correctiveAction.trim(),
       assignedPic: input.assignedPic.trim(),
       dueDate: input.dueDate,
+      afterPhotoUrl: input.afterPhotoUrl,
+      capaStatus: input.capaStatus || (input.approved ? 'pending_action' : 'verified_closed'),
+      picWorkerId: input.picWorkerId,
       resolutionNote: note,
       updatedBy: input.validatorName || 'Supervisor HSEQ',
       workerId: input.workerId,
@@ -60,6 +66,17 @@ export class IncidentManager {
         message: `Laporan Anda di ${input.location} disetujui Supervisor. Poin +${pointsToAward} PTS telah ditambahkan ke akun Anda.`,
         type: 'incident',
       });
+
+      // Notifikasi PIC jika ditugaskan personil pekerja operasional
+      if (input.picWorkerId && input.picWorkerId !== input.workerId) {
+        NotificationEngine.addNotification({
+          recipientId: input.picWorkerId,
+          recipientRole: 'worker',
+          title: `🛡️ Penugasan Tindakan Korektif (CAPA K3)`,
+          message: `Anda ditugaskan sebagai PIC perbaikan insiden di ${input.location}. Target selesai: ${input.dueDate}.`,
+          type: 'incident',
+        });
+      }
     } else {
       NotificationEngine.addNotification({
         recipientId: input.workerId,

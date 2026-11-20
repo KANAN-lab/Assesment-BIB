@@ -217,6 +217,9 @@ export interface IncidentReport {
   correctiveAction?: string;
   assignedPic?: string;
   dueDate?: string;
+  afterPhotoUrl?: string;
+  capaStatus?: 'pending_action' | 'action_taken' | 'verified_closed';
+  picWorkerId?: string;
   history?: IncidentReportHistory[];
 }
 

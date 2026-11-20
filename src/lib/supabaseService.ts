@@ -2041,7 +2041,19 @@ function saveIncidentPhotoCache(id: string, photoUrl: string, originalSizeKb?: n
 // Persistent local CAPA & History cache
 const INCIDENT_CAPA_CACHE_KEY = 'bib_incident_capa_cache_v1';
 
-export function getIncidentCapaCache(): Record<string, { rootCause?: string; correctiveAction?: string; assignedPic?: string; dueDate?: string; history?: IncidentReportHistory[] }> {
+export function getIncidentCapaCache(): Record<
+  string,
+  {
+    rootCause?: string;
+    correctiveAction?: string;
+    assignedPic?: string;
+    dueDate?: string;
+    afterPhotoUrl?: string;
+    capaStatus?: 'pending_action' | 'action_taken' | 'verified_closed';
+    picWorkerId?: string;
+    history?: IncidentReportHistory[];
+  }
+> {
   try {
     const raw = localStorage.getItem(INCIDENT_CAPA_CACHE_KEY);
     return raw ? JSON.parse(raw) : {};
@@ -2052,7 +2064,16 @@ export function getIncidentCapaCache(): Record<string, { rootCause?: string; cor
 
 export function saveIncidentCapaCache(
   id: string,
-  capaData: { rootCause?: string; correctiveAction?: string; assignedPic?: string; dueDate?: string; newHistoryItem?: IncidentReportHistory }
+  capaData: {
+    rootCause?: string;
+    correctiveAction?: string;
+    assignedPic?: string;
+    dueDate?: string;
+    afterPhotoUrl?: string;
+    capaStatus?: 'pending_action' | 'action_taken' | 'verified_closed';
+    picWorkerId?: string;
+    newHistoryItem?: IncidentReportHistory;
+  }
 ) {
   try {
     const cache = getIncidentCapaCache();
@@ -2068,6 +2089,9 @@ export function saveIncidentCapaCache(
       correctiveAction: capaData.correctiveAction !== undefined ? capaData.correctiveAction : existing.correctiveAction,
       assignedPic: capaData.assignedPic !== undefined ? capaData.assignedPic : existing.assignedPic,
       dueDate: capaData.dueDate !== undefined ? capaData.dueDate : existing.dueDate,
+      afterPhotoUrl: capaData.afterPhotoUrl !== undefined ? capaData.afterPhotoUrl : existing.afterPhotoUrl,
+      capaStatus: capaData.capaStatus !== undefined ? capaData.capaStatus : existing.capaStatus,
+      picWorkerId: capaData.picWorkerId !== undefined ? capaData.picWorkerId : existing.picWorkerId,
       history: historyList,
     };
     localStorage.setItem(INCIDENT_CAPA_CACHE_KEY, JSON.stringify(cache));
@@ -2173,6 +2197,9 @@ export async function fetchIncidentReports(workerId?: string): Promise<IncidentR
       report.correctiveAction = report.correctiveAction || capaCache[report.id].correctiveAction;
       report.assignedPic = report.assignedPic || capaCache[report.id].assignedPic;
       report.dueDate = report.dueDate || capaCache[report.id].dueDate;
+      report.afterPhotoUrl = report.afterPhotoUrl || capaCache[report.id].afterPhotoUrl;
+      report.capaStatus = report.capaStatus || capaCache[report.id].capaStatus;
+      report.picWorkerId = report.picWorkerId || capaCache[report.id].picWorkerId;
       report.history = report.history || capaCache[report.id].history;
     }
     return report;
@@ -2187,6 +2214,9 @@ export async function updateIncidentCapaAndStatus(
     correctiveAction?: string;
     assignedPic?: string;
     dueDate?: string;
+    afterPhotoUrl?: string;
+    capaStatus?: 'pending_action' | 'action_taken' | 'verified_closed';
+    picWorkerId?: string;
     resolutionNote?: string;
     updatedBy: string;
     workerId?: string;
@@ -2357,6 +2387,9 @@ export async function updateIncidentCapaAndStatus(
     correctiveAction: payload.correctiveAction,
     assignedPic: payload.assignedPic,
     dueDate: payload.dueDate,
+    afterPhotoUrl: payload.afterPhotoUrl,
+    capaStatus: payload.capaStatus,
+    picWorkerId: payload.picWorkerId,
     newHistoryItem,
   });
 

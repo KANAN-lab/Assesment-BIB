@@ -13,7 +13,9 @@ import {
   Search,
   LayoutGrid,
   ListFilter,
-  Download
+  Download,
+  Calendar,
+  Camera
 } from 'lucide-react';
 import { IncidentReport } from '../types/assessment';
 import { NotificationEngine } from '../domain/NotificationEngine';
@@ -35,41 +37,41 @@ const KANBAN_COLUMNS: {
   iconColor: string;
   desc: string;
 }[] = [
-  {
-    key: 'open',
-    title: 'Open (Menunggu Validasi)',
-    badgeCls: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
-    iconColor: 'text-rose-400',
-    desc: 'Laporan baru dari worker. Poin +50 pending.',
-  },
-  {
-    key: 'investigating',
-    title: 'Sedang Investigasi',
-    badgeCls: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30',
-    iconColor: 'text-indigo-400',
-    desc: 'Insiden valid terverifikasi. Poin +50 diberikan.',
-  },
-  {
-    key: 'resolved',
-    title: 'Resolved / CAPA OK',
-    badgeCls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
-    iconColor: 'text-emerald-400',
-    desc: 'Tindakan korektif selesai.',
-  },
-  {
-    key: 'closed',
-    title: 'Closed (Resmi Ditutup)',
-    badgeCls: 'bg-zinc-800 text-zinc-400 border-zinc-700',
-    iconColor: 'text-zinc-400',
-    desc: 'Arsip resmi K3.',
-  },
-];
+    {
+      key: 'open',
+      title: 'Open (Menunggu Validasi)',
+      badgeCls: 'bg-rose-500/10 text-rose-400 border-rose-500/30',
+      iconColor: 'text-rose-400',
+      desc: 'Laporan baru dari worker. Poin +50 pending.',
+    },
+    {
+      key: 'investigating',
+      title: 'Sedang Investigasi',
+      badgeCls: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/30',
+      iconColor: 'text-indigo-400',
+      desc: 'Insiden valid terverifikasi. Poin +50 diberikan.',
+    },
+    {
+      key: 'resolved',
+      title: 'Resolved / CAPA OK',
+      badgeCls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
+      iconColor: 'text-emerald-400',
+      desc: 'Tindakan korektif selesai.',
+    },
+    {
+      key: 'closed',
+      title: 'Closed (Resmi Ditutup)',
+      badgeCls: 'bg-zinc-800 text-zinc-400 border-zinc-700',
+      iconColor: 'text-zinc-400',
+      desc: 'Arsip resmi K3.',
+    },
+  ];
 
 const SEVERITY_META: Record<IncidentReport['severity'], { label: string; cls: string }> = {
-  low:      { label: 'Rendah',   cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-  medium:   { label: 'Sedang',   cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
-  high:     { label: 'Tinggi',   cls: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
-  critical: { label: 'Kritis',   cls: 'bg-rose-500/10 text-rose-400 border-rose-500/20' },
+  low: { label: 'Rendah', cls: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+  medium: { label: 'Sedang', cls: 'bg-amber-500/10 text-amber-400 border-amber-500/20' },
+  high: { label: 'Tinggi', cls: 'bg-orange-500/10 text-orange-400 border-orange-500/20' },
+  critical: { label: 'Kritis', cls: 'bg-rose-500/10 text-rose-400 border-rose-500/20' },
 };
 
 const TYPE_LABELS: Record<string, string> = {
@@ -241,6 +243,38 @@ export const SupervisorIncidentKanban: React.FC<SupervisorIncidentKanbanProps> =
                         <p className="text-[11px] text-zinc-400 line-clamp-2 leading-snug">
                           {inc.description}
                         </p>
+
+                        {/* CAPA Progress & PIC Tag */}
+                        {(inc.assignedPic || inc.dueDate) && (
+                          <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                            {inc.assignedPic && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-zinc-800 text-zinc-300 border border-zinc-700 flex items-center gap-1">
+                                <User className="w-2.5 h-2.5 text-emerald-400" />
+                                {inc.assignedPic}
+                              </span>
+                            )}
+                            {inc.dueDate && (() => {
+                              const isOverdue = inc.status !== 'closed' && inc.status !== 'resolved' && new Date(inc.dueDate) < new Date(new Date().setHours(0, 0, 0, 0));
+                              return (
+                                <span
+                                  className={`text-[9px] font-bold px-1.5 py-0.5 rounded border flex items-center gap-1 ${isOverdue
+                                      ? 'bg-rose-500/10 text-rose-400 border-rose-500/30 animate-pulse'
+                                      : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                                    }`}
+                                >
+                                  <Calendar className="w-2.5 h-2.5" />
+                                  {isOverdue ? `Overdue: ${inc.dueDate}` : `Target: ${inc.dueDate}`}
+                                </span>
+                              );
+                            })()}
+                            {inc.afterPhotoUrl && (
+                              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                                <Camera className="w-2.5 h-2.5 text-cyan-400" />
+                                Bukti Fisik Selesai
+                              </span>
+                            )}
+                          </div>
+                        )}
 
                         {/* Status Validation Alert */}
                         {inc.status === 'open' && (
