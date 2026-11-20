@@ -1387,27 +1387,27 @@
 - [x] **Affected Files**: `src/components/WorkerSioUploadModal.tsx`, `src/lib/sioAiService.ts`.
 
 ### Task 40.4: Alur CAPA (Corrective Action & Preventive Action) Insiden K3
-- [ ] **Objective**: Memastikan setiap laporan insiden/kondisi bahaya memiliki penanggung jawab riil dan bukti perbaikan fisik di lapangan.
-- [ ] **Acceptance Criteria**:
-  - **AC1**: Saat validasi insiden, HSE/Supervisor dapat menugaskan PIC dan menentukan batas waktu penyelesaian (due date).
-  - **AC2**: PIC yang ditugaskan dapat mengunggah foto bukti perbaikan (*After*) dan catatan tindakan penanganan.
-  - **AC3**: Kasus hanya dapat ditutup (*Closed*) setelah diverifikasi oleh tim HSE, memberikan poin keselamatan (*Safety Points*) bagi pelapor dan PIC.
-- [ ] **Affected Files**: `src/components/SupervisorIncidentValidationModal.tsx`, `src/components/HseConsole.tsx`, `src/domain/SafetyPatrolService.ts`.
+- [x] **Objective**: Memastikan setiap laporan insiden/kondisi bahaya memiliki penanggung jawab riil dan bukti perbaikan fisik di lapangan.
+- [x] **Acceptance Criteria**:
+  - [x] **AC1**: Saat validasi insiden, HSE/Supervisor dapat menugaskan PIC (dari daftar pekerja operasional / tim K3 / teknisi) dan menentukan batas waktu penyelesaian (due date) dengan shortcut +24h, +3d, +7d.
+  - [x] **AC2**: PIC yang ditugaskan dapat mengunggah foto bukti perbaikan (*After*) terkompresi HD dan status progres tindakan CAPA.
+  - [x] **AC3**: Kasus hanya dapat ditutup (*Closed*) setelah diisi akar masalah dan tindakan korektif, serta diverifikasi tuntas oleh Pengawas K3.
+- [x] **Affected Files**: `src/components/SupervisorIncidentValidationModal.tsx`, `src/components/SupervisorIncidentKanban.tsx`, `src/domain/IncidentManager.ts`, `src/lib/supabaseService.ts`, `src/types/assessment.ts`.
 
 ### Task 40.5: Dashboard Rekap Monitoring Re-Training & Komparasi Radar Historis
-- [ ] **Objective**: Memberikan visibilitas kepada Supervisor & HR terhadap kepatuhan training pekerja dan memantau pertumbuhan kompetensi antar-periode.
-- [ ] **Acceptance Criteria**:
-  - **AC1**: Tab khusus di Supervisor & HR Console menampilkan tabel rekap seluruh pekerja yang memiliki tugas re-training aktif (nama modul, alasan gap, sisa hari, dan status).
-  - **AC2**: Grafik Radar BIB mendukung mode komparasi *overlay* (Skor Audit Saat Ini vs Skor Audit Periode Sebelumnya).
-- [ ] **Affected Files**: `src/components/BibRadarChart.tsx`, `src/components/SupervisorConsole.tsx`, `src/components/HrConsole.tsx`, `src/domain/TrainingAssignmentService.ts`.
+- [x] **Objective**: Memberikan visibilitas kepada Supervisor & HR terhadap kepatuhan training pekerja dan memantau pertumbuhan kompetensi antar-periode.
+- [x] **Acceptance Criteria**:
+  - [x] **AC1**: Tab khusus di Supervisor & HR Console menampilkan tabel rekap seluruh pekerja yang memiliki tugas re-training aktif (nama modul, alasan gap, batas waktu, pengingat notifikasi instan, dan status verifikasi manual).
+  - [x] **AC2**: Grafik Radar BIB mendukung mode komparasi *overlay* (Skor Audit Saat Ini vs Skor Audit Periode Sebelumnya dengan garis putus-putus amber dan indikator delta naik/turun per kategori).
+- [x] **Affected Files**: `src/components/BibRadarChart.tsx`, `src/components/TrainingMonitoringPanel.tsx`, `src/components/SupervisorConsole.tsx`, `src/components/HrConsole.tsx`, `src/domain/TrainingAssignmentService.ts`.
 
 ### Task 40.6: Kalkulator Manfaat Kaizen & Tag Budaya Kerja Kudo
-- [ ] **Objective**: Mengukur dampak nyata ide perbaikan berkesinambungan dan memperkuat budaya kerja positif.
-- [ ] **Acceptance Criteria**:
-  - **AC1**: Form pengajuan Kaizen memiliki opsi kategori dampak (*Cost Saving*, *Time Saving*, *Safety/5S*, *Quality*) beserta input estimasi nilai efisiensi.
-  - **AC2**: Papan Kaizen dapat diurutkan berdasarkan potensi dampak terbesar.
-  - **AC3**: Pengiriman Kudo menyediakan pilihan tag nilai budaya kerja (`#SafetyFirst`, `#SolidTeamwork`, `#QuickResponse`, `#ZeroMistake`).
-- [ ] **Affected Files**: `src/components/KaizenSubmissionModal.tsx`, `src/components/KaizenKanbanBoard.tsx`, `src/components/KudoModal.tsx`, `src/components/KudoWall.tsx`.
+- [x] **Objective**: Mengukur dampak nyata ide perbaikan berkesinambungan dan memperkuat budaya kerja positif.
+- [x] **Acceptance Criteria**:
+  - [x] **AC1**: Form pengajuan Kaizen memiliki Kalkulator Manfaat Interaktif (*Cost Saving*, *Time Saving*, *Safety/5S*, *Format Bebas*) dengan kalkulasi dampak otomatis per bulan & tahun yang aman tersimpan ke data live.
+  - [x] **AC2**: Papan Kaizen menampilkan badge kalkulator manfaat secara visual pada setiap kartu inovasi.
+  - [x] **AC3**: Pengiriman Kudo menyediakan pilihan tag nilai budaya kerja logistik (`#SafetyFirst`, `#SolidTeamwork`, `#QuickResponse`, `#ZeroMistake`, `#ContinuousImprovement`) dan filter tag interaktif di Tembok Apresiasi (Kudo Wall).
+- [x] **Affected Files**: `src/components/KaizenSubmissionModal.tsx`, `src/components/KaizenKanbanBoard.tsx`, `src/components/KudoModal.tsx`, `src/components/KudoWall.tsx`, `src/types/kudos.ts`.
 
 
 
