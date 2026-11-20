@@ -103,8 +103,8 @@ export const TrainingMonitoringPanel: React.FC<TrainingMonitoringPanelProps> = (
       // Search query
       if (search.trim()) {
         const q = search.toLowerCase();
-        const matchWorker = (a.workerName || '').toLowerCase().includes(q) || a.workerId.toLowerCase().includes(q);
-        const matchModule = (a.moduleTitle || '').toLowerCase().includes(q) || a.moduleCode.toLowerCase().includes(q);
+        const matchWorker = (a.workerName || '').toLowerCase().includes(q) || (a.workerId || '').toLowerCase().includes(q);
+        const matchModule = (a.moduleTitle || '').toLowerCase().includes(q) || (a.moduleCode || '').toLowerCase().includes(q);
         const matchCategory = (a.category || '').toLowerCase().includes(q);
         return matchWorker || matchModule || matchCategory;
       }
