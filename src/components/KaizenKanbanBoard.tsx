@@ -342,6 +342,16 @@ export function KaizenKanbanBoard({ currentUserId, isAdmin = false }: KaizenKanb
               <p className="text-zinc-300 line-clamp-2 leading-relaxed">{item.proposed_solution}</p>
             </div>
           </div>
+
+          {/* Manfaat Inovasi / Kalkulator Badge */}
+          {item.expected_impact && (
+            <div className="mt-2 p-1.5 bg-amber-500/10 border border-amber-500/20 rounded-lg text-[10px] text-amber-300 flex items-start gap-1 font-medium">
+              <Zap className="w-3 h-3 text-amber-400 shrink-0 mt-0.5" />
+              <span className="line-clamp-2 leading-tight">
+                {item.expected_impact}
+              </span>
+            </div>
+          )}
         </div>
 
         {/* Footer: Quick Move Action Menu */}

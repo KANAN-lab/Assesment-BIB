@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { supabase } from '../lib/supabaseClient';
 import { KudoService, KudoQuotaInfo, KUDO_QUICK_TAGS } from '../lib/kudoService';
-import { KudoCategory } from '../types/kudos';
+import { KudoCategory, CULTURAL_TAGS, CulturalValueTag } from '../types/kudos';
 import { SystemConfigService } from '../domain/SystemConfigService';
 import { RoleEntity } from '../domain/RoleEntity';
 import { X, Award, Search, Loader2, CheckCircle2, ShieldCheck, AlertCircle, Sparkles } from 'lucide-react';
@@ -40,6 +40,7 @@ export function KudoModal({ isOpen, onClose, currentWorkerId, initialWorkers }: 
   
   const [selectedReceiverId, setSelectedReceiverId] = useState<string>('');
   const [selectedCategory, setSelectedCategory] = useState<KudoCategory | ''>('');
+  const [selectedCulturalTag, setSelectedCulturalTag] = useState<CulturalValueTag | null>(null);
   const [message, setMessage] = useState('');
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -162,6 +163,7 @@ export function KudoModal({ isOpen, onClose, currentWorkerId, initialWorkers }: 
   const resetForm = () => {
     setSelectedReceiverId('');
     setSelectedCategory('');
+    setSelectedCulturalTag(null);
     setMessage('');
     setSearchQuery('');
     setSubmitError('');
@@ -181,11 +183,15 @@ export function KudoModal({ isOpen, onClose, currentWorkerId, initialWorkers }: 
     setIsSubmitting(true);
     setSubmitError('');
 
+    const finalMessage = selectedCulturalTag
+      ? `${selectedCulturalTag} ${message.trim()}`.trim()
+      : message.trim();
+
     const result = await KudoService.sendKudo(
       currentWorkerId,
       selectedReceiverId,
       selectedCategory,
-      message
+      finalMessage
     );
 
     setIsSubmitting(false);
@@ -386,11 +392,51 @@ export function KudoModal({ isOpen, onClose, currentWorkerId, initialWorkers }: 
                 </div>
               </div>
 
-              {/* Step 3: Message */}
+              {/* Step 3: Cultural Value Tag & Message */}
               <div className="space-y-3 pb-24 sm:pb-0">
+                {/* Tag Nilai Budaya Kerja */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-bold text-zinc-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                      Tag Nilai Budaya Kerja (Pilih 1)
+                    </span>
+                    {selectedCulturalTag && (
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCulturalTag(null)}
+                        className="text-[10px] text-zinc-500 hover:text-zinc-300 underline"
+                      >
+                        Reset Tag
+                      </button>
+                    )}
+                  </label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {CULTURAL_TAGS.map((c) => {
+                      const isSelected = selectedCulturalTag === c.tag;
+                      return (
+                        <button
+                          key={c.tag}
+                          type="button"
+                          onClick={() => setSelectedCulturalTag(isSelected ? null : c.tag)}
+                          className={`text-[10px] font-bold px-2 py-1 rounded-lg border transition flex items-center gap-1 ${
+                            isSelected
+                              ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm'
+                              : 'bg-zinc-800 border-zinc-700 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600'
+                          }`}
+                          title={c.description}
+                        >
+                          <span>{c.icon}</span>
+                          <span>{c.tag}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-                    3. Pesan (Opsional)
+                    Pesan Apresiasi (Opsional)
                   </label>
                   <span className={`text-[10px] ${message.length > 150 ? 'text-rose-400 font-bold' : 'text-zinc-500'}`}>
                     {message.length}/150

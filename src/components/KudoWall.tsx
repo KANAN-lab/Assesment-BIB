@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useCallback } from 'react';
-import { KudoEntity, KudoReactionType } from '../types/kudos';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import { KudoEntity, KudoReactionType, CULTURAL_TAGS, CulturalValueTag } from '../types/kudos';
 import { KudoService } from '../lib/kudoService';
 import { supabase } from '../lib/supabaseClient';
-import { Award, Loader2, Quote, Pin } from 'lucide-react';
+import { Award, Loader2, Quote, Pin, Sparkles } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { id as localeId } from 'date-fns/locale';
 
@@ -15,6 +15,7 @@ export function KudoWall({ currentWorkerId, currentUserRole }: KudoWallProps) {
   const [kudos, setKudos] = useState<KudoEntity[]>([]);
   const [loading, setLoading] = useState(true);
   const [reactionLoading, setReactionLoading] = useState<string | null>(null);
+  const [selectedTagFilter, setSelectedTagFilter] = useState<string>('all');
 
   const isSupervisorOrAdmin = currentUserRole === 'supervisor' || currentUserRole === 'admin' || currentUserRole === 'SYSTEM_ADMIN';
 
@@ -151,6 +152,11 @@ export function KudoWall({ currentWorkerId, currentUserRole }: KudoWallProps) {
     );
   }
 
+  const displayedKudos = useMemo(() => {
+    if (selectedTagFilter === 'all') return kudos;
+    return kudos.filter((k) => k.message && k.message.includes(selectedTagFilter));
+  }, [kudos, selectedTagFilter]);
+
   if (kudos.length === 0) {
     return (
       <div className="bg-zinc-900 rounded-2xl border border-zinc-800 p-5 flex flex-col items-center justify-center text-center min-h-[150px]">
@@ -175,11 +181,50 @@ export function KudoWall({ currentWorkerId, currentUserRole }: KudoWallProps) {
           Beri reaksi (👏, 💪, ⭐) untuk mendukung rekan Anda
         </span>
       </div>
+
+      {/* Cultural Value Filter Bar */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-hide text-xs">
+        <button
+          type="button"
+          onClick={() => setSelectedTagFilter('all')}
+          className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition shrink-0 ${
+            selectedTagFilter === 'all'
+              ? 'bg-amber-500 text-zinc-950 shadow-sm'
+              : 'bg-zinc-800 text-zinc-400 hover:text-white'
+          }`}
+        >
+          Semua ({kudos.length})
+        </button>
+        {CULTURAL_TAGS.map((c) => {
+          const isSelected = selectedTagFilter === c.tag;
+          const count = kudos.filter((k) => k.message?.includes(c.tag)).length;
+          return (
+            <button
+              key={c.tag}
+              type="button"
+              onClick={() => setSelectedTagFilter(isSelected ? 'all' : c.tag)}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition shrink-0 flex items-center gap-1 ${
+                isSelected
+                  ? 'bg-amber-500/20 text-amber-300 border-amber-500/50 shadow-sm'
+                  : 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-zinc-200'
+              }`}
+            >
+              <span>{c.icon}</span>
+              <span>{c.tag}</span>
+              {count > 0 && <span className="opacity-70 font-mono">({count})</span>}
+            </button>
+          );
+        })}
+      </div>
       
       {/* Horizontal Scroll Area */}
       <div className="flex overflow-x-auto snap-x gap-3 pb-4 scrollbar-hide">
-        {kudos.map(kudo => {
+        {displayedKudos.map(kudo => {
           const reactions = kudo.reactions || { clap: 0, muscle: 0, star: 0, userReactions: [] };
+          const matchedTag = CULTURAL_TAGS.find((c) => kudo.message?.includes(c.tag));
+          const cleanMessage = matchedTag && kudo.message
+            ? kudo.message.replace(matchedTag.tag, '').trim().replace(/^[-–—:\s]+/, '')
+            : kudo.message;
 
           return (
             <div 
@@ -197,6 +242,12 @@ export function KudoWall({ currentWorkerId, currentUserRole }: KudoWallProps) {
                     <span>{getCategoryIcon(kudo.category)}</span>
                     <span>{kudo.category}</span>
                   </div>
+                  {matchedTag && (
+                    <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-bold border flex items-center gap-0.5 ${matchedTag.color}`}>
+                      <span>{matchedTag.icon}</span>
+                      <span>{matchedTag.tag}</span>
+                    </span>
+                  )}
                   {kudo.is_pinned && (
                     <span className="px-1.5 py-0.5 rounded-md bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] font-black flex items-center gap-0.5">
                       <Pin className="w-2.5 h-2.5 fill-current" />
@@ -225,11 +276,11 @@ export function KudoWall({ currentWorkerId, currentUserRole }: KudoWallProps) {
               
               {/* Message */}
               <div className="flex-1 mb-3">
-                {kudo.message ? (
+                {cleanMessage ? (
                   <div className="flex gap-2">
                     <Quote className="w-3 h-3 text-zinc-600 shrink-0 mt-0.5" />
                     <p className="text-xs text-zinc-200 italic line-clamp-3 leading-relaxed">
-                      "{kudo.message}"
+                      "{cleanMessage}"
                     </p>
                   </div>
                 ) : (

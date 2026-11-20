@@ -80,6 +80,13 @@ export function KaizenSubmissionModal({
   const [currentCondition, setCurrentCondition] = useState('');
   const [proposedSolution, setProposedSolution] = useState('');
   const [expectedImpact, setExpectedImpact] = useState('');
+
+  // Kalkulator Manfaat Kaizen Interaktif
+  const [calcType, setCalcType] = useState<'time' | 'cost' | 'safety' | 'free'>('time');
+  const [timeMinutes, setTimeMinutes] = useState<number | ''>(15);
+  const [costAmount, setCostAmount] = useState<number | ''>(250000);
+  const [safetyPoint, setSafetyPoint] = useState<string>('Eliminasi potensi near-miss manuver MHE');
+
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
   const { submit: idempSubmit, isSubmitting: loading, idempotencyError, clearIdempotencyError } = useIdempotentSubmit({
@@ -152,12 +159,27 @@ export function KaizenSubmissionModal({
         }
       }
 
+      let calculatedImpactBadge = '';
+      if (calcType === 'time' && timeMinutes) {
+        const monthlyHours = Math.round(((Number(timeMinutes) * 26) / 60) * 10) / 10;
+        calculatedImpactBadge = `[Manfaat: ⏱️ Hemat ${timeMinutes} mnt/shift (~${monthlyHours} jam/bln)]`;
+      } else if (calcType === 'cost' && costAmount) {
+        const yearly = Number(costAmount) * 12;
+        calculatedImpactBadge = `[Manfaat: 💰 Hemat Rp ${Number(costAmount).toLocaleString('id-ID')}/bln (~Rp ${yearly.toLocaleString('id-ID')}/thn)]`;
+      } else if (calcType === 'safety' && safetyPoint.trim()) {
+        calculatedImpactBadge = `[Manfaat: 🛡️ Safety & 5S: ${safetyPoint.trim()}]`;
+      }
+
+      const finalImpact = calculatedImpactBadge
+        ? `${calculatedImpactBadge} ${expectedImpact.trim()}`.trim()
+        : expectedImpact.trim();
+
       const input: KaizenInput = {
         title,
         category,
         currentCondition,
         proposedSolution,
-        expectedImpact: expectedImpact.trim() || undefined,
+        expectedImpact: finalImpact || undefined,
         photoBeforeUrl: uploadedPhotoUrl || undefined,
       };
 
@@ -337,18 +359,123 @@ export function KaizenSubmissionModal({
               </div>
             </div>
 
-            {/* Ekspektasi Dampak */}
-            <div className="space-y-1.5">
-              <label className="text-xs font-bold text-zinc-400">
-                Ekspektasi Manfaat / Dampak Positif <span className="text-zinc-500">(Opsional)</span>
-              </label>
-              <input
-                type="text"
-                value={expectedImpact}
-                onChange={(e) => setExpectedImpact(e.target.value)}
-                placeholder="Contoh: Menghemat waktu pencarian barang ~15 menit per shift"
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-amber-500/50"
-              />
+            {/* Kalkulator Manfaat Kaizen */}
+            <div className="p-3.5 bg-zinc-900/90 rounded-2xl border border-zinc-800 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-zinc-300 flex items-center gap-1.5">
+                  <Zap className="w-4 h-4 text-amber-400" />
+                  Kalkulator Estimasi Dampak Inovasi
+                </label>
+                <span className="text-[10px] text-zinc-500 font-medium">Bantu Supervisor mengukur nilai inovasi</span>
+              </div>
+
+              {/* Tipe Benefit Tabs */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                {[
+                  { id: 'time', label: '⏱️ Hemat Waktu', sub: 'Cycle Time / Shift' },
+                  { id: 'cost', label: '💰 Hemat Biaya', sub: 'Rupiah / Bulan' },
+                  { id: 'safety', label: '🛡️ Safety & 5S', sub: 'Mitigasi Insiden' },
+                  { id: 'free', label: '📝 Format Bebas', sub: 'Deskripsi Kualitatif' },
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setCalcType(t.id as any)}
+                    className={`p-2 rounded-xl border text-left transition ${
+                      calcType === t.id
+                        ? 'bg-amber-500/20 border-amber-500/50 text-white shadow-sm'
+                        : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-zinc-700'
+                    }`}
+                  >
+                    <div className="text-[11px] font-bold">{t.label}</div>
+                    <div className="text-[9px] text-zinc-500 truncate">{t.sub}</div>
+                  </button>
+                ))}
+              </div>
+
+              {/* Dynamic Calculator Inputs based on type */}
+              {calcType === 'time' && (
+                <div className="space-y-2 p-3 bg-zinc-950 rounded-xl border border-zinc-850">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="text-xs text-zinc-300 font-semibold">Estimasi Waktu Dihemat:</label>
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="number"
+                        min="1"
+                        max="480"
+                        value={timeMinutes}
+                        onChange={(e) => setTimeMinutes(e.target.value ? Number(e.target.value) : '')}
+                        className="w-20 bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1 text-xs text-white text-right focus:outline-none focus:border-amber-500 font-mono font-bold"
+                      />
+                      <span className="text-xs text-zinc-400">Menit / Shift</span>
+                    </div>
+                  </div>
+                  {timeMinutes && (
+                    <div className="text-[11px] text-amber-300 font-medium flex items-center gap-1.5 bg-amber-500/10 p-2 rounded-lg border border-amber-500/20">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                      <span>
+                        Dampak Efisiensi: Setara <strong>~{Math.round(((Number(timeMinutes) * 26) / 60) * 10) / 10} jam</strong> produktivitas kerja tim per bulan (asumsi 26 hari kerja).
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {calcType === 'cost' && (
+                <div className="space-y-2 p-3 bg-zinc-950 rounded-xl border border-zinc-850">
+                  <div className="flex items-center justify-between gap-3">
+                    <label className="text-xs text-zinc-300 font-semibold">Estimasi Penghematan Biaya:</label>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs text-zinc-400 font-mono">Rp</span>
+                      <input
+                        type="number"
+                        step="50000"
+                        min="0"
+                        value={costAmount}
+                        onChange={(e) => setCostAmount(e.target.value ? Number(e.target.value) : '')}
+                        placeholder="Contoh: 500000"
+                        className="w-36 bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1 text-xs text-white text-right focus:outline-none focus:border-emerald-500 font-mono font-bold"
+                      />
+                      <span className="text-xs text-zinc-400">/ Bulan</span>
+                    </div>
+                  </div>
+                  {costAmount && (
+                    <div className="text-[11px] text-emerald-300 font-medium flex items-center gap-1.5 bg-emerald-500/10 p-2 rounded-lg border border-emerald-500/20">
+                      <Sparkles className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      <span>
+                        Dampak Finansial: Potensi efisiensi <strong>~Rp {(Number(costAmount) * 12).toLocaleString('id-ID')}</strong> per tahun untuk operasional gudang.
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {calcType === 'safety' && (
+                <div className="p-3 bg-zinc-950 rounded-xl border border-zinc-850 space-y-1.5">
+                  <label className="text-xs text-zinc-300 font-semibold">Fokus Mitigasi K3 / 5S:</label>
+                  <input
+                    type="text"
+                    value={safetyPoint}
+                    onChange={(e) => setSafetyPoint(e.target.value)}
+                    placeholder="Contoh: Menghilangkan blind-spot tabrakan forklift di lorong staging"
+                    className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-rose-500"
+                  />
+                </div>
+              )}
+
+              {/* Catatan Tambahan Ekspektasi Dampak */}
+              <div>
+                <label className="text-[11px] font-semibold text-zinc-400 block mb-1">
+                  Catatan Tambahan Manfaat <span className="text-zinc-500">(Opsional)</span>
+                </label>
+                <input
+                  type="text"
+                  value={expectedImpact}
+                  onChange={(e) => setExpectedImpact(e.target.value)}
+                  placeholder="Catatan tambahan penjelasan dampak perbaikan..."
+                  className="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-amber-500"
+                />
+              </div>
             </div>
 
             {/* Unggah Foto Bukti (Google Drive Integration) */}
