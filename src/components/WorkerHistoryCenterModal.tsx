@@ -197,7 +197,15 @@ export function WorkerHistoryCenterModal({
               date: r.createdAt || r.redeemedAt,
               title: isCancelled ? `Klaim Reward (Dibatalkan): ${r.itemTitle}` : `Klaim Reward: ${r.itemTitle}`,
               description: `Kode: ${r.redemptionCode} · Status: ${
-                isCancelled ? 'Dibatalkan (Poin Dikembalikan)' : r.status === 'completed' ? 'Selesai' : 'Diproses'
+                isCancelled
+                  ? 'Dibatalkan (Poin Dikembalikan)'
+                  : r.status === 'completed'
+                  ? 'Selesai'
+                  : r.status === 'ready_for_pickup'
+                  ? 'Siap Diambil di GA'
+                  : r.status === 'processing'
+                  ? 'Sedang Disiapkan GA'
+                  : 'Menunggu'
               }`,
               amount: -Math.abs(r.pointsSpent),
               category: 'Penukaran Reward',
@@ -1303,9 +1311,21 @@ export function WorkerHistoryCenterModal({
                               ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                               : r.status === 'completed'
                               ? 'bg-emerald-500/10 text-emerald-400'
+                              : r.status === 'ready_for_pickup'
+                              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse'
+                              : r.status === 'processing'
+                              ? 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
                               : 'bg-amber-500/10 text-amber-400'
                           }`}>
-                            {r.status === 'cancelled' ? 'Dibatalkan' : r.status === 'completed' ? 'Selesai' : 'Pending'}
+                            {r.status === 'cancelled'
+                              ? 'Dibatalkan'
+                              : r.status === 'completed'
+                              ? 'Selesai'
+                              : r.status === 'ready_for_pickup'
+                              ? 'Siap Diambil'
+                              : r.status === 'processing'
+                              ? 'Disiapkan'
+                              : 'Pending'}
                           </span>
                         </div>
                       </div>

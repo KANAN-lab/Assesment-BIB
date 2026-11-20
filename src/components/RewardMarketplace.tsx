@@ -729,22 +729,30 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
               {paginatedHistory.map((history) => {
                 const isCancelled = history.status === 'cancelled';
                 const isCompleted = history.status === 'completed';
-                const isPending = !isCancelled && !isCompleted;
+                const isReady = history.status === 'ready_for_pickup';
+                const isProcessing = history.status === 'processing';
+                const isPending = !isCancelled && !isCompleted && !isReady && !isProcessing;
 
                 return (
                   <div
                     key={history.id}
-                    className="bg-zinc-800/50 border border-zinc-800 p-3.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                    className={`bg-zinc-800/50 p-3.5 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 border transition ${
+                      isReady ? 'border-cyan-500/50 shadow-[0_0_15px_rgba(6,182,212,0.15)] ring-1 ring-cyan-500/20' : 'border-zinc-800'
+                    }`}
                   >
                     <div className="space-y-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-xs text-white">{history.itemTitle}</span>
                         <span
-                          className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                          className={`text-[9px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
                             isCancelled
                               ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
                               : isCompleted
                               ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                              : isReady
+                              ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse font-black'
+                              : isProcessing
+                              ? 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
                               : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
                           }`}
                         >
@@ -752,7 +760,11 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                             ? '↩️ Dibatalkan (Poin Kembali)'
                             : isCompleted
                             ? '✓ Diserahkan'
-                            : '⏳ Menunggu Penyerahan'}
+                            : isReady
+                            ? '🔔 Siap Diambil di Kantor GA'
+                            : isProcessing
+                            ? '⚙️ Sedang Disiapkan GA'
+                            : '⏳ Menunggu Proses'}
                         </span>
                       </div>
                       <div className="text-[10px] text-zinc-400 flex items-center gap-3 flex-wrap">
@@ -762,6 +774,11 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
                         )}
                         {history.fulfilledByName && (
                           <span className="text-emerald-400">Oleh: {history.fulfilledByName}</span>
+                        )}
+                        {isReady && (
+                          <span className="text-cyan-300 font-bold bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800/60">
+                            Silakan datang ke ruang GA & tunjukkan QR voucher
+                          </span>
                         )}
                       </div>
                     </div>

@@ -1370,12 +1370,13 @@
 - [x] **Affected Files**: `src/components/HandoverKanbanBoard.tsx`, `src/lib/handoverService.ts`, `src/domain/ShiftHandoverManager.ts`.
 
 ### Task 40.2: Pelacakan Status Hadiah Multi-Tahap (GA Reward Fulfillment)
-- [ ] **Objective**: Memberikan transparansi status penukaran hadiah kepada pekerja dan memangkas waktu bolak-balik ke kantor GA.
-- [ ] **Acceptance Criteria**:
-  - **AC1**: Memperluas status voucher penukaran: `pending` (menunggu) $\rightarrow$ `processing` (sedang disiapkan) $\rightarrow$ `ready_for_pickup` (siap diambil) $\rightarrow$ `completed` (selesai diserahkan).
-  - **AC2**: GA memiliki tombol aksi cepat untuk menandai "Sedang Disiapkan" dan "Siap Diambil".
-  - **AC3**: Ketika status berubah menjadi `ready_for_pickup`, sistem memicu notifikasi instan ke dashboard pekerja agar segera membawa QR code ke GA.
-- [ ] **Affected Files**: `src/components/admin/AdminRewardCatalogPanel.tsx`, `src/components/RewardMarketplace.tsx`, `src/lib/supabaseService.ts`, `src/types/assessment.ts`.
+- [x] **Objective**: Memberikan transparansi status penukaran hadiah kepada pekerja dan memangkas waktu bolak-balik ke kantor GA.
+- [x] **Acceptance Criteria**:
+  - [x] **AC1**: Memperluas status voucher penukaran: `pending` (menunggu) $\rightarrow$ `processing` (sedang disiapkan) $\rightarrow$ `ready_for_pickup` (siap diambil) $\rightarrow$ `completed` (selesai diserahkan).
+  - [x] **AC2**: GA memiliki tombol aksi cepat untuk menandai "Siapkan" (`processing`) dan "Siap Diambil" (`ready_for_pickup`).
+  - [x] **AC3**: Ketika status berubah menjadi `ready_for_pickup`, sistem otomatis memicu notifikasi instan ke dashboard pekerja agar segera membawa QR code ke GA.
+  - [x] **AC4**: Dashboard pekerja (`RewardMarketplace` & `WorkerHistoryCenterModal`) menampilkan badge status 4-tahap yang informatif dan responsif.
+- [x] **Affected Files**: `src/components/admin/AdminRewardCatalogPanel.tsx`, `src/components/RewardMarketplace.tsx`, `src/lib/supabaseService.ts`, `src/types/assessment.ts`, `src/components/WorkerHistoryCenterModal.tsx`.
 
 ### Task 40.3: Koreksi Manual Fleksibel pada Upload SIO MHE (Human-in-the-Loop OCR)
 - [ ] **Objective**: Mencegah data salah input pada lisensi operator akibat foto buram atau silau pencahayaan gudang.

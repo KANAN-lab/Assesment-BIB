@@ -13,6 +13,7 @@ import {
   fulfillRedemption,
   cancelAndRefundRedemption,
   processMonthlyOperationalPointsReset,
+  updateRedemptionStatus,
   AdminRedemptionRecord
 } from '../../lib/supabaseService';
 import { SystemConfigService } from '../../domain/SystemConfigService';
@@ -263,6 +264,26 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
     }
   };
 
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
+
+  const handleUpdateStatus = async (
+    redemptionId: string,
+    newStatus: 'processing' | 'ready_for_pickup',
+    itemTitle: string
+  ) => {
+    const statusLabel = newStatus === 'processing' ? 'Sedang Disiapkan' : 'Siap Diambil di GA';
+    setUpdatingStatusId(redemptionId);
+    try {
+      await updateRedemptionStatus(redemptionId, newStatus, currentAdminId || 'SYS-ADMIN');
+      showToast(`Status klaim "${itemTitle}" berhasil diubah: ${statusLabel}`);
+      loadAllRedemptions();
+    } catch (err: any) {
+      showToast(`Gagal memperbarui status: ${err.message}`);
+    } finally {
+      setUpdatingStatusId(null);
+    }
+  };
+
   const [isExecutingReset, setIsExecutingReset] = useState(false);
 
   const handleExecuteMonthlyReset = async () => {
@@ -384,6 +405,9 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
       render: (log) => {
         const isCompleted = log.status === 'completed';
         const isCancelled = log.status === 'cancelled';
+        const isReady = log.status === 'ready_for_pickup';
+        const isProcessing = log.status === 'processing';
+
         return (
           <span
             className={`text-[9px] font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-1 ${
@@ -391,10 +415,22 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
                 ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                 : isCancelled
                 ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                : isReady
+                ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 animate-pulse'
+                : isProcessing
+                ? 'bg-blue-500/15 text-blue-300 border border-blue-500/30'
                 : 'bg-amber-500/10 text-amber-300 border border-amber-500/20'
             }`}
           >
-            {isCompleted ? '✓ Diserahkan' : isCancelled ? '✕ Dibatalkan' : '⏳ Menunggu'}
+            {isCompleted
+              ? '✓ Diserahkan'
+              : isCancelled
+              ? '✕ Dibatalkan'
+              : isReady
+              ? '🔔 Siap Diambil di GA'
+              : isProcessing
+              ? '⚙️ Sedang Disiapkan'
+              : '⏳ Menunggu'}
           </span>
         );
       },
@@ -406,6 +442,11 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
       render: (log) => {
         const isCompleted = log.status === 'completed';
         const isCancelled = log.status === 'cancelled';
+        const isReady = log.status === 'ready_for_pickup';
+        const isProcessing = log.status === 'processing';
+        const isPending = !isCompleted && !isCancelled && !isReady && !isProcessing;
+        const isBusy = fulfillingRewardId === log.id || cancellingRewardId === log.id || updatingStatusId === log.id;
+
         if (isCompleted) {
           const sig = localStorage.getItem(`gappy_reward_sig_${log.id}`);
           return (
@@ -428,13 +469,42 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
         if (isCancelled) {
           return <span className="text-[10px] text-rose-400 font-mono">Poin Direfund</span>;
         }
+
         return (
-          <div className="flex items-center justify-center gap-1.5">
+          <div className="flex items-center justify-center gap-1.5 flex-wrap">
+            {isPending && (
+              <button
+                type="button"
+                onClick={() => handleUpdateStatus(log.id, 'processing', log.itemTitle)}
+                disabled={isBusy}
+                className="px-2 py-1 bg-blue-600/20 hover:bg-blue-600/30 text-blue-300 border border-blue-500/30 rounded-lg text-[11px] font-bold transition flex items-center gap-1 disabled:opacity-50"
+                title="Tandai hadiah sedang disiapkan oleh tim GA"
+              >
+                {updatingStatusId === log.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <span>Siapkan</span>}
+              </button>
+            )}
+
+            {(isPending || isProcessing) && (
+              <button
+                type="button"
+                onClick={() => handleUpdateStatus(log.id, 'ready_for_pickup', log.itemTitle)}
+                disabled={isBusy}
+                className="px-2 py-1 bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/30 rounded-lg text-[11px] font-bold transition flex items-center gap-1 disabled:opacity-50"
+                title="Tandai barang siap diambil di GA & kirim notifikasi ke pekerja"
+              >
+                {updatingStatusId === log.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <span>Siap Diambil</span>}
+              </button>
+            )}
+
             <button
               type="button"
               onClick={() => handleOpenFulfillModal(log)}
-              disabled={fulfillingRewardId === log.id || cancellingRewardId === log.id}
-              className="px-2 py-1 bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-[11px] font-bold transition flex items-center gap-1 disabled:opacity-50"
+              disabled={isBusy}
+              className={`px-2 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 disabled:opacity-50 ${
+                isReady
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-950/40'
+                  : 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40'
+              }`}
               title="Serahkan voucher fisik dengan tanda tangan digital pekerja"
             >
               {fulfillingRewardId === log.id ? (
@@ -448,7 +518,7 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
             <button
               type="button"
               onClick={() => handleCancelFromAdmin(log.id, log.itemTitle, log.pointsSpent)}
-              disabled={fulfillingRewardId === log.id || cancellingRewardId === log.id}
+              disabled={isBusy}
               className="px-2 py-1 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 rounded-lg text-[11px] font-bold transition flex items-center gap-1 disabled:opacity-50"
               title="Batalkan penukaran voucher ini dan kembalikan poin pekerja"
             >
@@ -463,7 +533,7 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
         );
       },
     },
-  ], [fulfillingRewardId, cancellingRewardId]);
+  ], [fulfillingRewardId, cancellingRewardId, updatingStatusId]);
 
   const handleOpenCreateRewardModal = () => {
     setEditingReward(null);

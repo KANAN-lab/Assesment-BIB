@@ -763,6 +763,70 @@ export async function fulfillRedemption(redemptionId: string, adminWorkerId: str
 }
 
 /**
+ * Memperbarui status penukaran reward secara multi-tahap (Task 40.2)
+ * Alur: pending -> processing (sedang disiapkan) -> ready_for_pickup (siap diambil di GA) -> completed
+ */
+export async function updateRedemptionStatus(
+  redemptionId: string,
+  newStatus: 'pending' | 'processing' | 'ready_for_pickup' | 'completed' | 'cancelled',
+  adminWorkerId: string
+): Promise<void> {
+  const { data: record } = await supabase
+    .from('redemption_history')
+    .select('id, worker_id, item_title, redemption_code, worker:workers!worker_id(name)')
+    .eq('id', redemptionId)
+    .maybeSingle();
+
+  const updatePayload: Record<string, any> = {
+    status: newStatus,
+  };
+
+  if (newStatus === 'completed') {
+    updatePayload.fulfilled_at = new Date().toISOString();
+    updatePayload.fulfilled_by = adminWorkerId;
+  }
+
+  const { error } = await supabase
+    .from('redemption_history')
+    .update(updatePayload)
+    .eq('id', redemptionId);
+
+  if (error) {
+    throw new Error(`Gagal memperbarui status penukaran: ${error.message}`);
+  }
+
+  // Notifikasi instan ke pekerja
+  if (record?.worker_id) {
+    if (newStatus === 'processing') {
+      NotificationEngine.addNotification({
+        recipientId: record.worker_id,
+        recipientRole: 'worker',
+        type: 'reward',
+        title: '📦 Reward Sedang Disiapkan',
+        message: `Voucher "${record.item_title}" (${record.redemption_code}) sedang disiapkan oleh tim General Affairs (GA).`,
+      });
+    } else if (newStatus === 'ready_for_pickup') {
+      NotificationEngine.addNotification({
+        recipientId: record.worker_id,
+        recipientRole: 'worker',
+        type: 'reward',
+        title: '🎉 Reward Siap Diambil di GA!',
+        message: `Kabar baik! Hadiah "${record.item_title}" (${record.redemption_code}) sudah siap diambil di ruang GA. Silakan tunjukkan QR Code voucher Anda kepada petugas.`,
+      });
+    }
+
+    try {
+      await supabase.from('activity_log').insert({
+        worker_id: record.worker_id,
+        worker_name: (record as any)?.worker?.name,
+        action: 'reward_redeemed',
+        detail: `Status Reward "${record.item_title}" diperbarui ke "${newStatus}" oleh ${adminWorkerId}`,
+      });
+    } catch {}
+  }
+}
+
+/**
  * Membatalkan penukaran reward, merefund poin pekerja, dan memulihkan stok item.
  */
 export async function cancelAndRefundRedemption(

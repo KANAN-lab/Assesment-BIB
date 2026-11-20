@@ -127,7 +127,7 @@ export interface RewardHistory {
   deductedPrestige?: number;
   redeemedAt: string;
   redemptionCode: string;
-  status?: 'pending' | 'completed' | 'cancelled';
+  status?: 'pending' | 'processing' | 'ready_for_pickup' | 'completed' | 'cancelled';
   expiryDate?: string;
   fulfilledAt?: string;
   fulfilledBy?: string;
