@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import {
   X, Truck, Sparkles, UploadCloud, Loader2, ScanLine,
-  AlertTriangle, CheckCircle2, FileText, Info, Check
+  AlertTriangle, CheckCircle2, FileText, Info, Check, Eye, ZoomIn
 } from 'lucide-react';
 import { WorkerProfile } from '../types/assessment';
 import { SioAiService, ExtractedSioData } from '../lib/sioAiService';
@@ -45,6 +45,18 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
   const [formNotes, setFormNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState('Menyimpan...');
+  const [isZoomingImage, setIsZoomingImage] = useState(false);
+
+  const isExpired = useMemo(() => {
+    if (!formExpiryDate) return false;
+    const today = new Date().toISOString().split('T')[0];
+    return formExpiryDate < today;
+  }, [formExpiryDate]);
+
+  const handleCleanLicenseNumber = () => {
+    if (!formLicenseNumber) return;
+    setFormLicenseNumber(formLicenseNumber.trim().toUpperCase().replace(/\s+/g, ' '));
+  };
 
   // Lock scroll and listen for Escape key
   useEffect(() => {
@@ -128,6 +140,15 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
       SwalService.warning(
         'Data Belum Lengkap',
         'Mohon pilih Jenis Sertifikasi / SIO, lengkapi Nomor SIO, Tanggal Diterbitkan, dan Tanggal Kedaluwarsa lisensi.'
+      );
+      return;
+    }
+
+    const today = new Date().toISOString().split('T')[0];
+    if (formIssuedDate > today) {
+      SwalService.warning(
+        'Tanggal Terbit Tidak Valid',
+        'Tanggal diterbitkan lisensi tidak boleh berada di masa depan.'
       );
       return;
     }
@@ -219,7 +240,9 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
       className="fixed inset-0 z-[9999] overflow-y-auto bg-black/85 backdrop-blur-md p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in"
     >
       <div
-        className="relative w-full max-w-lg bg-zinc-950 border border-zinc-800 rounded-3xl p-5 sm:p-6 shadow-2xl text-left space-y-4 my-8"
+        className={`relative w-full ${
+          imagePreview ? 'max-w-4xl' : 'max-w-lg'
+        } bg-zinc-950 border border-zinc-800 rounded-3xl p-5 sm:p-6 shadow-2xl text-left space-y-4 my-8 transition-all`}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close Button */}
@@ -249,7 +272,7 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
           </div>
         </div>
 
-        {/* AI Scanner Dropzone Card */}
+        {/* AI Scanner Dropzone Header */}
         <div className="p-4 rounded-2xl bg-gradient-to-r from-indigo-950/40 via-purple-950/20 to-zinc-900 border border-indigo-500/30 space-y-3">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-2">
@@ -316,147 +339,211 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
               <span>{scanError}</span>
             </div>
           )}
+        </div>
 
-          {/* Image / PDF Preview & Extracted Summary */}
-          {imagePreview && !isScanning && (
-            <div className="flex items-center gap-3 p-2.5 rounded-xl bg-zinc-950/80 border border-zinc-800">
-              {isPdf ? (
-                <div className="w-14 h-12 rounded-lg border border-red-500/30 bg-red-950/30 flex flex-col items-center justify-center shrink-0 text-red-400">
-                  <FileText className="w-5 h-5" />
-                  <span className="text-[8px] font-bold mt-0.5">PDF SIO</span>
-                </div>
-              ) : (
-                <img
-                  src={imagePreview}
-                  alt="SIO Preview"
-                  className="w-14 h-12 object-cover rounded-lg border border-zinc-700 shrink-0"
-                />
-              )}
-              <div className="flex-1 min-w-0 text-[11px]">
-                <div className="text-zinc-200 font-bold flex items-center gap-1.5">
+        {/* Content Area: Split View if Image Preview Available */}
+        <div className={`grid ${imagePreview ? 'grid-cols-1 md:grid-cols-12 gap-5' : 'grid-cols-1'}`}>
+          {/* Left Column: Visual Document Preview */}
+          {imagePreview && (
+            <div className="md:col-span-5 flex flex-col space-y-3">
+              <div className="relative rounded-2xl overflow-hidden border border-zinc-800 bg-zinc-900 flex items-center justify-center group h-64 sm:h-72">
+                {isPdf ? (
+                  <div className="flex flex-col items-center justify-center p-6 text-center text-red-400">
+                    <FileText className="w-12 h-12 mb-2" />
+                    <span className="text-xs font-bold">Dokumen PDF Terunggah</span>
+                    <span className="text-[10px] text-zinc-500 mt-1">{uploadedFile?.name}</span>
+                  </div>
+                ) : (
+                  <>
+                    <img
+                      src={imagePreview}
+                      alt="Pratinjau SIO"
+                      className="w-full h-full object-contain p-2"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setIsZoomingImage(true)}
+                      className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-bold backdrop-blur-[2px]"
+                    >
+                      <ZoomIn className="w-4 h-4" />
+                      <span>Perbesar Dokumen</span>
+                    </button>
+                  </>
+                )}
+              </div>
+
+              {/* Ekstraksi AI Highlight */}
+              <div className="p-3 rounded-xl bg-zinc-900/80 border border-zinc-800 text-[11px] space-y-1">
+                <div className="font-bold text-zinc-300 flex items-center gap-1.5">
                   <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
                   <span>Hasil Pembacaan AI:</span>
                 </div>
-                <div className="text-zinc-400 text-[10px] truncate mt-0.5">
+                <div className="text-zinc-400 text-[10px] leading-relaxed">
                   {extractedMeta?.licenseNumber ? (
-                    <>No: <span className="text-amber-300 font-mono font-bold">{extractedMeta.licenseNumber}</span> · Exp: {extractedMeta.expiryDate || '-'}</>
+                    <>
+                      <div>No SIO: <span className="text-amber-300 font-mono font-bold">{extractedMeta.licenseNumber}</span></div>
+                      <div>Masa Berlaku: {extractedMeta.expiryDate || '-'}</div>
+                      <div>Instansi: {extractedMeta.issuingAuthority || '-'}</div>
+                    </>
                   ) : (
-                    'Dokumen siap. Periksa dan simpan form di bawah.'
+                    <span>Foto terbaca. Silakan verifikasi dan koreksi isian di samping bila diperlukan.</span>
                   )}
                 </div>
               </div>
             </div>
           )}
+
+          {/* Right Column: Verification & Human Correction Form */}
+          <div className={imagePreview ? 'md:col-span-7' : 'w-full'}>
+            <form onSubmit={handleSubmit} className="space-y-3 text-xs">
+              <div className="space-y-1">
+                <label className="font-bold text-zinc-300">Jenis Sertifikasi / SIO *</label>
+                <SearchableSelect
+                  value={formLicenseType}
+                  onChange={(v) => setFormLicenseType(v as LicenseType)}
+                  placeholder="-- Pilih Jenis Sertifikasi / SIO --"
+                  searchPlaceholder="Cari jenis lisensi..."
+                  options={[
+                    { value: 'SIO Forklift (Kelas II)', label: 'SIO Forklift (Kelas II)', sublabel: 'Operator Forklift' },
+                    { value: 'SIO Reach Truck (Kelas I)', label: 'SIO Reach Truck (Kelas I)', sublabel: 'High-Rack Operator' },
+                    { value: 'SIM B2 Umum (Ekspedisi)', label: 'SIM B2 Umum (Ekspedisi)', sublabel: 'Driver Wingbox / Ekspedisi' },
+                    { value: 'Ahli K3 Umum Kemenaker', label: 'Ahli K3 Umum Kemenaker' },
+                    { value: 'Petugas P3K (First Aid)', label: 'Petugas P3K (First Aid)' },
+                    { value: 'Auditor SMK3 / 5S', label: 'Auditor SMK3 / 5S' },
+                  ]}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="font-bold text-zinc-300">Nomor SIO / Lisensi K3 *</label>
+                    <button
+                      type="button"
+                      onClick={handleCleanLicenseNumber}
+                      className="text-[10px] text-amber-400 hover:text-amber-300 font-semibold underline"
+                      title="Rapikan format spasi & huruf kapital"
+                    >
+                      Rapikan Format
+                    </button>
+                  </div>
+                  <input
+                    type="text"
+                    value={formLicenseNumber}
+                    onChange={(e) => setFormLicenseNumber(e.target.value)}
+                    placeholder="Contoh: 6343120624/A-OFK2/32/VI/2024"
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-amber-300 font-mono font-bold uppercase focus:outline-none focus:border-amber-500"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-zinc-300">Lembaga Penerbit *</label>
+                  <input
+                    type="text"
+                    value={formAuthority}
+                    onChange={(e) => setFormAuthority(e.target.value)}
+                    placeholder="Kementerian Ketenagakerjaan RI"
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-amber-500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div className="space-y-1">
+                  <label className="font-bold text-zinc-300">Tanggal Diterbitkan *</label>
+                  <input
+                    type="date"
+                    value={formIssuedDate}
+                    onChange={(e) => setFormIssuedDate(e.target.value)}
+                    className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-amber-500"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-bold text-zinc-300">Tanggal Habis Masa Berlaku *</label>
+                  <input
+                    type="date"
+                    value={formExpiryDate}
+                    onChange={(e) => setFormExpiryDate(e.target.value)}
+                    className={`w-full bg-zinc-900 border rounded-xl p-2.5 font-bold focus:outline-none ${
+                      isExpired ? 'border-amber-500 text-amber-300' : 'border-zinc-800 text-white focus:border-amber-500'
+                    }`}
+                    required
+                  />
+                  {isExpired && (
+                    <div className="text-[10px] text-amber-400 font-bold flex items-center gap-1 mt-0.5 animate-pulse">
+                      <AlertTriangle className="w-3 h-3 shrink-0" />
+                      <span>Perhatian: Lisensi ini terdeteksi sudah habis masa berlaku</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="font-bold text-zinc-300">Catatan / Spesifikasi Alat (Opsional)</label>
+                <input
+                  type="text"
+                  value={formNotes}
+                  onChange={(e) => setFormNotes(e.target.value)}
+                  placeholder="Contoh: Kapasitas angkut 3 Ton, Diesel Forklift"
+                  className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-zinc-300 focus:outline-none focus:border-amber-500"
+                />
+              </div>
+
+              <div className="pt-3 flex items-center justify-end gap-2 border-t border-zinc-800/80">
+                <button
+                  type="button"
+                  onClick={onClose}
+                  className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-xl font-bold transition border border-zinc-800"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-950"
+                >
+                  {isSaving ? (
+                    <>
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <span>{saveStatus}</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Simpan & Verifikasi SIO (+{sioRewardPts} PTS)</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
 
-        {/* Verification Form */}
-        <form onSubmit={handleSubmit} className="space-y-3 text-xs">
-          <div className="space-y-1">
-            <label className="font-bold text-zinc-300">Jenis Sertifikasi / SIO:</label>
-            <SearchableSelect
-              value={formLicenseType}
-              onChange={(v) => setFormLicenseType(v as LicenseType)}
-              placeholder="-- Pilih Jenis Sertifikasi / SIO --"
-              searchPlaceholder="Cari jenis lisensi..."
-              options={[
-                { value: 'SIO Forklift (Kelas II)', label: 'SIO Forklift (Kelas II)', sublabel: 'Operator Forklift' },
-                { value: 'SIO Reach Truck (Kelas I)', label: 'SIO Reach Truck (Kelas I)', sublabel: 'High-Rack Operator' },
-                { value: 'SIM B2 Umum (Ekspedisi)', label: 'SIM B2 Umum (Ekspedisi)', sublabel: 'Driver Wingbox / Ekspedisi' },
-                { value: 'Ahli K3 Umum Kemenaker', label: 'Ahli K3 Umum Kemenaker' },
-                { value: 'Petugas P3K (First Aid)', label: 'Petugas P3K (First Aid)' },
-                { value: 'Auditor SMK3 / 5S', label: 'Auditor SMK3 / 5S' },
-              ]}
-            />
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <div className="space-y-1">
-              <label className="font-bold text-zinc-300">Nomor SIO / Lisensi K3:</label>
-              <input
-                type="text"
-                value={formLicenseNumber}
-                onChange={(e) => setFormLicenseNumber(e.target.value)}
-                placeholder="Contoh: 6343120624/A-OFK2/32/VI/2024"
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-amber-300 font-mono font-bold uppercase focus:outline-none focus:border-amber-500"
-                required
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-zinc-300">Lembaga Penerbit:</label>
-              <input
-                type="text"
-                value={formAuthority}
-                onChange={(e) => setFormAuthority(e.target.value)}
-                placeholder="Kementerian Ketenagakerjaan RI"
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-amber-500"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-            <div className="space-y-1">
-              <label className="font-bold text-zinc-300">Tanggal Diterbitkan:</label>
-              <input
-                type="date"
-                value={formIssuedDate}
-                onChange={(e) => setFormIssuedDate(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-white focus:outline-none focus:border-amber-500"
-                required
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-zinc-300">Tanggal Habis Masa Berlaku:</label>
-              <input
-                type="date"
-                value={formExpiryDate}
-                onChange={(e) => setFormExpiryDate(e.target.value)}
-                className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-white font-bold focus:outline-none focus:border-amber-500"
-                required
-              />
-            </div>
-          </div>
-
-          <div className="space-y-1">
-            <label className="font-bold text-zinc-300">Catatan / Spesifikasi (Opsional):</label>
-            <input
-              type="text"
-              value={formNotes}
-              onChange={(e) => setFormNotes(e.target.value)}
-              placeholder="Contoh: Kapasitas angkut 3 Ton, Diesel Forklift"
-              className="w-full bg-zinc-900 border border-zinc-800 rounded-xl p-2.5 text-zinc-300 focus:outline-none focus:border-amber-500"
-            />
-          </div>
-
-          <div className="pt-2 flex items-center justify-end gap-2">
+        {/* Fullscreen Lightbox Zoom Modal */}
+        {isZoomingImage && imagePreview && (
+          <div
+            className="fixed inset-0 z-[10000] bg-black/95 backdrop-blur-md p-4 flex flex-col items-center justify-center animate-fade-in"
+            onClick={() => setIsZoomingImage(false)}
+          >
             <button
               type="button"
-              onClick={onClose}
-              className="px-4 py-2 bg-zinc-900 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-xl font-bold transition border border-zinc-800"
+              onClick={() => setIsZoomingImage(false)}
+              className="absolute top-4 right-4 p-2 bg-zinc-900 rounded-full text-zinc-400 hover:text-white border border-zinc-800"
             >
-              Batal
+              <X className="w-6 h-6" />
             </button>
-            <button
-              type="submit"
-              disabled={isSaving}
-              className="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-xl font-bold transition flex items-center gap-1.5 shadow-lg shadow-emerald-950"
-            >
-              {isSaving ? (
-                <>
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <span>{saveStatus}</span>
-                </>
-              ) : (
-                <>
-                  <Check className="w-3.5 h-3.5" />
-                  <span>Simpan & Verifikasi SIO (+{sioRewardPts} PTS)</span>
-                </>
-              )}
-            </button>
+            <img
+              src={imagePreview}
+              alt="SIO Zoom"
+              className="max-w-full max-h-[90vh] object-contain rounded-xl shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            />
           </div>
-        </form>
+        )}
       </div>
     </div>,
     document.body

@@ -1379,12 +1379,12 @@
 - [x] **Affected Files**: `src/components/admin/AdminRewardCatalogPanel.tsx`, `src/components/RewardMarketplace.tsx`, `src/lib/supabaseService.ts`, `src/types/assessment.ts`, `src/components/WorkerHistoryCenterModal.tsx`.
 
 ### Task 40.3: Koreksi Manual Fleksibel pada Upload SIO MHE (Human-in-the-Loop OCR)
-- [ ] **Objective**: Mencegah data salah input pada lisensi operator akibat foto buram atau silau pencahayaan gudang.
-- [ ] **Acceptance Criteria**:
-  - **AC1**: Setelah foto SIO dianalisis oleh Gemini OCR, sistem menampilkan modal review berdampingan (foto asli vs form hasil ekstraksi AI).
-  - **AC2**: Operator dapat langsung mengedit nomor SIO, tipe alat (Forklift/Reach Truck), dan tanggal kedaluwarsa sebelum disimpan ke database.
-  - **AC3**: Validasi format tanggal Indonesia/WIB mencegah kesalahan urutan hari dan bulan.
-- [ ] **Affected Files**: `src/components/WorkerSioUploadModal.tsx`, `src/lib/sioAiService.ts`, `src/lib/licenseService.ts`.
+- [x] **Objective**: Mencegah data salah input pada lisensi operator akibat foto buram atau silau pencahayaan gudang.
+- [x] **Acceptance Criteria**:
+  - [x] **AC1**: Modal interaktif responsif menampilkan pratinjau dokumen HD (foto/PDF) berdampingan dengan form verifikasi serta dukungan fullscreen lightbox zoom.
+  - [x] **AC2**: Operator dapat mengedit nomor SIO, memilih jenis lisensi, dan mengoreksi tanggal kedaluwarsa dengan tombol "Rapikan Format" instan.
+  - [x] **AC3**: Validasi cerdas mendeteksi lisensi kedaluwarsa (badge alert) serta memblokir tanggal diterbitkan di masa depan (`issuedDate > today`).
+- [x] **Affected Files**: `src/components/WorkerSioUploadModal.tsx`, `src/lib/sioAiService.ts`.
 
 ### Task 40.4: Alur CAPA (Corrective Action & Preventive Action) Insiden K3
 - [ ] **Objective**: Memastikan setiap laporan insiden/kondisi bahaya memiliki penanggung jawab riil dan bukti perbaikan fisik di lapangan.
