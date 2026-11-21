@@ -44,10 +44,11 @@ export const BibRadarChart: React.FC<BibRadarChartProps> = ({
   const hasPreviousData = useMemo(() => Object.keys(prevSummariesMap).length > 0, [prevSummariesMap]);
 
   const categoryData = useMemo(() => {
+    const totalScore = worker.bibScores?.totalScore ?? 75;
     const summaries = matrixEngine.calculateCategorySummaries(
       worker.role,
       competencyScores,
-      worker.bibScores.totalScore
+      totalScore
     );
     return summaries.map(c => {
       const prevVal = prevSummariesMap[c.category];
@@ -63,11 +64,11 @@ export const BibRadarChart: React.FC<BibRadarChartProps> = ({
         fullMark: 100,
       };
     });
-  }, [worker.role, competencyScores, worker.bibScores.totalScore, prevSummariesMap]);
+  }, [worker.role, competencyScores, worker.bibScores?.totalScore, prevSummariesMap]);
 
   const overallPct = useMemo(
-    () => matrixEngine.calculateOverallPercentage(worker.role, competencyScores, worker.bibScores.totalScore),
-    [worker.role, competencyScores, worker.bibScores.totalScore]
+    () => matrixEngine.calculateOverallPercentage(worker.role, competencyScores, worker.bibScores?.totalScore ?? 75),
+    [worker.role, competencyScores, worker.bibScores?.totalScore]
   );
 
   const getGrade = (score: number) => {

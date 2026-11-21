@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { WorkerProfile } from '../types/assessment';
 import { WorkerAvatar } from './WorkerAvatar';
@@ -28,6 +28,128 @@ export const QrBadgeScannerModal: React.FC<QrBadgeScannerModalProps> = ({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
+  const qrScannerRef = useRef<any>(null);
+  const scanIntervalRef = useRef<number | null>(null);
+
+  const stopCamera = useCallback(() => {
+    if (qrScannerRef.current) {
+      try {
+        qrScannerRef.current.stop();
+        qrScannerRef.current.destroy();
+      } catch {}
+      qrScannerRef.current = null;
+    }
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
+    }
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((t) => t.stop());
+      streamRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setCameraActive(false);
+  }, []);
+
+  const handleDetectedCode = useCallback(
+    (code: string) => {
+      if (!code) return;
+      const clean = code.trim().toLowerCase();
+      const found = workers.find(
+        (w) =>
+          (w.employeeId && w.employeeId.toLowerCase() === clean) ||
+          w.id.toLowerCase() === clean ||
+          w.name.toLowerCase() === clean
+      );
+      if (found) {
+        setSelectedWorker(found);
+        stopCamera();
+      }
+    },
+    [workers, stopCamera]
+  );
+
+  const startBarcodeDetection = useCallback(() => {
+    if ('BarcodeDetector' in window) {
+      try {
+        const detector = new (window as any).BarcodeDetector({
+          formats: ['qr_code', 'code_128', 'ean_13', 'code_39'],
+        });
+
+        scanIntervalRef.current = window.setInterval(async () => {
+          if (!videoRef.current || videoRef.current.readyState < 2) return;
+          try {
+            const barcodes = await detector.detect(videoRef.current);
+            if (barcodes.length > 0) {
+              const raw = barcodes[0].rawValue;
+              if (raw) handleDetectedCode(raw);
+            }
+          } catch {
+            // Frame detection error, skip silently
+          }
+        }, 300);
+      } catch (e) {
+        console.warn('BarcodeDetector error, fallback active:', e);
+      }
+    }
+  }, [handleDetectedCode]);
+
+  const startCamera = async () => {
+    try {
+      setCameraError(null);
+      // 1. First set camera active so DOM video node mounts
+      setCameraActive(true);
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()))
+      );
+
+      // 2. Request camera stream
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+        },
+      });
+      streamRef.current = stream;
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play().catch(() => {});
+      }
+
+      // 3. Initiate scanning engine: BarcodeDetector API or qr-scanner fallback
+      if ('BarcodeDetector' in window) {
+        startBarcodeDetection();
+      } else {
+        const { default: QrScanner } = await import('qr-scanner');
+        if (videoRef.current) {
+          const scanner = new QrScanner(
+            videoRef.current,
+            (result) => {
+              const val = result.data;
+              if (val) handleDetectedCode(val);
+            },
+            {
+              preferredCamera: 'environment',
+              returnDetailedScanResult: true,
+              highlightScanRegion: false,
+              highlightCodeOutline: false,
+              maxScansPerSecond: 5,
+            }
+          );
+          qrScannerRef.current = scanner;
+          await scanner.start();
+        }
+      }
+    } catch (err: any) {
+      console.warn('Camera access error:', err);
+      setCameraError('Kamera tidak dapat diakses atau izin ditolak. Silakan gunakan input NIK / Nama di bawah.');
+      stopCamera();
+    }
+  };
 
   // Auto focus, reset, scroll lock and Escape key listener when opened
   useEffect(() => {
@@ -54,34 +176,9 @@ export const QrBadgeScannerModal: React.FC<QrBadgeScannerModalProps> = ({
     }
     return () => {
       document.body.style.overflow = 'unset';
+      stopCamera();
     };
-  }, [isOpen, onClose]);
-
-  const startCamera = async () => {
-    try {
-      setCameraError(null);
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment' },
-      });
-      streamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-      setCameraActive(true);
-    } catch (err: any) {
-      console.warn('Camera access error:', err);
-      setCameraError('Kamera tidak dapat diakses atau izin ditolak. Silakan gunakan input NIK / Nama di bawah.');
-      setCameraActive(false);
-    }
-  };
-
-  const stopCamera = () => {
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((t) => t.stop());
-      streamRef.current = null;
-    }
-    setCameraActive(false);
-  };
+  }, [isOpen, onClose, stopCamera]);
 
   if (!isOpen) return null;
 
@@ -142,7 +239,13 @@ export const QrBadgeScannerModal: React.FC<QrBadgeScannerModalProps> = ({
             {cameraActive ? (
               <div className="relative aspect-video max-h-56 bg-black rounded-lg overflow-hidden flex items-center justify-center">
                 <video
-                  ref={videoRef}
+                  ref={(el) => {
+                    videoRef.current = el;
+                    if (el && streamRef.current && el.srcObject !== streamRef.current) {
+                      el.srcObject = streamRef.current;
+                      el.play().catch(() => {});
+                    }
+                  }}
                   autoPlay
                   playsInline
                   muted

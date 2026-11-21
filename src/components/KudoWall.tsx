@@ -17,6 +17,11 @@ export function KudoWall({ currentWorkerId, currentUserRole }: KudoWallProps) {
   const [reactionLoading, setReactionLoading] = useState<string | null>(null);
   const [selectedTagFilter, setSelectedTagFilter] = useState<string>('all');
 
+  const displayedKudos = useMemo(() => {
+    if (selectedTagFilter === 'all') return kudos;
+    return kudos.filter((k) => k.message && k.message.includes(selectedTagFilter));
+  }, [kudos, selectedTagFilter]);
+
   const isSupervisorOrAdmin = currentUserRole === 'supervisor' || currentUserRole === 'admin' || currentUserRole === 'SYSTEM_ADMIN';
 
   const fetchKudos = useCallback(async () => {
@@ -151,11 +156,6 @@ export function KudoWall({ currentWorkerId, currentUserRole }: KudoWallProps) {
       </div>
     );
   }
-
-  const displayedKudos = useMemo(() => {
-    if (selectedTagFilter === 'all') return kudos;
-    return kudos.filter((k) => k.message && k.message.includes(selectedTagFilter));
-  }, [kudos, selectedTagFilter]);
 
   if (kudos.length === 0) {
     return (
