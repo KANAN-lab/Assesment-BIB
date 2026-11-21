@@ -636,7 +636,7 @@ export const App: React.FC = () => {
     return () => window.removeEventListener('gappy_points_awarded', handlePointsAwarded);
   }, [currentWorker]);
 
-  // Listen for real-time redemption cancellation events to reset voucher status & limits
+  // Listen for real-time redemption stage & cancellation events to sync status
   useEffect(() => {
     const handleRedemptionCancelled = (e: Event) => {
       const customEvt = e as CustomEvent;
@@ -648,8 +648,22 @@ export const App: React.FC = () => {
       }
     };
 
+    const handleStageUpdate = (e: Event) => {
+      const customEvt = e as CustomEvent;
+      const { redemptionId, status } = customEvt.detail || {};
+      if (redemptionId && status) {
+        setRedemptionHistory((prev) =>
+          prev.map((r) => (r.id === redemptionId ? { ...r, status } : r))
+        );
+      }
+    };
+
     window.addEventListener('gappy_redemption_cancelled', handleRedemptionCancelled);
-    return () => window.removeEventListener('gappy_redemption_cancelled', handleRedemptionCancelled);
+    window.addEventListener('gappy_redemption_stage_updated', handleStageUpdate);
+    return () => {
+      window.removeEventListener('gappy_redemption_cancelled', handleRedemptionCancelled);
+      window.removeEventListener('gappy_redemption_stage_updated', handleStageUpdate);
+    };
   }, []);
 
   // Initial load with session restoration & offline resilience fallback

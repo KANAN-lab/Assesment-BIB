@@ -222,6 +222,16 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
 
   useEffect(() => {
     loadAllRedemptions();
+
+    const handleStageUpdate = (e: any) => {
+      if (e.detail?.redemptionId && e.detail?.status) {
+        setAllRedemptions((prev) =>
+          prev.map((r) => (r.id === e.detail.redemptionId ? { ...r, status: e.detail.status } : r))
+        );
+      }
+    };
+    window.addEventListener('gappy_redemption_stage_updated', handleStageUpdate);
+    return () => window.removeEventListener('gappy_redemption_stage_updated', handleStageUpdate);
   }, []);
 
   const handleFulfillFromAdmin = async (redemptionId: string) => {

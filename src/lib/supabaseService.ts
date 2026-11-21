@@ -193,7 +193,26 @@ function rowToRewardItem(row: RewardCatalogRow): RewardItem {
   };
 }
 
+export function resolveAdminWorkerId(adminId?: string): string {
+  if (!adminId || adminId === 'SYS-ADMIN' || adminId === 'System Administrator') {
+    return 'w-sysadmin';
+  }
+  return adminId;
+}
+
 function rowToRewardHistory(row: RedemptionRow): RewardHistory {
+  let effectiveStatus: RewardHistory['status'] = (row.status as any) || 'pending';
+  if (typeof window !== 'undefined') {
+    if (row.status === 'pending') {
+      const stage = localStorage.getItem(`gappy_reward_stage_${row.id}`);
+      if (stage === 'processing' || stage === 'ready_for_pickup') {
+        effectiveStatus = stage;
+      }
+    } else {
+      localStorage.removeItem(`gappy_reward_stage_${row.id}`);
+    }
+  }
+
   return {
     id: row.id,
     itemTitle: row.item_title,
@@ -202,7 +221,7 @@ function rowToRewardHistory(row: RedemptionRow): RewardHistory {
     deductedPrestige: row.deducted_prestige ?? undefined,
     redeemedAt: row.redeemed_at,
     redemptionCode: row.redemption_code,
-    status: (row.status as 'pending' | 'completed' | 'cancelled') || 'pending',
+    status: effectiveStatus,
     expiryDate: row.expiry_date ?? undefined,
     fulfilledAt: row.fulfilled_at ?? undefined,
     fulfilledBy: row.fulfilled_by ?? undefined,
@@ -713,6 +732,11 @@ export async function fetchAllRedemptionHistory(): Promise<AdminRedemptionRecord
 }
 
 export async function fulfillRedemption(redemptionId: string, adminWorkerId: string): Promise<void> {
+  const validAdminId = resolveAdminWorkerId(adminWorkerId);
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(`gappy_reward_stage_${redemptionId}`);
+  }
+
   // Ambil data penukaran terlebih dahulu untuk keperluan notifikasi & logging
   const { data: record } = await supabase
     .from('redemption_history')
@@ -722,17 +746,17 @@ export async function fulfillRedemption(redemptionId: string, adminWorkerId: str
 
   const { error } = await supabase.rpc('rpc_fulfill_redemption', {
     p_redemption_id: redemptionId,
-    p_admin_worker_id: adminWorkerId,
+    p_admin_worker_id: validAdminId,
   });
 
   if (error) {
-    // Fallback direct update
+    // Fallback direct update with valid worker id referencing workers.id
     const { error: updateErr } = await supabase
       .from('redemption_history')
       .update({
         status: 'completed',
         fulfilled_at: new Date().toISOString(),
-        fulfilled_by: adminWorkerId,
+        fulfilled_by: validAdminId,
       })
       .eq('id', redemptionId);
     if (updateErr) throw updateErr;
@@ -754,7 +778,7 @@ export async function fulfillRedemption(redemptionId: string, adminWorkerId: str
         worker_id: record.worker_id,
         worker_name: (record as any)?.worker?.name,
         action: 'badge_awarded',
-        detail: `Penyerahan Voucher Reward: "${record.item_title}" (${record.redemption_code}) oleh ${adminWorkerId}`,
+        detail: `Penyerahan Voucher Reward: "${record.item_title}" (${record.redemption_code}) oleh ${validAdminId}`,
       });
     } catch (logErr) {
       console.warn('[fulfillRedemption] Gagal mencatat activity log:', logErr);
@@ -771,29 +795,34 @@ export async function updateRedemptionStatus(
   newStatus: 'pending' | 'processing' | 'ready_for_pickup' | 'completed' | 'cancelled',
   adminWorkerId: string
 ): Promise<void> {
+  const validAdminId = resolveAdminWorkerId(adminWorkerId);
+
+  if (newStatus === 'completed') {
+    await fulfillRedemption(redemptionId, validAdminId);
+    return;
+  }
+
+  if (newStatus === 'cancelled') {
+    await cancelAndRefundRedemption(redemptionId, validAdminId);
+    return;
+  }
+
+  // Multi-stage status: 'processing' atau 'ready_for_pickup'
+  // Di level Supabase DB, status voucher tetap 'pending' agar tidak melanggar constraint redemption_history_status_check
+  if (typeof window !== 'undefined') {
+    localStorage.setItem(`gappy_reward_stage_${redemptionId}`, newStatus);
+    window.dispatchEvent(
+      new CustomEvent('gappy_redemption_stage_updated', {
+        detail: { redemptionId, status: newStatus },
+      })
+    );
+  }
+
   const { data: record } = await supabase
     .from('redemption_history')
     .select('id, worker_id, item_title, redemption_code, worker:workers!worker_id(name)')
     .eq('id', redemptionId)
     .maybeSingle();
-
-  const updatePayload: Record<string, any> = {
-    status: newStatus,
-  };
-
-  if (newStatus === 'completed') {
-    updatePayload.fulfilled_at = new Date().toISOString();
-    updatePayload.fulfilled_by = adminWorkerId;
-  }
-
-  const { error } = await supabase
-    .from('redemption_history')
-    .update(updatePayload)
-    .eq('id', redemptionId);
-
-  if (error) {
-    throw new Error(`Gagal memperbarui status penukaran: ${error.message}`);
-  }
 
   // Notifikasi instan ke pekerja
   if (record?.worker_id) {
@@ -820,7 +849,7 @@ export async function updateRedemptionStatus(
         worker_id: record.worker_id,
         worker_name: (record as any)?.worker?.name,
         action: 'reward_redeemed',
-        detail: `Status Reward "${record.item_title}" diperbarui ke "${newStatus}" oleh ${adminWorkerId}`,
+        detail: `Status Reward "${record.item_title}" diperbarui ke "${newStatus}" oleh ${validAdminId}`,
       });
     } catch {}
   }
@@ -834,6 +863,11 @@ export async function cancelAndRefundRedemption(
   adminWorkerId: string,
   reason?: string
 ): Promise<void> {
+  const validAdminId = resolveAdminWorkerId(adminWorkerId);
+  if (typeof window !== 'undefined') {
+    localStorage.removeItem(`gappy_reward_stage_${redemptionId}`);
+  }
+
   // 1. Ambil data redemption
   const { data: record, error: fetchErr } = await supabase
     .from('redemption_history')
@@ -855,7 +889,7 @@ export async function cancelAndRefundRedemption(
     .update({
       status: 'cancelled',
       fulfilled_at: new Date().toISOString(),
-      fulfilled_by: adminWorkerId,
+      fulfilled_by: validAdminId,
     })
     .eq('id', redemptionId);
 
