@@ -2,9 +2,12 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { WorkerProfile } from '../types/assessment';
 import { WorkerAvatar } from './WorkerAvatar';
+import { LicenseService } from '../lib/licenseService';
+import { MheLicenseEntity } from '../types/license';
 import {
   QrCode, X, Search, ShieldCheck, AlertTriangle, CheckCircle2,
-  Award, Clock, HardHat, Truck, UserCheck, Camera, Sparkles, AlertCircle
+  Award, Clock, HardHat, Truck, UserCheck, Camera, Sparkles, AlertCircle,
+  ExternalLink, RefreshCw
 } from 'lucide-react';
 
 interface QrBadgeScannerModalProps {
@@ -26,6 +29,8 @@ export const QrBadgeScannerModal: React.FC<QrBadgeScannerModalProps> = ({
   const [selectedWorker, setSelectedWorker] = useState<WorkerProfile | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [licensesSyncing, setLicensesSyncing] = useState(false);
+  const [, setLicenseRevision] = useState(0);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const qrScannerRef = useRef<any>(null);
@@ -56,12 +61,16 @@ export const QrBadgeScannerModal: React.FC<QrBadgeScannerModalProps> = ({
   const handleDetectedCode = useCallback(
     (code: string) => {
       if (!code) return;
-      const clean = code.trim().toLowerCase();
+      const clean = code
+        .trim()
+        .replace(/^(nip|nik|id)\s*[:\-]\s*/i, '')
+        .trim()
+        .toLowerCase();
       const found = workers.find(
         (w) =>
-          (w.employeeId && w.employeeId.toLowerCase() === clean) ||
-          w.id.toLowerCase() === clean ||
-          w.name.toLowerCase() === clean
+          (w.employeeId && w.employeeId.trim().toLowerCase() === clean) ||
+          w.id.trim().toLowerCase() === clean ||
+          w.name.trim().toLowerCase() === clean
       );
       if (found) {
         setSelectedWorker(found);
@@ -151,7 +160,7 @@ export const QrBadgeScannerModal: React.FC<QrBadgeScannerModalProps> = ({
     }
   };
 
-  // Auto focus, reset, scroll lock and Escape key listener when opened
+  // Auto focus, reset, scroll lock, sync live SIO licenses, and Escape key listener when opened
   useEffect(() => {
     if (isOpen) {
       document.body.style.overflow = 'hidden';
@@ -160,15 +169,27 @@ export const QrBadgeScannerModal: React.FC<QrBadgeScannerModalProps> = ({
           onClose();
         }
       };
+      const handleLicenseUpdate = () => {
+        setLicenseRevision((v) => v + 1);
+      };
       window.addEventListener('keydown', handleKeyDown);
+      window.addEventListener('gappy_licenses_updated', handleLicenseUpdate);
 
       setSearchQuery('');
       setSelectedWorker(null);
       setCameraError(null);
 
+      // Background sync dari Supabase mhe_licenses agar verifikasi lapangan selalu akurat lintas perangkat
+      setLicensesSyncing(true);
+      LicenseService.fetchLicensesFromSupabase()
+        .then(() => setLicenseRevision((v) => v + 1))
+        .catch(() => {})
+        .finally(() => setLicensesSyncing(false));
+
       return () => {
         document.body.style.overflow = 'unset';
         window.removeEventListener('keydown', handleKeyDown);
+        window.removeEventListener('gappy_licenses_updated', handleLicenseUpdate);
       };
     } else {
       document.body.style.overflow = 'unset';
@@ -197,16 +218,71 @@ export const QrBadgeScannerModal: React.FC<QrBadgeScannerModalProps> = ({
     stopCamera();
   };
 
-  // Helper to determine MHE license status
-  const getMheStatus = (w: WorkerProfile) => {
-    const isForklift = w.role.toLowerCase().includes('forklift') || w.role.toLowerCase().includes('reach truck');
-    if (!isForklift) return { hasLicense: false, label: 'Bukan Operator MHE', valid: true };
+  // Real-time SIO MHE license compliance verification via LicenseService (Supabase-backed cache)
+  const getMheStatus = (w: WorkerProfile): {
+    state: 'active' | 'expiring_soon' | 'expired' | 'missing' | 'not_required';
+    label: string;
+    sublabel?: string;
+    license?: MheLicenseEntity;
+    isMheRole: boolean;
+  } => {
+    const r = (w.role || '').toLowerCase();
+    const isMheRole =
+      r.includes('forklift') ||
+      r.includes('reach truck') ||
+      r.includes('timbangan') ||
+      r.includes('mhe') ||
+      r.includes('stacker');
+
+    const license = LicenseService.getLicenseByWorkerId(w.id, w.employeeId);
+
+    if (license) {
+      if (license.status === 'expired') {
+        const overdueDays = Math.abs(license.daysRemaining || 0);
+        return {
+          state: 'expired',
+          label: `SIO Kedaluwarsa (${overdueDays}h lalu)`,
+          sublabel: `${license.licenseType} · ${license.licenseNumber}`,
+          license,
+          isMheRole,
+        };
+      }
+      if (license.status === 'expiring_soon') {
+        return {
+          state: 'expiring_soon',
+          label: `Segera Habis (H-${license.daysRemaining})`,
+          sublabel: `${license.licenseType} · ${license.licenseNumber}`,
+          license,
+          isMheRole,
+        };
+      }
+      return {
+        state: 'active',
+        label: `SIO Aktif (H-${license.daysRemaining})`,
+        sublabel: `${license.licenseType} · ${license.licenseNumber}`,
+        license,
+        isMheRole,
+      };
+    }
+
+    if (isMheRole) {
+      return {
+        state: 'missing',
+        label: 'Belum Memiliki SIO',
+        sublabel: 'Wajib SIO Kemenaker sebelum operasi',
+        isMheRole: true,
+      };
+    }
+
     return {
-      hasLicense: true,
-      label: 'SIO Aktif (Valid Kemenaker)',
-      valid: true,
+      state: 'not_required',
+      label: 'Bukan Operator MHE',
+      sublabel: 'Tidak membutuhkan SIO alat berat',
+      isMheRole: false,
     };
   };
+
+  const selectedMheStatus = selectedWorker ? getMheStatus(selectedWorker) : null;
 
   return createPortal(
     <div
@@ -342,37 +418,119 @@ export const QrBadgeScannerModal: React.FC<QrBadgeScannerModalProps> = ({
           )}
 
           {/* ─── WORKER INSPECTION SUMMARY CARD ─── */}
-          {selectedWorker && (
-            <div className="bg-zinc-900/90 border border-cyan-500/40 rounded-xl p-4 space-y-3 animate-fade-in">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <WorkerAvatar name={selectedWorker.name} src={selectedWorker.avatar} className="w-12 h-12 rounded-xl" />
-                  <div>
-                    <h4 className="text-sm font-black text-white">{selectedWorker.name}</h4>
+          {selectedWorker && selectedMheStatus && (
+            <div
+              className={`bg-zinc-900/90 border rounded-xl p-4 space-y-3 animate-fade-in ${
+                selectedMheStatus.state === 'expired' || selectedMheStatus.state === 'missing'
+                  ? 'border-rose-500/60 shadow-lg shadow-rose-950/30'
+                  : selectedMheStatus.state === 'expiring_soon'
+                  ? 'border-amber-500/50'
+                  : 'border-cyan-500/40'
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-3 min-w-0">
+                  <WorkerAvatar name={selectedWorker.name} src={selectedWorker.avatar} className="w-12 h-12 rounded-xl shrink-0" />
+                  <div className="min-w-0">
+                    <h4 className="text-sm font-black text-white truncate">{selectedWorker.name}</h4>
                     <p className="text-xs font-mono text-zinc-400">
                       NIP: <strong className="text-cyan-400">{selectedWorker.employeeId}</strong> · {selectedWorker.division}
                     </p>
-                    <p className="text-[11px] text-zinc-300 font-semibold mt-0.5">{selectedWorker.role}</p>
+                    <p className="text-[11px] text-zinc-300 font-semibold mt-0.5 truncate">{selectedWorker.role}</p>
                   </div>
                 </div>
-                <button
-                  onClick={() => setSelectedWorker(null)}
-                  className="text-zinc-500 hover:text-white text-xs font-bold"
-                >
-                  Ganti
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  {licensesSyncing && (
+                    <span className="text-[10px] text-cyan-400 flex items-center gap-1" title="Menyinkronkan data SIO dari server">
+                      <RefreshCw className="w-3 h-3 animate-spin" />
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedWorker(null)}
+                    className="text-zinc-500 hover:text-white text-xs font-bold"
+                  >
+                    Ganti
+                  </button>
+                </div>
               </div>
 
-              {/* Status Grid Badges */}
-              <div className="grid grid-cols-2 gap-2 text-xs pt-1">
-                {/* MHE License Badge */}
-                <div className="p-2.5 rounded-lg bg-zinc-950 border border-zinc-800 flex items-center gap-2">
-                  <Truck className="w-4 h-4 text-amber-400 shrink-0" />
-                  <div className="min-w-0">
-                    <div className="text-[9px] text-zinc-500 font-bold uppercase">Lisensi SIO MHE</div>
-                    <div className="text-[11px] font-bold text-white truncate">
-                      {getMheStatus(selectedWorker).label}
+              {/* K3 Non-Compliance Alert Banner untuk Operator MHE tanpa SIO aktif */}
+              {(selectedMheStatus.state === 'expired' || selectedMheStatus.state === 'missing') && (
+                <div className="p-2.5 rounded-xl bg-rose-500/15 border border-rose-500/40 flex items-start gap-2 text-rose-200">
+                  <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <div className="text-[11px] leading-snug">
+                    <div className="font-black text-rose-300 uppercase tracking-wide">
+                      Peringatan K3: Tidak Layak Operasi MHE
                     </div>
+                    <p className="text-rose-200/90 mt-0.5">
+                      {selectedMheStatus.state === 'expired'
+                        ? 'Lisensi SIO operator telah melewati masa berlaku. Hentikan pengoperasian unit hingga perpanjangan diverifikasi HSE.'
+                        : 'Operator MHE belum memiliki catatan SIO Kemenaker di sistem. Wajib unggah berkas SIO terlebih dahulu.'}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* Status Grid Badges */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs pt-1">
+                {/* MHE License Badge (Live Supabase-Synced Compliance) */}
+                <div
+                  className={`p-2.5 rounded-lg border flex items-start gap-2 ${
+                    selectedMheStatus.state === 'active'
+                      ? 'bg-emerald-950/30 border-emerald-500/30'
+                      : selectedMheStatus.state === 'expiring_soon'
+                      ? 'bg-amber-950/30 border-amber-500/40'
+                      : selectedMheStatus.state === 'expired' || selectedMheStatus.state === 'missing'
+                      ? 'bg-rose-950/40 border-rose-500/40'
+                      : 'bg-zinc-950 border-zinc-800'
+                  }`}
+                >
+                  <Truck
+                    className={`w-4 h-4 shrink-0 mt-0.5 ${
+                      selectedMheStatus.state === 'active'
+                        ? 'text-emerald-400'
+                        : selectedMheStatus.state === 'expiring_soon'
+                        ? 'text-amber-400'
+                        : selectedMheStatus.state === 'expired' || selectedMheStatus.state === 'missing'
+                        ? 'text-rose-400'
+                        : 'text-zinc-500'
+                    }`}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <span className="text-[9px] text-zinc-500 font-bold uppercase">Lisensi SIO MHE</span>
+                      {selectedMheStatus.license?.documentUrl && (
+                        <a
+                          href={selectedMheStatus.license.documentUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[9px] font-bold text-cyan-400 hover:text-cyan-300 inline-flex items-center gap-0.5 shrink-0"
+                          title="Lihat dokumen bukti SIO"
+                        >
+                          <span>Berkas</span>
+                          <ExternalLink className="w-2.5 h-2.5" />
+                        </a>
+                      )}
+                    </div>
+                    <div
+                      className={`text-[11px] font-bold truncate ${
+                        selectedMheStatus.state === 'active'
+                          ? 'text-emerald-300'
+                          : selectedMheStatus.state === 'expiring_soon'
+                          ? 'text-amber-300'
+                          : selectedMheStatus.state === 'expired' || selectedMheStatus.state === 'missing'
+                          ? 'text-rose-300'
+                          : 'text-zinc-300'
+                      }`}
+                    >
+                      {selectedMheStatus.label}
+                    </div>
+                    {selectedMheStatus.sublabel && (
+                      <div className="text-[10px] text-zinc-400 truncate mt-0.5" title={selectedMheStatus.sublabel}>
+                        {selectedMheStatus.sublabel}
+                      </div>
+                    )}
                   </div>
                 </div>
 

@@ -36,6 +36,9 @@ export function AcknowledgeHandoverModal({ handovers, currentWorkerId, onAllAckn
     setError(null);
     try {
       await HandoverManager.acknowledgeHandover(currentLog.id, currentWorkerId);
+      window.dispatchEvent(
+        new CustomEvent('gappy_handover_acknowledged', { detail: { handoverId: currentLog.id } })
+      );
       
       if (currentIndex < handovers.length - 1) {
         setCurrentIndex(prev => prev + 1);

@@ -18,17 +18,39 @@ import {
   ShieldAlert,
   HelpCircle,
   Settings2,
-  ClipboardList
+  ClipboardList,
+  Loader2,
+  Check
 } from 'lucide-react';
 import { HandoverManager } from '../lib/handoverService';
 import { ShiftHandoverEntity, HandoverStatus, HandoverCategory } from '../types/handover';
 import { ShiftHandoverManager } from '../domain/ShiftHandoverManager';
+import { RoleEntity } from '../domain/RoleEntity';
+import { SwalService } from '../domain/SwalService';
 
-export function HandoverKanbanBoard() {
+interface HandoverKanbanBoardProps {
+  currentWorkerId?: string;
+  currentWorkerName?: string;
+  currentWorkerRole?: string;
+  onHandoverAcknowledged?: (handoverId: string) => void;
+}
+
+export function HandoverKanbanBoard({
+  currentWorkerId,
+  currentWorkerName,
+  currentWorkerRole,
+  onHandoverAcknowledged,
+}: HandoverKanbanBoardProps = {}) {
   const [handovers, setHandovers] = useState<ShiftHandoverEntity[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeMobileTab, setActiveMobileTab] = useState<HandoverStatus>('Tertunda');
   const [showArchived, setShowArchived] = useState(false); // false = 24h filter for 'Selesai'
+  const [acknowledgingId, setAcknowledgingId] = useState<string | null>(null);
+
+  const isManagementUser = useMemo(() => {
+    if (!currentWorkerRole) return false;
+    return RoleEntity.isManagementRole(RoleEntity.resolveSystemRole(currentWorkerRole));
+  }, [currentWorkerRole]);
 
   const fetchHandovers = async () => {
     try {
@@ -46,14 +68,75 @@ export function HandoverKanbanBoard() {
 
   useEffect(() => {
     fetchHandovers();
-    const handleSubmitted = () => {
+    const handleRefreshEvent = () => {
       fetchHandovers();
     };
-    window.addEventListener('gappy_handover_submitted', handleSubmitted);
+    window.addEventListener('gappy_handover_submitted', handleRefreshEvent);
+    window.addEventListener('gappy_handover_acknowledged', handleRefreshEvent);
     return () => {
-      window.removeEventListener('gappy_handover_submitted', handleSubmitted);
+      window.removeEventListener('gappy_handover_submitted', handleRefreshEvent);
+      window.removeEventListener('gappy_handover_acknowledged', handleRefreshEvent);
     };
   }, []);
+
+  const canQuickAcknowledge = (item: ShiftHandoverEntity): boolean => {
+    if (item.acknowledged_at || !currentWorkerId) return false;
+    // Pembuat catatan tidak boleh mengonfirmasi serah terimanya sendiri
+    if (item.author_id === currentWorkerId) return false;
+    // Penerima yang ditunjuk langsung
+    if (item.next_supervisor_id === currentWorkerId) return true;
+    // Serah terima shift umum (tanpa penerima spesifik)
+    if (!item.next_supervisor_id) return true;
+    // Pengawas / Manajemen lintas shift (cover supervisor yang absen atau eskalasi overdue)
+    return isManagementUser;
+  };
+
+  const handleQuickAcknowledge = async (item: ShiftHandoverEntity) => {
+    if (!currentWorkerId || acknowledgingId === item.id) return;
+
+    // Jika serah terima ditujukan ke pengawas lain, minta konfirmasi singkat sebelum cover
+    if (item.next_supervisor_id && item.next_supervisor_id !== currentWorkerId) {
+      const confirmed = await SwalService.confirm({
+        title: 'Konfirmasi Terima (Cover Pengawas)?',
+        text: `Catatan shift ${item.shift_type} (${item.handover_category}) ini ditujukan ke pengawas spesifik lain. Konfirmasi penerimaan atas nama Anda (${currentWorkerName || 'Pengawas'})?`,
+        confirmButtonText: 'Ya, Konfirmasi Terima',
+        isDestructive: false,
+      });
+      if (!confirmed) return;
+    }
+
+    setAcknowledgingId(item.id);
+    const optimisticAt = new Date().toISOString();
+
+    // Optimistic UI update
+    setHandovers((prev) =>
+      prev.map((h) =>
+        h.id === item.id
+          ? {
+              ...h,
+              acknowledged_at: optimisticAt,
+              acknowledged_by: currentWorkerId,
+              acknowledged_by_name: currentWorkerName || 'Anda',
+            }
+          : h
+      )
+    );
+
+    try {
+      await HandoverManager.acknowledgeHandover(item.id, currentWorkerId);
+      onHandoverAcknowledged?.(item.id);
+    } catch (err: any) {
+      console.error('Failed to quick acknowledge handover:', err);
+      // Revert optimistic update on failure
+      fetchHandovers();
+      await SwalService.error(
+        'Gagal Konfirmasi Serah Terima',
+        err?.message || 'Terjadi gangguan jaringan saat mengonfirmasi log serah terima. Silakan coba lagi.'
+      );
+    } finally {
+      setAcknowledgingId(null);
+    }
+  };
 
   // Filter out 'Selesai' older than 24 hours unless showArchived is true (delegated to ShiftHandoverManager)
   const { visible: visibleHandovers, archivedCount } = useMemo(() => {
@@ -193,70 +276,101 @@ export function HandoverKanbanBoard() {
         </div>
 
         {/* Card Footer: Acknowledged Status & Quick Move Buttons */}
-        <div className="pt-2 border-t border-zinc-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          {/* Read indicator */}
-          <div className="flex items-center gap-1.5 text-[11px]">
-            {item.acknowledged_at ? (
-              <span className="inline-flex items-center gap-1 text-emerald-400 font-medium">
-                <CheckCircle2 className="w-3.5 h-3.5" />
-                <span>Dibaca: {item.acknowledged_by_name || 'Rekan'}</span>
-              </span>
-            ) : isOverdue ? (
-              <span className="inline-flex items-center gap-1 text-rose-400 font-bold animate-pulse">
-                <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-                <span>Belum Dikonfirmasi (&gt; 90 Menit)</span>
-              </span>
-            ) : (
-              <span className="inline-flex items-center gap-1 text-zinc-500 font-medium">
-                <Clock className="w-3.5 h-3.5" />
-                <span>Belum dikonfirmasi</span>
-              </span>
-            )}
-          </div>
+        <div className="pt-2.5 border-t border-zinc-800/80 flex flex-col gap-2">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            {/* Read indicator */}
+            <div className="flex items-center gap-1.5 text-[11px] min-w-0">
+              {item.acknowledged_at ? (
+                <span className="inline-flex items-center gap-1 text-emerald-400 font-medium truncate">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span className="truncate">Dibaca: {item.acknowledged_by_name || 'Rekan'}</span>
+                </span>
+              ) : isOverdue ? (
+                <span className="inline-flex items-center gap-1 text-rose-400 font-bold animate-pulse">
+                  <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                  <span>Belum Dikonfirmasi (&gt; 90 Menit)</span>
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-zinc-500 font-medium">
+                  <Clock className="w-3.5 h-3.5 shrink-0" />
+                  <span>Belum dikonfirmasi</span>
+                </span>
+              )}
+            </div>
 
-          {/* Quick Move Action Buttons (Crucial for Mobile & Fast Desktop Workflow) */}
-          <div className="flex items-center gap-1 self-end sm:self-auto">
-            {item.status === 'Tertunda' && (
-              <button
-                onClick={() => updateStatus(item.id, 'Proses')}
-                className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 flex items-center gap-1 transition active:scale-95"
-                title="Mulai Kerjakan"
-              >
-                <span>Proses</span>
-                <ArrowRight className="w-3 h-3" />
-              </button>
-            )}
-
-            {item.status === 'Proses' && (
-              <div className="flex items-center gap-1.5">
+            {/* Quick Move Action Buttons (Crucial for Mobile & Fast Desktop Workflow) */}
+            <div className="flex items-center gap-1.5 self-end sm:self-auto flex-wrap justify-end">
+              {canQuickAcknowledge(item) && (
                 <button
-                  onClick={() => updateStatus(item.id, 'Tertunda')}
-                  className="px-2 py-1 rounded-lg text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700 flex items-center gap-0.5 transition active:scale-95"
-                  title="Kembalikan ke Tertunda"
+                  type="button"
+                  onClick={() => handleQuickAcknowledge(item)}
+                  disabled={acknowledgingId === item.id}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border flex items-center gap-1 transition active:scale-95 disabled:opacity-50 ${
+                    isOverdue
+                      ? 'bg-rose-600 hover:bg-rose-500 text-white border-rose-400/50 shadow-md shadow-rose-950/50'
+                      : 'bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border-cyan-500/40'
+                  }`}
+                  title={
+                    item.next_supervisor_id && item.next_supervisor_id !== currentWorkerId
+                      ? 'Konfirmasi terima sebagai pengawas pengganti (cover shift)'
+                      : 'Konfirmasi bahwa catatan serah terima shift ini telah dibaca dan diterima'
+                  }
+                >
+                  {acknowledgingId === item.id ? (
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                  ) : (
+                    <Check className="w-3 h-3" />
+                  )}
+                  <span>{acknowledgingId === item.id ? 'Menyimpan...' : 'Konfirmasi Terima'}</span>
+                </button>
+              )}
+
+              {item.status === 'Tertunda' && (
+                <button
+                  type="button"
+                  onClick={() => updateStatus(item.id, 'Proses')}
+                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 flex items-center gap-1 transition active:scale-95"
+                  title="Mulai Kerjakan"
+                >
+                  <span>Proses</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
+              )}
+
+              {item.status === 'Proses' && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => updateStatus(item.id, 'Tertunda')}
+                    className="px-2 py-1 rounded-lg text-xs font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700 flex items-center gap-0.5 transition active:scale-95"
+                    title="Kembalikan ke Tertunda"
+                  >
+                    <ArrowLeft className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => updateStatus(item.id, 'Selesai')}
+                    className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 transition active:scale-95"
+                    title="Tandai Selesai"
+                  >
+                    <CheckCircle2 className="w-3 h-3" />
+                    <span>Selesai</span>
+                  </button>
+                </div>
+              )}
+
+              {item.status === 'Selesai' && (
+                <button
+                  type="button"
+                  onClick={() => updateStatus(item.id, 'Proses')}
+                  className="px-2 py-1 rounded-lg text-[11px] font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700 flex items-center gap-1 transition active:scale-95"
+                  title="Buka Kembali ke Proses"
                 >
                   <ArrowLeft className="w-3 h-3" />
+                  <span>Buka Lagi</span>
                 </button>
-                <button
-                  onClick={() => updateStatus(item.id, 'Selesai')}
-                  className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 flex items-center gap-1 transition active:scale-95"
-                  title="Tandai Selesai"
-                >
-                  <CheckCircle2 className="w-3 h-3" />
-                  <span>Selesai</span>
-                </button>
-              </div>
-            )}
-
-            {item.status === 'Selesai' && (
-              <button
-                onClick={() => updateStatus(item.id, 'Proses')}
-                className="px-2 py-1 rounded-lg text-[11px] font-bold bg-zinc-800 hover:bg-zinc-700 text-zinc-400 border border-zinc-700 flex items-center gap-1 transition active:scale-95"
-                title="Buka Kembali ke Proses"
-              >
-                <ArrowLeft className="w-3 h-3" />
-                <span>Buka Lagi</span>
-              </button>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>

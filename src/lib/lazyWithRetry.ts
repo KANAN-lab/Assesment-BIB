@@ -6,7 +6,7 @@ import React from 'react';
  * Automatically reloads the page once with updated manifest to seamlessly recover without error screen.
  */
 export function lazyWithRetry<T extends React.ComponentType<any>>(
-  componentImport: () => Promise<{ default: T } | any>
+  componentImport: () => Promise<{ default: T }>
 ): React.LazyExoticComponent<T> {
   return React.lazy(async () => {
     const pageHasBeenForceRefreshed = sessionStorage.getItem('chunk_reload_done');
@@ -22,7 +22,7 @@ export function lazyWithRetry<T extends React.ComponentType<any>>(
       if (!pageHasBeenForceRefreshed && isChunkError) {
         sessionStorage.setItem('chunk_reload_done', 'true');
         window.location.reload();
-        return new Promise(() => {});
+        return new Promise<{ default: T }>(() => {});
       }
 
       sessionStorage.removeItem('chunk_reload_done');

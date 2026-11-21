@@ -133,12 +133,23 @@ export class LicenseService {
   }
 
   /**
-   * Get active license for a specific worker
+   * Get most relevant (prefer active/latest expiry) license for a specific worker
    */
-  public static getLicenseByWorkerId(workerId: string): MheLicenseEntity | undefined {
-    return this.getAllLicenses().find(
-      (l) => l.workerId === workerId || l.workerId?.toLowerCase() === workerId.toLowerCase()
-    );
+  public static getLicenseByWorkerId(workerId: string, employeeId?: string): MheLicenseEntity | undefined {
+    const normalizedId = workerId?.trim().toLowerCase();
+    const normalizedEmp = employeeId?.trim().toLowerCase();
+    const matches = this.getAllLicenses().filter((l) => {
+      const licWorkerId = l.workerId?.trim().toLowerCase();
+      const licEmpId = l.employeeId?.trim().toLowerCase();
+      return (
+        (normalizedId && (licWorkerId === normalizedId || licEmpId === normalizedId)) ||
+        (normalizedEmp && (licWorkerId === normalizedEmp || licEmpId === normalizedEmp))
+      );
+    });
+    if (matches.length === 0) return undefined;
+    if (matches.length === 1) return matches[0];
+    // Prioritize license with the highest remaining validity (active > expiring_soon > expired)
+    return [...matches].sort((a, b) => (b.daysRemaining ?? -99999) - (a.daysRemaining ?? -99999))[0];
   }
 
   /**

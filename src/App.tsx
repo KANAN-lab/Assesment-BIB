@@ -1064,8 +1064,8 @@ export const App: React.FC = () => {
     scores: Record<string, number>,
     calculatedBehavior: number,
     calculatedBenchmark: number
-  ) => {
-    if (!matrixAuditWorker) return;
+  ): Promise<boolean> => {
+    if (!matrixAuditWorker) return false;
     const workerId = matrixAuditWorker.id;
     const targetWorker = matrixAuditWorker;
 
@@ -1077,7 +1077,10 @@ export const App: React.FC = () => {
         calculatedBenchmark
       );
 
-      setMatrixAuditWorker(null);
+      // Bersihkan draft audit lokal begitu penyimpanan ke server sukses
+      try {
+        localStorage.removeItem(`bib_competency_audit_draft_${workerId}`);
+      } catch {}
 
       // Auto-Recommend SOP Training (Opsi B: Otomatis jika nilai < 75%)
       TrainingAssignmentService.evaluateAndAutoAssign(
@@ -1096,24 +1099,33 @@ export const App: React.FC = () => {
         console.warn('[AutoTrainingDispatcher] Non-blocking warning:', err);
       });
 
-      const updatedWorkers = await fetchAllWorkers();
-      setAllWorkers(updatedWorkers);
+      // Refresh data pasca simpan secara terisolasi agar error refresh tidak membatalkan status sukses simpan
+      try {
+        const updatedWorkers = await fetchAllWorkers();
+        setAllWorkers(updatedWorkers);
 
-      const refreshed = updatedWorkers.find((w) => w.id === workerId);
-      if (refreshed) {
-        await insertScoreHistory(workerId, refreshed.bibScores.totalScore, refreshed.totalPoints).catch(() => {});
+        const refreshed = updatedWorkers.find((w) => w.id === workerId);
+        if (refreshed) {
+          await insertScoreHistory(workerId, refreshed.bibScores.totalScore, refreshed.totalPoints).catch(() => {});
+        }
+
+        if (currentWorker && currentWorker.id === workerId) {
+          if (refreshed) setCurrentWorker(refreshed);
+          const scoresHist = await fetchScoreHistory(currentWorker.id).catch(() => []);
+          setScoreHistory(scoresHist);
+        }
+
+        const lb = await fetchLeaderboard();
+        setLeaderboard(lb);
+      } catch (refreshErr) {
+        console.warn('[handleSaveMatrixScores] Non-blocking post-save refresh warning:', refreshErr);
       }
 
-      if (currentWorker && currentWorker.id === workerId) {
-        if (refreshed) setCurrentWorker(refreshed);
-        const scoresHist = await fetchScoreHistory(currentWorker.id).catch(() => []);
-        setScoreHistory(scoresHist);
-      }
-
-      const lb = await fetchLeaderboard();
-      setLeaderboard(lb);
+      setMatrixAuditWorker(null);
+      return true;
     } catch (err) {
       setError('Gagal menyimpan audit matriks kompetensi.');
+      return false;
     }
   };
 
@@ -1463,7 +1475,14 @@ export const App: React.FC = () => {
 
             {/* Shift Handover Kanban Board */}
             <div className="mb-6">
-              <HandoverKanbanBoard />
+              <HandoverKanbanBoard
+                currentWorkerId={currentWorker.id}
+                currentWorkerName={currentWorker.name}
+                currentWorkerRole={currentWorker.role}
+                onHandoverAcknowledged={(handoverId) => {
+                  setUnacknowledgedHandovers((prev) => prev.filter((h) => h.id !== handoverId));
+                }}
+              />
             </div>
 
             {/* Alert Penugasan Re-Training Mandatori Kompetensi K3 */}

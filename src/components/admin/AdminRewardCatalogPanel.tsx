@@ -51,7 +51,9 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
   const [rewardCategoryFilter, setRewardCategoryFilter] = useState('Semua');
   const [rewardSearch, setRewardSearch] = useState('');
   const [rewardLowStockOnly, setRewardLowStockOnly] = useState(false);
-  const [redemptionSearch, setRedemptionSearch] = useState('');
+  const [redemptionStatusFilter, setRedemptionStatusFilter] = useState<
+    'all' | 'pending' | 'processing' | 'ready_for_pickup' | 'completed' | 'cancelled'
+  >('all');
 
   // Admin Reward Modals
   const [showRewardModal, setShowRewardModal] = useState(false);
@@ -510,9 +512,9 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
               type="button"
               onClick={() => handleOpenFulfillModal(log)}
               disabled={isBusy}
-              className={`px-2 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 disabled:opacity-50 ${
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition flex items-center gap-1 disabled:opacity-50 ${
                 isReady
-                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-md shadow-emerald-950/40'
+                  ? 'bg-emerald-600 hover:bg-emerald-500 text-white font-black ring-1 ring-emerald-400/50 shadow-md shadow-emerald-950/50'
                   : 'bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/40'
               }`}
               title="Serahkan voucher fisik dengan tanda tangan digital pekerja"
@@ -522,7 +524,7 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
               ) : (
                 <PenTool className="w-3 h-3" />
               )}
-              <span>Serahkan (TTD)</span>
+              <span>{isReady ? 'Serahkan & TTD' : 'Serahkan (TTD)'}</span>
             </button>
 
             <button
@@ -543,7 +545,7 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
         );
       },
     },
-  ], [fulfillingRewardId, cancellingRewardId, updatingStatusId]);
+  ], [fulfillingRewardId, cancellingRewardId, updatingStatusId, workers]);
 
   const handleOpenCreateRewardModal = () => {
     setEditingReward(null);
@@ -681,6 +683,51 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
   const lowStockCount = useMemo(() => {
     return rewardCatalog.filter((item) => item.availableStock <= 5).length;
   }, [rewardCatalog]);
+
+  const normalizeRedemptionStatus = (status?: string): 'pending' | 'processing' | 'ready_for_pickup' | 'completed' | 'cancelled' => {
+    if (
+      status === 'processing' ||
+      status === 'ready_for_pickup' ||
+      status === 'completed' ||
+      status === 'cancelled'
+    ) {
+      return status;
+    }
+    return 'pending';
+  };
+
+  const redemptionStatusCounts = useMemo(() => {
+    const counts = {
+      all: allRedemptions.length,
+      pending: 0,
+      processing: 0,
+      ready_for_pickup: 0,
+      completed: 0,
+      cancelled: 0,
+    };
+    for (const r of allRedemptions) {
+      counts[normalizeRedemptionStatus(r.status)]++;
+    }
+    return counts;
+  }, [allRedemptions]);
+
+  const filteredRedemptions = useMemo(() => {
+    if (redemptionStatusFilter === 'all') return allRedemptions;
+    return allRedemptions.filter((r) => normalizeRedemptionStatus(r.status) === redemptionStatusFilter);
+  }, [allRedemptions, redemptionStatusFilter]);
+
+  const redemptionFilterTabs: {
+    key: 'all' | 'pending' | 'processing' | 'ready_for_pickup' | 'completed' | 'cancelled';
+    label: string;
+    activeClass: string;
+  }[] = [
+    { key: 'all', label: 'Semua', activeClass: 'bg-zinc-200 text-zinc-950 border-zinc-100' },
+    { key: 'pending', label: 'Perlu Disiapkan', activeClass: 'bg-amber-500/25 text-amber-200 border-amber-500/50' },
+    { key: 'processing', label: 'Sedang Diproses', activeClass: 'bg-blue-500/25 text-blue-200 border-blue-500/50' },
+    { key: 'ready_for_pickup', label: 'Siap Diambil', activeClass: 'bg-cyan-500/25 text-cyan-200 border-cyan-500/50' },
+    { key: 'completed', label: 'Diserahkan', activeClass: 'bg-emerald-500/25 text-emerald-200 border-emerald-500/50' },
+    { key: 'cancelled', label: 'Dibatalkan', activeClass: 'bg-rose-500/25 text-rose-200 border-rose-500/50' },
+  ];
 
   return (
     <div className="space-y-4">
@@ -926,14 +973,49 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
           </div>
         ) : (
           <div className="space-y-3">
+            {/* Filter Segmentasi Status Fulfillment Multi-Tahap */}
+            <div className="flex flex-wrap items-center gap-1.5 pb-1">
+              {redemptionFilterTabs.map((tab) => {
+                const count = redemptionStatusCounts[tab.key];
+                const isActive = redemptionStatusFilter === tab.key;
+                return (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setRedemptionStatusFilter(tab.key)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition flex items-center gap-1.5 whitespace-nowrap ${
+                      isActive
+                        ? tab.activeClass
+                        : 'bg-zinc-900/90 text-zinc-400 border-zinc-800 hover:text-white hover:border-zinc-700'
+                    }`}
+                  >
+                    <span>{tab.label}</span>
+                    <span
+                      className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${
+                        isActive ? 'bg-black/25' : 'bg-zinc-800 text-zinc-300'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+
             <CustomDataTable
               columns={redemptionColumns}
-              data={allRedemptions}
+              data={filteredRedemptions}
               searchPlaceholder="Cari staf, NIK, item reward, atau kode voucher..."
               defaultSortKey="redeemedAt"
               defaultSortDir="desc"
-              exportFileName="Audit_Penukaran_Reward_Staf"
-              emptyMessage={loadingRedemptions ? 'Memuat data penukaran...' : 'Belum ada riwayat penukaran reward.'}
+              exportFileName={`Audit_Penukaran_Reward_${redemptionStatusFilter}`}
+              emptyMessage={
+                loadingRedemptions
+                  ? 'Memuat data penukaran...'
+                  : redemptionStatusFilter === 'all'
+                  ? 'Belum ada riwayat penukaran reward.'
+                  : `Tidak ada transaksi penukaran dengan status "${redemptionFilterTabs.find((t) => t.key === redemptionStatusFilter)?.label || redemptionStatusFilter}".`
+              }
             />
           </div>
         )}
