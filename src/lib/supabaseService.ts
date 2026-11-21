@@ -203,7 +203,10 @@ export function resolveAdminWorkerId(adminId?: string): string {
 function rowToRewardHistory(row: RedemptionRow): RewardHistory {
   let effectiveStatus: RewardHistory['status'] = (row.status as any) || 'pending';
   if (typeof window !== 'undefined') {
-    if (row.status === 'pending') {
+    if (row.status === 'processing' || row.status === 'ready_for_pickup') {
+      effectiveStatus = row.status;
+      localStorage.setItem(`gappy_reward_stage_${row.id}`, row.status);
+    } else if (row.status === 'pending') {
       const stage = localStorage.getItem(`gappy_reward_stage_${row.id}`);
       if (stage === 'processing' || stage === 'ready_for_pickup') {
         effectiveStatus = stage;
@@ -808,7 +811,16 @@ export async function updateRedemptionStatus(
   }
 
   // Multi-stage status: 'processing' atau 'ready_for_pickup'
-  // Di level Supabase DB, status voucher tetap 'pending' agar tidak melanggar constraint redemption_history_status_check
+  // Disimpan langsung ke kolom status tabel redemption_history di Supabase (Constraint DB telah diupdate)
+  const { error: updateErr } = await supabase
+    .from('redemption_history')
+    .update({ status: newStatus })
+    .eq('id', redemptionId);
+
+  if (updateErr) {
+    console.warn('[updateRedemptionStatus] Supabase direct update note:', updateErr.message);
+  }
+
   if (typeof window !== 'undefined') {
     localStorage.setItem(`gappy_reward_stage_${redemptionId}`, newStatus);
     window.dispatchEvent(
