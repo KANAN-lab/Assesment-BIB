@@ -88,19 +88,45 @@ export class DataMaintenanceService {
       },
     });
     if (error) {
-      // Pesan error dari fungsi (status non-2xx) ada di error.context (Response).
+      // Tampilkan penyebab asli: jenis error, kode HTTP, dan pesan dari server (jika ada).
+      const err = error as any;
+      const ctx = err?.context;
+      const status: number | undefined = typeof ctx?.status === 'number' ? ctx.status : undefined;
+      let serverMsg = '';
       try {
-        const ctx = (error as any).context;
-        if (ctx && typeof ctx.json === 'function') {
-          const body = await ctx.json();
-          if (body?.error) return { ok: false, error: String(body.error) };
+        if (ctx && typeof ctx.text === 'function') {
+          const raw: string = await (typeof ctx.clone === 'function' ? ctx.clone() : ctx).text();
+          try {
+            const parsed = JSON.parse(raw);
+            serverMsg = String(parsed?.error ?? parsed?.message ?? '');
+          } catch {
+            serverMsg = raw.slice(0, 160);
+          }
         }
       } catch {
-        /* abaikan, pakai pesan umum */
+        /* isi respons tidak terbaca; lanjut dengan info yang ada */
       }
-      return { ok: false, error: 'Gagal meminta kode OTP. Periksa Edge Function dan konfigurasi email.' };
+      const kind = err?.name || 'Error';
+      const detail = serverMsg || err?.message || 'tidak ada detail';
+      return {
+        ok: false,
+        error: `Gagal meminta kode OTP [${kind}${status ? ` · HTTP ${status}` : ''}]: ${detail}`,
+      };
     }
-    return data as { ok: boolean; error?: string; maskedTo?: string; expiresInSec?: number };
+
+    // Jaga-jaga bila respons 200 tiba sebagai teks, bukan objek.
+    let result: any = data;
+    if (typeof result === 'string') {
+      try {
+        result = JSON.parse(result);
+      } catch {
+        return { ok: false, error: 'Respons server tidak dapat dibaca.' };
+      }
+    }
+    if (!result || typeof result !== 'object') {
+      return { ok: false, error: 'Respons server kosong. Coba lagi.' };
+    }
+    return result as { ok: boolean; error?: string; maskedTo?: string; expiresInSec?: number };
   }
 
   static async reset(params: {
