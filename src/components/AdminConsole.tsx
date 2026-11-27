@@ -38,6 +38,7 @@ const ExecutiveReportPanel = React.lazy(() => import('./ExecutiveReportPanel').t
 const DisciplinaryPanel = React.lazy(() => import('./DisciplinaryPanel').then(m => ({ default: m.DisciplinaryPanel })));
 const Audit5sPanel = React.lazy(() => import('./Audit5sPanel').then(m => ({ default: m.Audit5sPanel })));
 const SystemConfigPanel = React.lazy(() => import('./SystemConfigPanel').then(m => ({ default: m.SystemConfigPanel })));
+const DataMaintenancePanel = React.lazy(() => import('./DataMaintenancePanel').then(m => ({ default: m.DataMaintenancePanel })));
 
 // Backward compatibility alias for lazy reward panel
 const AdminRewardManagerSection = AdminRewardCatalogPanel;
@@ -418,7 +419,17 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
           <AdminCompetencyMatrixPanel competencyItems={competencyItems} />
         )}
 
-        {activeTab === 'config' && <SystemConfigPanel />}
+        {activeTab === 'config' && (
+          <>
+            <SystemConfigPanel />
+            <DataMaintenancePanel
+              workers={workers}
+              currentAdminId={currentAdminId}
+              onWorkersUpdated={onWorkersUpdated}
+              showToast={showToast}
+            />
+          </>
+        )}
 
         {/* AI ENGINE & EDUKASI SOP */}
         {activeTab === 'sop' && <SopManagementPanel />}
