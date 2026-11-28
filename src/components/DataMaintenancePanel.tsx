@@ -56,7 +56,7 @@ const fmtNum = (n: number) => new Intl.NumberFormat('id-ID').format(n);
 /*  OtpGate: kata konfirmasi -> kirim OTP ke email -> masukkan kode -> eksekusi */
 /* -------------------------------------------------------------------------- */
 
-interface OtpGateProps {
+export interface OtpGateProps {
   confirmWord: string;
   summary: string;
   disabled: boolean;
@@ -69,7 +69,7 @@ interface OtpGateProps {
   onSuccess: (result: MaintResult) => void;
 }
 
-const OtpGate: React.FC<OtpGateProps> = ({
+export const OtpGate: React.FC<OtpGateProps> = ({
   confirmWord,
   summary,
   disabled,
@@ -350,6 +350,10 @@ export const DataMaintenancePanel: React.FC<DataMaintenancePanelProps> = ({
     () => targetWorkers.reduce((sum, w) => sum + (w.totalPoints || 0), 0),
     [targetWorkers]
   );
+  const targetOperationalPoints = useMemo(
+    () => targetWorkers.reduce((sum, w) => sum + (w.operationalPoints || 0), 0),
+    [targetWorkers]
+  );
 
   const toggleWorker = (id: string) =>
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -417,7 +421,12 @@ export const DataMaintenancePanel: React.FC<DataMaintenancePanelProps> = ({
     });
     if (ok) {
       setRestoreBackup(b);
-      setRestoreParts(MAINT_PARTS.map((p) => p.key));
+      const isMonthlyOpBackup = /reset bulanan/i.test(b.label || '');
+      setRestoreParts(
+        isMonthlyOpBackup
+          ? ['operational_points']
+          : MAINT_PARTS.filter((p) => p.key !== 'operational_points').map((p) => p.key)
+      );
     }
   };
 
@@ -686,7 +695,11 @@ export const DataMaintenancePanel: React.FC<DataMaintenancePanelProps> = ({
           <span className="text-zinc-300">
             Dampak: <b className="text-white">{fmtNum(targetWorkers.length)}</b> user ·{' '}
             <b className="text-white">{fmtNum(targetPoints)}</b> total poin
-            {resetParts.includes('core') ? ' akan hilang' : ' (poin tidak diubah)'}
+            {resetParts.includes('core')
+              ? ' akan hilang'
+              : resetParts.includes('operational_points')
+              ? ` (${fmtNum(targetOperationalPoints)} poin operasional akan direset; poin prestasi tetap aman)`
+              : ' (poin tidak diubah)'}
           </span>
         </div>
 

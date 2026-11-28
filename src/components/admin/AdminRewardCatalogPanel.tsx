@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import {
   ShoppingBag, Plus, Search, AlertTriangle, History, Coins, PackagePlus,
   Edit2, Trash2, X, Check, Loader2, AlertCircle, PackageCheck,
-  PenTool, RotateCcw, FileSignature, Eye, QrCode
+  PenTool, RotateCcw, FileSignature, Eye, QrCode, ShieldCheck, Database
 } from 'lucide-react';
 import { RewardItem, TierType, WorkerProfile } from '../../types/assessment';
 import { CustomDataTable, DataTableColumn } from '../CustomDataTable';
@@ -12,10 +12,11 @@ import {
   fetchAllRedemptionHistory,
   fulfillRedemption,
   cancelAndRefundRedemption,
-  processMonthlyOperationalPointsReset,
   updateRedemptionStatus,
   AdminRedemptionRecord
 } from '../../lib/supabaseService';
+import { DataMaintenanceService } from '../../lib/dataMaintenanceService';
+import { OtpGate } from '../DataMaintenancePanel';
 import { SystemConfigService } from '../../domain/SystemConfigService';
 import { SwalService } from '../../domain/SwalService';
 import { RewardVoucherScannerModal } from '../RewardVoucherScannerModal';
@@ -29,6 +30,8 @@ interface AdminRewardCatalogPanelProps {
   onUpdateReward?: (rewardId: string, updates: Partial<Omit<RewardItem, 'id'>>) => Promise<void> | void;
   onRestockReward?: (rewardId: string, addStock: number) => Promise<void> | void;
   onDeleteReward?: (rewardId: string) => Promise<void> | void;
+  onWorkersUpdated?: () => void;
+  onOpenDataMaintenance?: () => void;
   showToast: (msg: string) => void;
   /** Tampilkan tombol Siklus Reset Bulanan. Default true (hanya untuk Admin Console). */
   showMonthlyReset?: boolean;
@@ -42,6 +45,8 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
   onUpdateReward,
   onRestockReward,
   onDeleteReward,
+  onWorkersUpdated,
+  onOpenDataMaintenance,
   showToast,
   showMonthlyReset = true,
 }) => {
@@ -184,14 +189,40 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
   const [rewardFormError, setRewardFormError] = useState<string | null>(null);
   const [rewardFormSubmitting, setRewardFormSubmitting] = useState(false);
 
+  const [showMonthlyResetModal, setShowMonthlyResetModal] = useState(false);
+
+  const actorName = useMemo(() => {
+    const found = workers?.find((w) => w.id === currentAdminId || w.employeeId === currentAdminId);
+    return found?.name || 'System Administrator';
+  }, [workers, currentAdminId]);
+
+  const monthlyResetSummary = useMemo(() => {
+    const list = workers || [];
+    let affectedCount = 0;
+    let totalOperationalPoints = 0;
+    let totalPrestigePoints = 0;
+    for (const w of list) {
+      const op = Number(w.operationalPoints || 0);
+      const pr = Number(w.prestigePoints || 0);
+      if (op > 0) {
+        affectedCount++;
+        totalOperationalPoints += op;
+      }
+      totalPrestigePoints += pr;
+    }
+    return { affectedCount, totalOperationalPoints, totalPrestigePoints };
+  }, [workers]);
+
   useEffect(() => {
-    const isAnyModalOpen = showRewardModal || fulfillingLog !== null || viewingSignatureUrl !== null;
+    const isAnyModalOpen =
+      showRewardModal || fulfillingLog !== null || viewingSignatureUrl !== null || showMonthlyResetModal;
     if (isAnyModalOpen) {
       document.body.style.overflow = 'hidden';
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
           if (viewingSignatureUrl) setViewingSignatureUrl(null);
           else if (fulfillingLog) setFulfillingLog(null);
+          else if (showMonthlyResetModal) setShowMonthlyResetModal(false);
           else if (showRewardModal) setShowRewardModal(false);
         }
       };
@@ -203,7 +234,7 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
     } else {
       document.body.style.overflow = 'unset';
     }
-  }, [showRewardModal, fulfillingLog, viewingSignatureUrl]);
+  }, [showRewardModal, fulfillingLog, viewingSignatureUrl, showMonthlyResetModal]);
 
   useEffect(() => {
     const handleConfigUpdate = (e: any) => {
@@ -293,35 +324,6 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
       showToast(`Gagal memperbarui status: ${err.message}`);
     } finally {
       setUpdatingStatusId(null);
-    }
-  };
-
-  const [isExecutingReset, setIsExecutingReset] = useState(false);
-
-  const handleExecuteMonthlyReset = async () => {
-    const isConfirmed = await SwalService.confirm({
-      title: 'Jalankan Siklus Reset Bulanan?',
-      text: 'Seluruh Poin Operasional (Harian) pekerja gudang yang belum dibelanjakan akan di-reset ke 0 untuk rekonsiliasi liabilitas stok periode ini. Seluruh Poin Prestasi (Kaizen, SIO, K3) dan Tier pekerja akan tetap UTUH 100%. Lanjutkan proses?',
-      confirmButtonText: 'Ya, Jalankan Reset Periode',
-      cancelButtonText: 'Batal',
-      isDestructive: true,
-      icon: 'warning',
-    });
-
-    if (!isConfirmed) return;
-
-    setIsExecutingReset(true);
-    try {
-      const res = await processMonthlyOperationalPointsReset(currentAdminId || 'System Administrator');
-      await SwalService.success(
-        'Siklus Reset Periode Berhasil!',
-        `Rekonsiliasi selesai: ${res.affectedWorkers} pekerja dievaluasi, total ${res.totalExpired.toLocaleString()} PTS Operasional telah di-reset. Seluruh Poin Prestasi tetap aman.`
-      );
-      loadAllRedemptions();
-    } catch (err: any) {
-      await SwalService.error('Gagal Reset Periode', err?.message || 'Terjadi kesalahan sistem.');
-    } finally {
-      setIsExecutingReset(false);
     }
   };
 
@@ -809,12 +811,11 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
               {showMonthlyReset && (
                 <button
                   type="button"
-                  onClick={handleExecuteMonthlyReset}
-                  disabled={isExecutingReset}
+                  onClick={() => setShowMonthlyResetModal(true)}
                   className="px-3 py-1.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-                  title="Siklus Tutup Buku: Reset Poin Operasional Bulanan & Lindungi Poin Prestasi"
+                  title="Siklus Tutup Buku Bulanan (Terproteksi Auto-Backup & OTP Email)"
                 >
-                  {isExecutingReset ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+                  <RotateCcw className="w-3.5 h-3.5" />
                   <span>Siklus Reset Bulanan</span>
                 </button>
               )}
@@ -1399,6 +1400,128 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
                 className="max-h-36 object-contain border border-zinc-800 rounded-xl p-2 bg-zinc-900/60"
               />
               <p className="text-[10px] text-zinc-500 mt-2">Terekam saat proses serah-terima fisik reward.</p>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ─── MODAL: SIKLUS RESET BULANAN TERPROTEKSI OTP & AUTO-BACKUP ─── */}
+      {showMonthlyResetModal && createPortal(
+        <div className="fixed inset-0 z-[9999] overflow-y-auto bg-black/85 backdrop-blur-md p-4 sm:p-6 flex items-center justify-center min-h-screen animate-fade-in">
+          <div
+            className="bg-zinc-900 border border-amber-500/40 rounded-2xl w-full max-w-xl overflow-hidden shadow-2xl shadow-amber-950/30 my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="p-4 sm:p-5 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/90">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 shrink-0">
+                  <RotateCcw className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-black text-white">Siklus Reset Bulanan Poin Operasional</h3>
+                  <p className="text-[11px] text-amber-300/90 font-medium">
+                    Terproteksi Auto-Backup &amp; Verifikasi OTP Email Pemilik
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowMonthlyResetModal(false)}
+                className="p-1.5 rounded-lg text-zinc-400 hover:text-white hover:bg-zinc-800 transition"
+                aria-label="Tutup modal"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 sm:p-5 space-y-4">
+              {/* Live Impact Summary */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                <div className="bg-zinc-950 border border-zinc-800 rounded-xl p-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Pekerja Terdampak</div>
+                  <div className="text-base font-black text-white mt-0.5">
+                    {monthlyResetSummary.affectedCount.toLocaleString('id-ID')} Orang
+                  </div>
+                  <div className="text-[10px] text-zinc-500 mt-0.5">Saldo harian &gt; 0 PTS</div>
+                </div>
+                <div className="bg-zinc-950 border border-amber-500/30 rounded-xl p-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400/90">Poin Harian Direset</div>
+                  <div className="text-base font-black text-amber-300 mt-0.5 font-mono">
+                    {monthlyResetSummary.totalOperationalPoints.toLocaleString('id-ID')} PTS
+                  </div>
+                  <div className="text-[10px] text-zinc-500 mt-0.5">Akan kembali ke 0</div>
+                </div>
+                <div className="bg-zinc-950 border border-emerald-500/30 rounded-xl p-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-400/90">Poin Prestasi Aman</div>
+                  <div className="text-base font-black text-emerald-300 mt-0.5 font-mono">
+                    {monthlyResetSummary.totalPrestigePoints.toLocaleString('id-ID')} PTS
+                  </div>
+                  <div className="text-[10px] text-zinc-500 mt-0.5">Tier, BIB &amp; Streak 100% utuh</div>
+                </div>
+              </div>
+
+              {/* Shared OTP Gate (Server-Side Auto-Backup + Atomic Reset) */}
+              <OtpGate
+                confirmWord="RESET"
+                summary={`Mereset Poin Operasional (Harian) sebesar ${monthlyResetSummary.totalOperationalPoints.toLocaleString('id-ID')} PTS milik ${monthlyResetSummary.affectedCount.toLocaleString('id-ID')} pekerja ke 0. Seluruh Poin Prestasi (Kaizen, SIO, K3), Tier, skor BIB, dan streak tetap UTUH 100%.`}
+                disabled={monthlyResetSummary.affectedCount === 0}
+                disabledReason="Saat ini tidak ada pekerja yang memiliki saldo Poin Operasional (> 0 PTS)."
+                submitLabel="Eksekusi Reset Bulanan"
+                scopeKey={`monthly-op|${monthlyResetSummary.affectedCount}|${monthlyResetSummary.totalOperationalPoints}`}
+                requestOtp={() =>
+                  DataMaintenanceService.requestOtp({
+                    action: 'reset',
+                    workerIds: null,
+                    parts: ['operational_points'],
+                  })
+                }
+                execute={(code) =>
+                  DataMaintenanceService.reset({
+                    actor: actorName,
+                    workerIds: null,
+                    parts: ['operational_points'],
+                    code,
+                  })
+                }
+                onSuccess={async (res) => {
+                  const affected = Number(res.workers_affected ?? monthlyResetSummary.affectedCount);
+                  const expiredPts = Number(res.points_expired ?? monthlyResetSummary.totalOperationalPoints);
+                  setShowMonthlyResetModal(false);
+                  onWorkersUpdated?.();
+                  loadAllRedemptions();
+                  await SwalService.success(
+                    'Siklus Reset Bulanan Berhasil!',
+                    `${affected.toLocaleString('id-ID')} pekerja telah direset (total ${expiredPts.toLocaleString('id-ID')} PTS Operasional). Seluruh Poin Prestasi tetap aman & backup otomatis tersimpan di menu Data & Pemeliharaan.`
+                  );
+                }}
+              />
+
+              {/* Opsi A Footer: Link ke Pemulihan & Unduh CSV terpusat */}
+              <div className="pt-3 border-t border-zinc-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-[11px] text-zinc-400">
+                <div className="flex items-start sm:items-center gap-2">
+                  <ShieldCheck className="w-4 h-4 text-sky-400 shrink-0 mt-0.5 sm:mt-0" />
+                  <span>
+                    Pemulihan (Undo) &amp; unduh CSV backup tersedia terpusat di{' '}
+                    <strong className="text-zinc-200">Aturan &amp; Config System &rarr; Data &amp; Pemeliharaan</strong>.
+                  </span>
+                </div>
+                {onOpenDataMaintenance && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowMonthlyResetModal(false);
+                      onOpenDataMaintenance();
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-sky-600/20 hover:bg-sky-600/30 border border-sky-500/40 text-sky-300 font-bold text-[11px] transition inline-flex items-center justify-center gap-1.5 shrink-0"
+                  >
+                    <Database className="w-3.5 h-3.5" />
+                    <span>Buka Data &amp; Pemeliharaan</span>
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>,

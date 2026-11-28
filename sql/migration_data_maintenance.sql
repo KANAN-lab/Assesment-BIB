@@ -303,7 +303,7 @@ AS $$
 $$;
 
 -- 3e. RESET nilai (wajib OTP). p_worker_ids NULL = semua user.
---     p_parts: core, score_history, competency, badges, daily_flags, sop_scores
+--     p_parts: core, operational_points, score_history, competency, badges, daily_flags, sop_scores
 CREATE OR REPLACE FUNCTION public.maint_reset(
   p_actor      TEXT,
   p_worker_ids TEXT[],
@@ -314,10 +314,12 @@ LANGUAGE plpgsql SECURITY DEFINER
 SET search_path = public, pg_temp
 AS $$
 DECLARE
-  v_err      TEXT;
-  v_backup   UUID;
-  v_affected INT;
-  v_valid    TEXT[] := ARRAY['core','score_history','competency','badges','daily_flags','sop_scores'];
+  v_err           TEXT;
+  v_backup        UUID;
+  v_backup_label  TEXT;
+  v_affected      INT := 0;
+  v_total_expired BIGINT := 0;
+  v_valid         TEXT[] := ARRAY['core','operational_points','score_history','competency','badges','daily_flags','sop_scores'];
 BEGIN
   IF p_parts IS NULL OR cardinality(p_parts) = 0 OR NOT (p_parts <@ v_valid) THEN
     RETURN jsonb_build_object('ok', false, 'error', 'Pilih minimal satu jenis data yang valid.');
@@ -331,8 +333,13 @@ BEGIN
     RETURN jsonb_build_object('ok', false, 'error', v_err);
   END IF;
 
+  v_backup_label := CASE
+    WHEN p_parts = ARRAY['operational_points'] THEN 'Otomatis sebelum reset bulanan poin operasional'
+    ELSE 'Otomatis sebelum reset'
+  END;
+
   -- Backup otomatis SEBELUM menghapus apa pun (satu transaksi dengan reset).
-  v_backup := maint_store_backup(p_actor, 'Otomatis sebelum reset', 'auto_before_reset', p_worker_ids);
+  v_backup := maint_store_backup(p_actor, v_backup_label, 'auto_before_reset', p_worker_ids);
 
   IF 'core' = ANY(p_parts) THEN
     UPDATE workers SET
@@ -340,6 +347,31 @@ BEGIN
       bib_behavior = 0, bib_integrity = 0, bib_benchmark = 0, bib_total_score = 0,
       streak_days = 0, tier = 'Novice Operational'
     WHERE p_worker_ids IS NULL OR id = ANY(p_worker_ids);
+    GET DIAGNOSTICS v_affected = ROW_COUNT;
+  ELSIF 'operational_points' = ANY(p_parts) THEN
+    SELECT COALESCE(SUM(operational_points), 0) INTO v_total_expired
+    FROM workers
+    WHERE (p_worker_ids IS NULL OR id = ANY(p_worker_ids))
+      AND COALESCE(operational_points, 0) > 0;
+
+    -- Catat ke Buku Kas Poin pekerja (activity_log) agar riwayat tetap transparan
+    INSERT INTO activity_log (worker_id, worker_name, action, detail, created_at)
+    SELECT
+      id,
+      name,
+      'points_expired',
+      'Siklus Bulanan Berakhir: ' || operational_points || ' PTS Operasional hangus. Saldo Prestasi (' || COALESCE(prestige_points, 0) || ' PTS) tetap aman.',
+      NOW()
+    FROM workers
+    WHERE (p_worker_ids IS NULL OR id = ANY(p_worker_ids))
+      AND COALESCE(operational_points, 0) > 0;
+
+    UPDATE workers SET
+      operational_points = 0,
+      total_points = COALESCE(prestige_points, 0),
+      updated_at = NOW()
+    WHERE (p_worker_ids IS NULL OR id = ANY(p_worker_ids))
+      AND COALESCE(operational_points, 0) > 0;
     GET DIAGNOSTICS v_affected = ROW_COUNT;
   ELSE
     SELECT count(*) INTO v_affected FROM workers WHERE p_worker_ids IS NULL OR id = ANY(p_worker_ids);
@@ -371,9 +403,15 @@ BEGIN
   VALUES ('reset', p_actor, jsonb_build_object(
     'backup_id', v_backup, 'parts', p_parts,
     'scope', CASE WHEN p_worker_ids IS NULL THEN 'all' ELSE 'selected' END,
-    'workers', v_affected));
+    'workers', v_affected,
+    'points_expired', v_total_expired));
 
-  RETURN jsonb_build_object('ok', true, 'backup_id', v_backup, 'workers_affected', v_affected);
+  RETURN jsonb_build_object(
+    'ok', true,
+    'backup_id', v_backup,
+    'workers_affected', v_affected,
+    'points_expired', v_total_expired
+  );
 END;
 $$;
 
@@ -393,7 +431,7 @@ DECLARE
   v_payload JSONB;
   v_ids     TEXT[];
   v_pre     UUID;
-  v_valid   TEXT[] := ARRAY['core','score_history','competency','badges','daily_flags','sop_scores'];
+  v_valid   TEXT[] := ARRAY['core','operational_points','score_history','competency','badges','daily_flags','sop_scores'];
 BEGIN
   IF p_parts IS NULL OR cardinality(p_parts) = 0 OR NOT (p_parts <@ v_valid) THEN
     RETURN jsonb_build_object('ok', false, 'error', 'Pilih minimal satu jenis data yang valid.');
@@ -424,6 +462,14 @@ BEGIN
       bib_behavior = r.bib_behavior, bib_integrity = r.bib_integrity,
       bib_benchmark = r.bib_benchmark, bib_total_score = r.bib_total_score,
       streak_days = r.streak_days
+    FROM jsonb_populate_recordset(NULL::workers, v_payload->'workers') r
+    WHERE w.id = r.id;
+  ELSIF 'operational_points' = ANY(p_parts) THEN
+    -- Pulihkan poin operasional saja tanpa menimpa poin prestasi baru pasca-reset
+    UPDATE workers w SET
+      operational_points = COALESCE(r.operational_points, 0),
+      total_points = COALESCE(w.prestige_points, 0) + COALESCE(r.operational_points, 0),
+      updated_at = NOW()
     FROM jsonb_populate_recordset(NULL::workers, v_payload->'workers') r
     WHERE w.id = r.id;
   END IF;

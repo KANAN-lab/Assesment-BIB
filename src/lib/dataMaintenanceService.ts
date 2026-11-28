@@ -9,6 +9,7 @@ import { supabase } from './supabaseClient';
 
 export type MaintPart =
   | 'core'
+  | 'operational_points'
   | 'score_history'
   | 'competency'
   | 'badges'
@@ -17,6 +18,7 @@ export type MaintPart =
 
 export const MAINT_PARTS: { key: MaintPart; label: string; hint: string }[] = [
   { key: 'core', label: 'Poin, tier, skor BIB & streak', hint: 'Saldo poin (total/operasional/prestise), tier kembali ke Novice, skor BIB 0, streak 0' },
+  { key: 'operational_points', label: 'Poin operasional bulanan saja', hint: 'Hanya reset saldo poin harian ke 0 (poin prestasi, tier, skor BIB & streak tetap utuh)' },
   { key: 'score_history', label: 'Riwayat skor (grafik tren)', hint: 'Menghapus riwayat skor BIB & poin' },
   { key: 'competency', label: 'Skor kompetensi', hint: 'Menghapus skor audit kompetensi per pekerja' },
   { key: 'badges', label: 'Badge yang diraih', hint: 'Menghapus badge milik pekerja (katalog badge tetap)' },

@@ -19,9 +19,10 @@ const corsHeaders = {
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
-const VALID_PARTS = ['core', 'score_history', 'competency', 'badges', 'daily_flags', 'sop_scores'];
+const VALID_PARTS = ['core', 'operational_points', 'score_history', 'competency', 'badges', 'daily_flags', 'sop_scores'];
 const PART_LABEL: Record<string, string> = {
   core: 'Poin, tier, skor BIB, streak',
+  operational_points: 'Poin operasional bulanan saja (poin prestasi & tier tetap aman)',
   score_history: 'Riwayat skor',
   competency: 'Skor kompetensi',
   badges: 'Badge',

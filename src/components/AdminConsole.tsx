@@ -367,6 +367,8 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({
             onUpdateReward={onUpdateReward}
             onRestockReward={onRestockReward}
             onDeleteReward={onDeleteReward}
+            onWorkersUpdated={onWorkersUpdated}
+            onOpenDataMaintenance={() => setActiveTab('config')}
             showToast={showToast}
           />
         )}
