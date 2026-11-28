@@ -16,6 +16,7 @@ import autoTable from 'jspdf-autotable';
 import { safeLocalStorageSetItem } from './storageSanitizer';
 import { supabase } from './supabaseClient';
 import { savePdf } from './pdfReportService';
+import { getTodayWibDateString } from './dateUtils';
 
 const ZONES_STORAGE_KEY = 'gappy_5s_zones_v2';
 const RECORDS_STORAGE_KEY = 'gappy_5s_audit_records_v2';
@@ -55,6 +56,211 @@ export const RATING_META: Record<Rating5s, { label: string; badgeCls: string; re
 };
 
 export class Audit5sService {
+  // ─── CLOUD MAPPERS & SYNC (warehouse_zones_5s & audit_5s_records) ───
+
+  private static zoneToRow(z: WarehouseZone5s) {
+    return {
+      id: z.id,
+      name: z.name,
+      zone_type: z.zoneType || 'other',
+      division: z.division || 'OPERASIONAL',
+      pic_worker_id: z.picWorkerId && z.picWorkerId.trim() ? z.picWorkerId.trim() : null,
+      pic_worker_name: z.picWorkerName || 'Belum Ditentukan',
+      last_audit_score: typeof z.lastAuditScore === 'number' ? z.lastAuditScore : 0,
+      badge_rating: z.badgeRating || 'Perlu Perbaikan',
+      last_audited_date: z.lastAuditedDate || null,
+      is_active: z.isActive !== false,
+      notes: z.notes || null,
+      updated_at: new Date().toISOString(),
+    };
+  }
+
+  private static rowToZone(row: any): WarehouseZone5s {
+    return {
+      id: row.id,
+      name: row.name,
+      zoneType: (row.zone_type || 'other') as ZoneType,
+      division: row.division || 'OPERASIONAL',
+      picWorkerId: row.pic_worker_id || undefined,
+      picWorkerName: row.pic_worker_name || undefined,
+      lastAuditScore: row.last_audited_date ? Number(row.last_audit_score ?? 0) : (Number(row.last_audit_score) > 0 ? Number(row.last_audit_score) : undefined),
+      badgeRating: row.last_audited_date ? ((row.badge_rating || 'Perlu Perbaikan') as Rating5s) : (Number(row.last_audit_score) > 0 ? (row.badge_rating as Rating5s) : undefined),
+      lastAuditedDate: row.last_audited_date || undefined,
+      isActive: row.is_active !== false,
+      notes: row.notes || undefined,
+    };
+  }
+
+  private static recordToRow(r: Audit5sRecord, zone?: WarehouseZone5s) {
+    return {
+      id: r.id,
+      zone_id: r.zoneId,
+      zone_name: r.zoneName,
+      zone_type: zone?.zoneType || 'other',
+      division: r.division || zone?.division || 'OPERASIONAL',
+      auditor_id: r.auditorId && r.auditorId.trim() && r.auditorId !== 'SYS-ADMIN' ? r.auditorId.trim() : null,
+      auditor_name: r.auditorName || 'Auditor 5R',
+      pic_worker_name: zone?.picWorkerName || 'PIC Area',
+      audit_date: r.auditDate || getTodayWibDateString(),
+      ringkas_score: Number(r.scores?.ringkas_seiri ?? 0),
+      rapi_score: Number(r.scores?.rapi_seiton ?? 0),
+      resik_score: Number(r.scores?.resik_seiso ?? 0),
+      rawat_score: Number(r.scores?.rawat_seiketsu ?? 0),
+      rajin_score: Number(r.scores?.rajin_shitsuke ?? 0),
+      total_score: Number(r.totalScore ?? 0),
+      rating: r.rating || 'Perlu Perbaikan',
+      reward_points_awarded: Number(r.allocatedRewardPoints ?? 0),
+      findings_notes: r.findingsDescription || null,
+      corrective_actions: r.correctiveAction || null,
+      photo_urls: {
+        auditRefNumber: r.auditRefNumber,
+        beforePhotoUrl: r.beforePhotoUrl || null,
+        afterPhotoUrl: r.afterPhotoUrl || null,
+        status: r.status || 'passed',
+      },
+      created_at: r.createdAt || new Date().toISOString(),
+    };
+  }
+
+  private static rowToRecord(row: any): Audit5sRecord {
+    const photos = row.photo_urls;
+    let beforePhotoUrl: string | undefined;
+    let afterPhotoUrl: string | undefined;
+    let auditRefNumber = `5R-${String(row.id || '').slice(-6).toUpperCase()}`;
+    let status: Audit5sRecord['status'] =
+      Number(row.total_score) >= 75 ? 'passed' : Number(row.total_score) >= 60 ? 'needs_improvement' : 'critical_remedial';
+
+    if (photos && typeof photos === 'object' && !Array.isArray(photos)) {
+      if (photos.auditRefNumber) auditRefNumber = String(photos.auditRefNumber);
+      if (photos.beforePhotoUrl) beforePhotoUrl = String(photos.beforePhotoUrl);
+      if (photos.afterPhotoUrl) afterPhotoUrl = String(photos.afterPhotoUrl);
+      if (photos.status) status = photos.status;
+    } else if (Array.isArray(photos)) {
+      if (photos[0]) beforePhotoUrl = String(photos[0]);
+      if (photos[1]) afterPhotoUrl = String(photos[1]);
+    }
+
+    return {
+      id: row.id,
+      auditRefNumber,
+      zoneId: row.zone_id,
+      zoneName: row.zone_name,
+      division: row.division || 'OPERASIONAL',
+      auditorId: row.auditor_id || undefined,
+      auditorName: row.auditor_name || 'Auditor 5R',
+      auditDate: row.audit_date || getTodayWibDateString(),
+      scores: {
+        ringkas_seiri: Number(row.ringkas_score ?? 0),
+        rapi_seiton: Number(row.rapi_score ?? 0),
+        resik_seiso: Number(row.resik_score ?? 0),
+        rawat_seiketsu: Number(row.rawat_score ?? 0),
+        rajin_shitsuke: Number(row.rajin_score ?? 0),
+      },
+      totalScore: Number(row.total_score ?? 0),
+      rating: (row.rating || 'Perlu Perbaikan') as Rating5s,
+      findingsDescription: row.findings_notes || undefined,
+      correctiveAction: row.corrective_actions || undefined,
+      beforePhotoUrl,
+      afterPhotoUrl,
+      allocatedRewardPoints: Number(row.reward_points_awarded ?? 0),
+      status,
+      createdAt: row.created_at || new Date().toISOString(),
+    };
+  }
+
+  private static async upsertZoneToCloud(zone: WarehouseZone5s): Promise<void> {
+    try {
+      const payload = this.zoneToRow(zone);
+      let { error } = await supabase.from('warehouse_zones_5s').upsert(payload, { onConflict: 'id' });
+      // Fallback jika pic_worker_id tidak cocok FK workers(id)
+      if (error && error.code === '23503' && payload.pic_worker_id) {
+        ({ error } = await supabase
+          .from('warehouse_zones_5s')
+          .upsert({ ...payload, pic_worker_id: null }, { onConflict: 'id' }));
+      }
+      if (error) console.warn('[Audit5sService] Gagal sinkron zona ke Supabase:', error.message);
+    } catch (err) {
+      console.warn('[Audit5sService] Exception upsertZoneToCloud:', err);
+    }
+  }
+
+  private static async upsertRecordToCloud(record: Audit5sRecord, zone?: WarehouseZone5s): Promise<void> {
+    try {
+      if (zone) {
+        await this.upsertZoneToCloud(zone);
+      }
+      const payload = this.recordToRow(record, zone);
+      let { error } = await supabase.from('audit_5s_records').upsert(payload, { onConflict: 'id' });
+      if (error && error.code === '23503' && payload.auditor_id) {
+        ({ error } = await supabase
+          .from('audit_5s_records')
+          .upsert({ ...payload, auditor_id: null }, { onConflict: 'id' }));
+      }
+      if (error) console.warn('[Audit5sService] Gagal sinkron record audit 5R ke Supabase:', error.message);
+    } catch (err) {
+      console.warn('[Audit5sService] Exception upsertRecordToCloud:', err);
+    }
+  }
+
+  /**
+   * Tarik data Zona & Riwayat Audit 5R dari Supabase (hybrid cache-first + migrasi lokal otomatis).
+   */
+  public static async fetchFromSupabase(): Promise<{ zones: WarehouseZone5s[]; records: Audit5sRecord[] }> {
+    const localZones = this.getAllZones();
+    const localRecords = this.getAllRecords();
+
+    try {
+      const [zonesRes, recordsRes] = await Promise.all([
+        supabase.from('warehouse_zones_5s').select('*').order('name', { ascending: true }),
+        supabase.from('audit_5s_records').select('*').order('created_at', { ascending: false }).limit(200),
+      ]);
+
+      if (zonesRes.error || recordsRes.error) {
+        console.warn(
+          '[Audit5sService] Supabase fetch warning, fallback ke cache lokal:',
+          zonesRes.error?.message || recordsRes.error?.message
+        );
+        return { zones: localZones, records: localRecords };
+      }
+
+      const remoteZones = (zonesRes.data || []).map((r) => this.rowToZone(r));
+      const remoteRecords = (recordsRes.data || []).map((r) => this.rowToRecord(r));
+
+      // Merge zona: remote sebagai sumber kebenaran, plus dorong zona lokal yang belum ada di cloud
+      const remoteZoneIds = new Set(remoteZones.map((z) => z.id));
+      const localOnlyZones = localZones.filter((z) => !remoteZoneIds.has(z.id));
+      const mergedZones = [...remoteZones, ...localOnlyZones];
+
+      // Merge record: remote + dorong record lokal offline yang belum ada di cloud
+      const remoteRecordIds = new Set(remoteRecords.map((r) => r.id));
+      const localOnlyRecords = localRecords.filter((r) => !remoteRecordIds.has(r.id));
+      const mergedRecords = [...remoteRecords, ...localOnlyRecords].sort(
+        (a, b) => new Date(b.createdAt || b.auditDate).getTime() - new Date(a.createdAt || a.auditDate).getTime()
+      );
+
+      // Push local-only entries ke cloud secara non-blocking
+      if (localOnlyZones.length > 0 || localOnlyRecords.length > 0) {
+        (async () => {
+          for (const z of localOnlyZones) {
+            await this.upsertZoneToCloud(z);
+          }
+          for (const rec of localOnlyRecords) {
+            const z = mergedZones.find((item) => item.id === rec.zoneId);
+            await this.upsertRecordToCloud(rec, z);
+          }
+        })().catch(() => {});
+      }
+
+      safeLocalStorageSetItem(ZONES_STORAGE_KEY, mergedZones);
+      safeLocalStorageSetItem(RECORDS_STORAGE_KEY, mergedRecords);
+      window.dispatchEvent(new Event(EVENT_UPDATED));
+      return { zones: mergedZones, records: mergedRecords };
+    } catch (err) {
+      console.warn('[Audit5sService] Network exception fetchFromSupabase:', err);
+      return { zones: localZones, records: localRecords };
+    }
+  }
+
   // ─── ZONES REPOSITORY ──────────────────────────────────────
 
   public static getAllZones(): WarehouseZone5s[] {
@@ -81,6 +287,7 @@ export class Audit5sService {
     };
     zones.push(newZone);
     this.saveZones(zones);
+    this.upsertZoneToCloud(newZone).catch(() => {});
     return newZone;
   }
 
@@ -90,6 +297,7 @@ export class Audit5sService {
     if (idx === -1) return false;
     zones[idx] = { ...zones[idx], ...updates };
     this.saveZones(zones);
+    this.upsertZoneToCloud(zones[idx]).catch(() => {});
     return true;
   }
 
@@ -98,6 +306,13 @@ export class Audit5sService {
     const filtered = zones.filter((z) => z.id !== zoneId);
     if (filtered.length === zones.length) return false;
     this.saveZones(filtered);
+    supabase
+      .from('warehouse_zones_5s')
+      .delete()
+      .eq('id', zoneId)
+      .then(({ error }) => {
+        if (error) console.warn('[Audit5sService] Gagal hapus zona di Supabase:', error.message);
+      });
     return true;
   }
 
@@ -167,7 +382,7 @@ export class Audit5sService {
       division: zone.division,
       auditorId: params.auditorId,
       auditorName: params.auditorName,
-      auditDate: params.auditDate || new Date().toISOString().slice(0, 10),
+      auditDate: params.auditDate || getTodayWibDateString(),
       scores: params.scores,
       totalScore,
       rating,
@@ -184,12 +399,19 @@ export class Audit5sService {
     records.unshift(newRecord);
     this.saveRecords(records);
 
-    // Update zone latest audit state
+    // Update zone latest audit state (sekaligus sinkronisasi zona & record audit ke Supabase)
+    const updatedZone: WarehouseZone5s = {
+      ...zone,
+      lastAuditScore: totalScore,
+      lastAuditedDate: newRecord.auditDate,
+      badgeRating: rating,
+    };
     this.updateZone(zone.id, {
       lastAuditScore: totalScore,
       lastAuditedDate: newRecord.auditDate,
       badgeRating: rating,
     });
+    this.upsertRecordToCloud(newRecord, updatedZone).catch(() => {});
 
     // Award points & notify PIC Worker if assigned
     if (zone.picWorkerId) {

@@ -3,6 +3,7 @@ import { MheLicenseEntity as MheLicenseDomain } from '../domain/MheLicenseEntity
 import { NotificationEngine } from '../domain/NotificationEngine';
 import { SystemConfigService } from '../domain/SystemConfigService';
 import { supabase } from './supabaseClient';
+import { getTodayWibDateString } from './dateUtils';
 
 export class LicenseService {
   private static STORAGE_KEY = 'gappy_mhe_licenses_v2';
@@ -418,7 +419,7 @@ export class LicenseService {
    */
   public static checkAndDispatchExpiryAlerts(): void {
     const licenses = this.getAllLicenses();
-    const todayDate = new Date().toISOString().split('T')[0];
+    const todayDate = getTodayWibDateString();
     const checkKey = `gappy_sio_alert_dispatched_${todayDate}`;
 
     // Prevent duplicate spam on the same day
@@ -533,7 +534,7 @@ export class LicenseService {
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `Rekap_SIO_Lisensi_MHE_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `Rekap_SIO_Lisensi_MHE_${getTodayWibDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

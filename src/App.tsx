@@ -83,6 +83,7 @@ import { supabase } from './lib/supabaseClient';
 import { AtomicTransactionManager } from './lib/atomicService';
 import { cleanExistingLocalStorageQuota } from './lib/storageSanitizer';
 import { AuthSessionService } from './lib/authSessionService';
+import { getTodayWibDateString } from './lib/dateUtils';
 
 import { WorkerProfile, RewardItem, RewardHistory, AuditInput, LeaderboardEntry, ScoreHistoryEntry, TierType, Announcement, WorkerBadge, Badge, IncidentReport, SystemRole } from './types/assessment';
 import { RoleEntity } from './domain/RoleEntity';
@@ -244,8 +245,8 @@ export const App: React.FC = () => {
         sessionStorage.setItem(sessionKey, String(now));
       }
 
-      // Perbarui tanggal aktivitas terakhir langsung di tabel workers (Skema 2)
-      const todayStr = new Date().toISOString().split('T')[0];
+      // Perbarui tanggal aktivitas terakhir langsung di tabel workers (Skema 2, zona waktu WIB)
+      const todayStr = getTodayWibDateString();
       if (effectiveWorker.lastActivityDate !== todayStr) {
         Promise.resolve(supabase.from('workers').update({ last_activity_date: todayStr }).eq('id', effectiveWorker.id)).catch(() => {});
       }

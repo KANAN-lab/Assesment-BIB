@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { getTodayWibDateString } from '../lib/dateUtils';
 import {
   ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight,
   ArrowUpDown, ArrowUp, ArrowDown,
@@ -142,7 +143,7 @@ export function CustomDataTable<T extends Record<string, any>>({
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `${exportFileName}_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `${exportFileName}_${getTodayWibDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

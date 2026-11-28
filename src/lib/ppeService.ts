@@ -11,6 +11,7 @@ import {
 } from '../types/ppe';
 import { NotificationEngine } from '../domain/NotificationEngine';
 import { supabase } from './supabaseClient';
+import { getTodayWibDateString, getWibDateString } from './dateUtils';
 
 export class PpeService {
   private static MASTER_STORAGE_KEY = 'gappy_ppe_master_v2';
@@ -174,7 +175,7 @@ export class PpeService {
     const distDate = new Date(data.distributionDate);
     const expDate = new Date(distDate);
     expDate.setMonth(expDate.getMonth() + (masterItem.standardLifespanMonths || 6));
-    const expectedReplacementDate = expDate.toISOString().split('T')[0];
+    const expectedReplacementDate = getWibDateString(expDate);
 
     // Decrement stock in master
     masterItem.stockAvailable -= data.quantity;
@@ -306,7 +307,7 @@ export class PpeService {
       ppeName: dist.ppeName,
       category: dist.category,
       damageReason: data.damageReason,
-      reportDate: new Date().toISOString().split('T')[0],
+      reportDate: getTodayWibDateString(),
       damageDescription: data.damageDescription,
       photoEvidenceUrl: data.photoEvidenceUrl,
       status: 'pending_review',
@@ -382,7 +383,7 @@ export class PpeService {
 
     report.status = data.action;
     report.reviewedBy = data.reviewedBy;
-    report.reviewDate = new Date().toISOString().split('T')[0];
+    report.reviewDate = getTodayWibDateString();
     report.reviewNotes = data.reviewNotes;
     report.updatedAt = new Date().toISOString();
 
@@ -395,7 +396,7 @@ export class PpeService {
         division: report.division,
         ppeItemId: report.ppeItemId,
         quantity: 1,
-        distributionDate: new Date().toISOString().split('T')[0],
+        distributionDate: getTodayWibDateString(),
         handoverOfficer: data.reviewedBy,
         notes: `Penggantian APD Rusak (Ref Tiket: ${report.id})`,
       });
@@ -460,7 +461,7 @@ export class PpeService {
    * Check and dispatch alerts for low stock and expiring PPE items
    */
   public static checkAndDispatchPpeAlerts(): void {
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayWibDateString();
     const checkKey = `gappy_ppe_alert_check_${today}`;
     if (localStorage.getItem(checkKey)) return;
 
@@ -565,7 +566,7 @@ export class PpeService {
 
       if (data && Array.isArray(data)) {
         const remoteList: PpeDistributionEntity[] = data.map((row: any) => {
-          const expectedReplacementDate = row.expected_replacement_date || new Date().toISOString().split('T')[0];
+          const expectedReplacementDate = row.expected_replacement_date || getTodayWibDateString();
           const daysRemaining = this.calculateDaysRemaining(expectedReplacementDate);
           let status: PpeDistributionStatus = row.status === 'damaged_lost' ? 'damaged' : (row.status || 'active');
           if (status === 'active' || status === 'expiring_soon') {
@@ -585,7 +586,7 @@ export class PpeService {
             category: 'Pelindung Diri',
             serialOrBatchNumber: row.serial_or_batch_number || undefined,
             quantity: 1,
-            distributionDate: row.distribution_date || new Date().toISOString().split('T')[0],
+            distributionDate: row.distribution_date || getTodayWibDateString(),
             expectedReplacementDate,
             status,
             condition: (row.status === 'damaged_lost' ? 'damaged' : 'good') as PpeItemCondition,

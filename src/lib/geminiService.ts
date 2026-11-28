@@ -2,13 +2,14 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import { supabase } from './supabaseClient';
 import type { QuizQuestion } from '../types/assessment';
 import matrixData from '../data/matrixData.json';
+import { getTodayWibDateString } from './dateUtils';
 
 // ─── Gappy AI Safety & SOP Quiz Engine (100% Dynamic AI & Matrix Driven) ───────
 
 const CACHE_KEY_PREFIX = 'bib_quiz_v3_';
 
 function getTodayCacheKey(workerId?: string, role?: string, division?: string): string {
-  const today = new Date().toISOString().split('T')[0];
+  const today = getTodayWibDateString();
   const wId = workerId ? workerId.replace(/[^a-zA-Z0-9_-]/g, '_') : 'default';
   const rKey = role ? role.replace(/[^a-zA-Z0-9_-]/g, '_') : 'role';
   const dKey = division ? division.replace(/[^a-zA-Z0-9_-]/g, '_') : 'div';

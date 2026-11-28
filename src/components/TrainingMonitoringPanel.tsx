@@ -16,6 +16,7 @@ import {
 import { TrainingAssignmentService, TrainingAssignmentRecord } from '../domain/TrainingAssignmentService';
 import { WorkerProfile } from '../types/assessment';
 import { NotificationEngine } from '../domain/NotificationEngine';
+import { supabase } from '../lib/supabaseClient';
 
 interface TrainingMonitoringPanelProps {
   workers?: WorkerProfile[];
@@ -27,6 +28,7 @@ export const TrainingMonitoringPanel: React.FC<TrainingMonitoringPanelProps> = (
   currentUserName = 'Supervisor Logistik',
 }) => {
   const [assignments, setAssignments] = useState<TrainingAssignmentRecord[]>([]);
+  const [isSyncing, setIsSyncing] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'completed' | 'overdue'>('all');
   const [divisionFilter, setDivisionFilter] = useState<string>('all');
@@ -37,16 +39,47 @@ export const TrainingMonitoringPanel: React.FC<TrainingMonitoringPanelProps> = (
     setAssignments(list);
   };
 
+  const syncFromCloud = async () => {
+    setIsSyncing(true);
+    try {
+      const list = await TrainingAssignmentService.fetchFromSupabase();
+      setAssignments(list);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
   useEffect(() => {
     loadAssignments();
+    syncFromCloud();
 
     const handleUpdate = () => {
       loadAssignments();
     };
 
     window.addEventListener('bib_training_assignments_updated', handleUpdate);
+
+    const channel = supabase
+      .channel('realtime_training_monitoring_panel')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'system_settings',
+          filter: `key=eq.${TrainingAssignmentService.CLOUD_SETTINGS_KEY}`,
+        },
+        () => {
+          TrainingAssignmentService.fetchFromSupabase()
+            .then(setAssignments)
+            .catch(() => {});
+        }
+      )
+      .subscribe();
+
     return () => {
       window.removeEventListener('bib_training_assignments_updated', handleUpdate);
+      supabase.removeChannel(channel);
     };
   }, []);
 
@@ -172,11 +205,12 @@ export const TrainingMonitoringPanel: React.FC<TrainingMonitoringPanelProps> = (
 
           <button
             type="button"
-            onClick={loadAssignments}
-            className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 self-start sm:self-center shrink-0 border border-zinc-700"
+            onClick={syncFromCloud}
+            disabled={isSyncing}
+            className="px-3 py-2 bg-zinc-800 hover:bg-zinc-700 disabled:opacity-60 text-zinc-300 rounded-xl text-xs font-bold transition flex items-center gap-1.5 self-start sm:self-center shrink-0 border border-zinc-700"
           >
-            <RefreshCw className="w-3.5 h-3.5" />
-            <span>Segarkan</span>
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? 'animate-spin text-emerald-400' : ''}`} />
+            <span>{isSyncing ? 'Menyinkronkan...' : 'Segarkan Cloud'}</span>
           </button>
         </div>
       </div>

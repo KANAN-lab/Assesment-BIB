@@ -1,6 +1,8 @@
 import { WorkerProfile } from '../types/assessment';
 import { NotificationEngine } from './NotificationEngine';
 import { logActivity } from '../lib/supabaseService';
+import { supabase } from '../lib/supabaseClient';
+import { safeLocalStorageSetItem } from '../lib/storageSanitizer';
 import { fetchAllSopModules } from '../lib/sopService';
 import { SopModule } from '../types/sop';
 import { matrixEngine } from './CompetencyMatrixEngine';
@@ -80,6 +82,113 @@ export const CATEGORY_SOP_MAP: Record<string, string> = {
  */
 export class TrainingAssignmentService {
   private static STORAGE_KEY = 'bib_gap_training_assignments_v1';
+  public static readonly CLOUD_SETTINGS_KEY = 'bib_training_assignments_v1';
+
+  /**
+   * Gabungkan daftar penugasan remote & lokal secara deterministik tanpa saling menimpa.
+   * Status isCompleted=true selalu menang (monotonic completion).
+   */
+  private static mergeAssignments(
+    primary: TrainingAssignmentRecord[],
+    secondary: TrainingAssignmentRecord[]
+  ): TrainingAssignmentRecord[] {
+    const map = new Map<string, TrainingAssignmentRecord>();
+    for (const item of [...primary, ...secondary]) {
+      if (!item || !item.id) continue;
+      const existing = map.get(item.id);
+      if (!existing) {
+        map.set(item.id, item);
+      } else {
+        const mergedCompleted = Boolean(existing.isCompleted || item.isCompleted);
+        map.set(item.id, {
+          ...existing,
+          ...item,
+          isCompleted: mergedCompleted,
+          completedAt: item.completedAt || existing.completedAt,
+        });
+      }
+    }
+    return Array.from(map.values())
+      .sort((a, b) => new Date(b.assignedAt || 0).getTime() - new Date(a.assignedAt || 0).getTime())
+      .slice(0, 200);
+  }
+
+  /**
+   * Tarik data penugasan Re-Training terbaru dari Supabase (system_settings) dan sinkronkan ke cache lokal.
+   */
+  public static async fetchFromSupabase(): Promise<TrainingAssignmentRecord[]> {
+    const localList = this.getAssignments();
+    try {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', this.CLOUD_SETTINGS_KEY)
+        .maybeSingle();
+
+      if (error) {
+        console.warn('[TrainingAssignmentService] Gagal memuat dari cloud, pakai cache lokal:', error.message);
+        return localList;
+      }
+
+      if (data?.value) {
+        const parsed = JSON.parse(data.value);
+        if (Array.isArray(parsed)) {
+          const merged = this.mergeAssignments(parsed, localList);
+          safeLocalStorageSetItem(this.STORAGE_KEY, merged);
+          // Jika lokal punya item baru/update yang belum ada di remote, dorong balik ke cloud
+          if (merged.length > parsed.length || JSON.stringify(merged) !== JSON.stringify(parsed)) {
+            this.pushListToSupabase(merged).catch(() => {});
+          }
+          window.dispatchEvent(new CustomEvent('bib_training_assignments_updated'));
+          return merged;
+        }
+      } else if (localList.length > 0) {
+        // Migrasi awal: dorong data lokal yang sudah ada ke cloud agar terlihat lintas perangkat
+        this.pushListToSupabase(localList).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('[TrainingAssignmentService] Exception fetchFromSupabase:', err);
+    }
+    return localList;
+  }
+
+  private static async pushListToSupabase(list: TrainingAssignmentRecord[]): Promise<void> {
+    await supabase.from('system_settings').upsert(
+      {
+        key: this.CLOUD_SETTINGS_KEY,
+        value: JSON.stringify(list.slice(0, 200)),
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: 'key' }
+    );
+  }
+
+  /**
+   * Read-merge-write atomik ke Supabase agar aksi dari PC Supervisor & HP Pekerja tidak saling menimpa.
+   */
+  private static async syncMutationToSupabase(changedRecords: TrainingAssignmentRecord[]): Promise<void> {
+    if (changedRecords.length === 0) return;
+    try {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', this.CLOUD_SETTINGS_KEY)
+        .maybeSingle();
+
+      let remoteList: TrainingAssignmentRecord[] = [];
+      if (data?.value) {
+        const parsed = JSON.parse(data.value);
+        if (Array.isArray(parsed)) remoteList = parsed;
+      }
+
+      const merged = this.mergeAssignments(remoteList, changedRecords);
+      await this.pushListToSupabase(merged);
+      safeLocalStorageSetItem(this.STORAGE_KEY, merged);
+      window.dispatchEvent(new CustomEvent('bib_training_assignments_updated'));
+    } catch (err) {
+      console.warn('[TrainingAssignmentService] Non-blocking cloud sync warning:', err);
+    }
+  }
 
   /**
    * Cari modul SOP yang paling cocok berdasarkan kategori audit
@@ -338,7 +447,14 @@ export class TrainingAssignmentService {
       }
 
       if (updated) {
-        localStorage.setItem(this.STORAGE_KEY, JSON.stringify(list));
+        safeLocalStorageSetItem(this.STORAGE_KEY, list);
+        const completedRecords = list.filter(
+          (item) =>
+            item.workerId === workerId &&
+            item.isCompleted &&
+            (item.moduleCode === moduleCodeOrId || item.moduleId === moduleCodeOrId)
+        );
+        this.syncMutationToSupabase(completedRecords).catch(() => {});
         window.dispatchEvent(
           new CustomEvent('bib_training_assignments_updated', {
             detail: { workerId, moduleCodeOrId },
@@ -368,8 +484,9 @@ export class TrainingAssignmentService {
   private static recordAssignment(assignment: TrainingAssignmentRecord): void {
     try {
       const list = this.getAssignments();
-      list.unshift(assignment);
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(list.slice(0, 200)));
+      const merged = this.mergeAssignments([assignment], list);
+      safeLocalStorageSetItem(this.STORAGE_KEY, merged);
+      this.syncMutationToSupabase([assignment]).catch(() => {});
     } catch (e) {
       console.warn('[TrainingAssignmentService] Failed to cache assignment:', e);
     }

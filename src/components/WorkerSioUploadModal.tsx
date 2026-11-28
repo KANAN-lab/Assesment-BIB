@@ -12,6 +12,7 @@ import { uploadFileToGoogleDrive } from '../lib/googleDriveService';
 import { SwalService } from '../domain/SwalService';
 import { SystemConfigService } from '../domain/SystemConfigService';
 import { LicenseType, MheLicenseEntity } from '../types/license';
+import { getTodayWibDateString } from '../lib/dateUtils';
 
 interface WorkerSioUploadModalProps {
   isOpen: boolean;
@@ -49,7 +50,7 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
 
   const isExpired = useMemo(() => {
     if (!formExpiryDate) return false;
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayWibDateString();
     return formExpiryDate < today;
   }, [formExpiryDate]);
 
@@ -144,7 +145,7 @@ export const WorkerSioUploadModal: React.FC<WorkerSioUploadModalProps> = ({
       return;
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = getTodayWibDateString();
     if (formIssuedDate > today) {
       SwalService.warning(
         'Tanggal Terbit Tidak Valid',

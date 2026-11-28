@@ -23,6 +23,7 @@ import { WorkerProfile, IncidentReport, RewardItem } from '../types/assessment';
 import { ExecutivePDFReportGenerator, ReportSigningConfig } from '../lib/pdfReportService';
 import { LicenseService } from '../lib/licenseService';
 import { PpeService } from '../lib/ppeService';
+import { getTodayWibDateString } from '../lib/dateUtils';
 import { RoleEntity } from '../domain/RoleEntity';
 import { DivisionEntity } from '../domain/DivisionEntity';
 import { SystemConfigService } from '../domain/SystemConfigService';
@@ -125,7 +126,7 @@ export const ExecutiveReportPanel: React.FC<ExecutiveReportPanelProps> = ({
   const [periodCycle, setPeriodCycle] = useState<string>('annual');
   const [specificMonth, setSpecificMonth] = useState<number>(() => new Date().getMonth() + 1);
   const [customPeriodText, setCustomPeriodText] = useState<string>('');
-  const [issueDate, setIssueDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
+  const [issueDate, setIssueDate] = useState<string>(() => getTodayWibDateString());
 
   // Available Years: 3 years back to 3 years ahead
   const availableYears = useMemo(() => {

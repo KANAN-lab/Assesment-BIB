@@ -1,5 +1,6 @@
 import { supabase } from './supabaseClient';
 import { safeLocalStorageSetItem } from './storageSanitizer';
+import { getTodayWibDateString, getWibDateString } from './dateUtils';
 import { WorkerEntity } from '../domain/WorkerEntity';
 import { NotificationEngine } from '../domain/NotificationEngine';
 import { RewardEntity } from '../domain/RewardEntity';
@@ -1595,10 +1596,10 @@ export async function saveWorkerCompetencyScores(
 // ─── Daily Activity Reset ─────────────────────────────────────────────────────
 
 export async function checkAndResetDailyActivity(workerId: string, lastActivityDate?: string): Promise<boolean> {
-  const today = new Date().toISOString().split('T')[0];
-  const lastDate = lastActivityDate ? new Date(lastActivityDate).toISOString().split('T')[0] : null;
+  const today = getTodayWibDateString();
+  const lastDate = lastActivityDate ? getWibDateString(lastActivityDate) : null;
 
-  if (lastDate === today) return false; // Sudah hari ini, tidak perlu reset
+  if (lastDate === today) return false; // Sudah hari ini (WIB), tidak perlu reset
 
   const { error } = await supabase.from('workers').update({
     daily_quiz_completed: false,

@@ -1409,6 +1409,42 @@
   - [x] **AC3**: Pengiriman Kudo menyediakan pilihan tag nilai budaya kerja logistik (`#SafetyFirst`, `#SolidTeamwork`, `#QuickResponse`, `#ZeroMistake`, `#ContinuousImprovement`) dan filter tag interaktif di Tembok Apresiasi (Kudo Wall).
 - [x] **Affected Files**: `src/components/KaizenSubmissionModal.tsx`, `src/components/KaizenKanbanBoard.tsx`, `src/components/KudoModal.tsx`, `src/components/KudoWall.tsx`, `src/types/kudos.ts`.
 
+---
+
+## Phase 41: Cross-Device Cloud Sync, WIB Timezone Integrity & Audit Proof Persistence
+
+### Task 41.1: Standardisasi Zona Waktu WIB (`Asia/Jakarta`) pada Reset Harian & Tanggal Operasional
+- [x] **Objective**: Mengeliminasi bug reset harian pada pukul 07:00 WIB (selisih UTC+7) yang menghambat pekerja Shift Malam dan awal Shift Pagi (00:00–06:59 WIB).
+- [x] **Acceptance Criteria**:
+  - [x] **AC1**: Utilitas terpusat `getWibDateString()` dan `getTodayWibDateString()` (`Asia/Jakarta` dengan fallback UTC+7) tersedia di `src/lib/dateUtils.ts`.
+  - [x] **AC2**: Seluruh logika reset aktivitas harian (`checkAndResetDailyActivity`, `WorkerEntity.isDailyResetNeeded`, update `last_activity_date` saat login), cache kuis harian AI (`geminiService`), validasi tanggal SIO (`WorkerSioUploadModal`), serta tanggal default APD, 5R, dan ekspor CSV menggunakan waktu WIB.
+  - [x] **AC3**: Tidak ada mutasi skema database maupun gangguan data produksi live.
+- [x] **Affected Files**: `src/lib/dateUtils.ts`, `src/lib/supabaseService.ts`, `src/App.tsx`, `src/domain/WorkerEntity.ts`, `src/lib/geminiService.ts`, `src/components/WorkerSioUploadModal.tsx`, `src/lib/licenseService.ts`, `src/lib/ppeService.ts`, `src/lib/audit5sService.ts`, `src/components/Audit5sPanel.tsx`, `src/components/PpeManagementPanel.tsx`, `src/components/ExecutiveReportPanel.tsx`, `src/components/CustomDataTable.tsx`, `src/components/RewardMarketplace.tsx`.
+
+### Task 41.2: Sinkronisasi Cloud & Realtime Penugasan Re-Training SOP Lintas Perangkat
+- [x] **Objective**: Memastikan penugasan Re-Training wajib yang diterbitkan dari PC Supervisor/HR langsung tampil di HP Pekerja, dan status penyelesaian dari HP Pekerja langsung terpantau di Monitoring Re-Training.
+- [x] **Acceptance Criteria**:
+  - [x] **AC1**: `TrainingAssignmentService` menerapkan arsitektur hybrid cache-first + sinkronisasi cloud Supabase (`system_settings` key `bib_training_assignments_v1`) dengan algoritma read-merge-write anti-overwrite (*monotonic completion*).
+  - [x] **AC2**: `WorkerTrainingAssignmentCard` dan `TrainingMonitoringPanel` memuat data cloud saat mount dan berlangganan Supabase Realtime channel untuk pembaruan langsung lintas perangkat.
+  - [x] **AC3**: Migrasi otomatis data lokal eksisting ke cloud jika catatan remote masih kosong, tanpa perubahan struktur tabel database.
+- [x] **Affected Files**: `src/domain/TrainingAssignmentService.ts`, `src/components/WorkerTrainingAssignmentCard.tsx`, `src/components/TrainingMonitoringPanel.tsx`.
+
+### Task 41.3: Sinkronisasi Cloud & Realtime Master Zona dan Riwayat Audit 5R / 5S
+- [x] **Objective**: Menghubungkan modul Audit 5R / 5S ke tabel Supabase `warehouse_zones_5s` dan `audit_5s_records` yang sudah tersedia agar hasil audit dari HP/tablet lapangan langsung terlihat di PC Admin/GA/Manajemen.
+- [x] **Acceptance Criteria**:
+  - [x] **AC1**: `Audit5sService.fetchFromSupabase()` memuat dan menggabungkan zona serta riwayat audit dari `warehouse_zones_5s` dan `audit_5s_records`, sekaligus mendorong data lokal offline yang belum tersinkron.
+  - [x] **AC2**: Mutasi `addZone`, `updateZone`, `deleteZone`, dan `submitAuditRecord` menulis instan ke cache lokal (0ms) serta melakukan sinkronisasi asinkron aman FK ke Supabase.
+  - [x] **AC3**: `Audit5sPanel` berlangganan Supabase Realtime pada tabel `warehouse_zones_5s` dan `audit_5s_records`.
+- [x] **Affected Files**: `src/lib/audit5sService.ts`, `src/components/Audit5sPanel.tsx`.
+
+### Task 41.4: Persistensi Cloud Bukti Tanda Tangan Digital Serah-Terima Reward GA
+- [x] **Objective**: Mencegah hilangnya bukti tanda tangan fisik penyerahan reward ketika GA/Admin berpindah perangkat atau membersihkan cache browser.
+- [x] **Acceptance Criteria**:
+  - [x] **AC1**: Tanda tangan digital kanvas otomatis diunggah ke Google Drive Gateway (`moduleCategory: 'Katalog_Reward'`) dengan fallback PNG ringkas (`cloud_compact`) jika webhook Drive tidak aktif.
+  - [x] **AC2**: Indeks referensi bukti TTD (`url`, `webViewLink`, `receiverName`, `signedAt`, `storage`) disimpan secara read-merge-write ke `system_settings` (`bib_reward_signatures_v1`) dan dimuat otomatis di tabel Audit Penukaran Staf lintas perangkat.
+  - [x] **AC3**: Modal pratinjau Bukti TTD menampilkan identitas penerima, waktu WIB, lencana sumber arsip, serta tautan buka langsung ke Google Drive, sembari tetap kompatibel dengan bukti lokal lama.
+- [x] **Affected Files**: `src/components/admin/AdminRewardCatalogPanel.tsx`.
+
 
 
 

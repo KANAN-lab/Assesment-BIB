@@ -1,5 +1,6 @@
 import type { WorkerProfile, TierType, BibScores } from '../types/assessment';
 import { SystemConfigService } from './SystemConfigService';
+import { getTodayWibDateString, getWibDateString } from '../lib/dateUtils';
 
 export class WorkerEntity {
   public static calculateTier(totalPoints: number): TierType {
@@ -42,8 +43,8 @@ export class WorkerEntity {
 
   public static isDailyResetNeeded(lastActivityDate?: string): boolean {
     if (!lastActivityDate) return false;
-    const today = new Date().toISOString().split('T')[0];
-    const lastDate = new Date(lastActivityDate).toISOString().split('T')[0];
+    const today = getTodayWibDateString();
+    const lastDate = getWibDateString(lastActivityDate);
     return today !== lastDate;
   }
 

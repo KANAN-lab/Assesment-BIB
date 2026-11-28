@@ -7,7 +7,7 @@ import { SystemConfigService } from '../domain/SystemConfigService';
 import { PaginationControls } from './PaginationControls';
 import { VoucherQRCode } from './VoucherQRCode';
 import { SwalService } from '../domain/SwalService';
-import { formatIndonesianDateTime, formatIndonesianDate } from '../lib/dateUtils';
+import { formatIndonesianDateTime, formatIndonesianDate, getTodayWibDateString } from '../lib/dateUtils';
 import {
   Coins,
   CheckCircle,
@@ -266,7 +266,7 @@ export const RewardMarketplace: React.FC<RewardMarketplaceProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', `riwayat_reward_${new Date().toISOString().split('T')[0]}.csv`);
+    link.setAttribute('download', `riwayat_reward_${getTodayWibDateString()}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);

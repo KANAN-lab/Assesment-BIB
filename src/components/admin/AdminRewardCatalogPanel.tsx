@@ -4,7 +4,7 @@ import { createPortal } from 'react-dom';
 import {
   ShoppingBag, Plus, Search, AlertTriangle, History, Coins, PackagePlus,
   Edit2, Trash2, X, Check, Loader2, AlertCircle, PackageCheck,
-  PenTool, RotateCcw, FileSignature, Eye, QrCode, ShieldCheck, Database
+  PenTool, RotateCcw, FileSignature, Eye, QrCode, ShieldCheck, Database, ExternalLink
 } from 'lucide-react';
 import { RewardItem, TierType, WorkerProfile } from '../../types/assessment';
 import { CustomDataTable, DataTableColumn } from '../CustomDataTable';
@@ -15,12 +15,24 @@ import {
   updateRedemptionStatus,
   AdminRedemptionRecord
 } from '../../lib/supabaseService';
+import { supabase } from '../../lib/supabaseClient';
+import { uploadFileToGoogleDrive, formatGoogleDriveImageUrl } from '../../lib/googleDriveService';
 import { DataMaintenanceService } from '../../lib/dataMaintenanceService';
 import { OtpGate } from '../DataMaintenancePanel';
 import { SystemConfigService } from '../../domain/SystemConfigService';
 import { SwalService } from '../../domain/SwalService';
 import { RewardVoucherScannerModal } from '../RewardVoucherScannerModal';
 import { formatIndonesianDateTime } from '../../lib/dateUtils';
+
+const REWARD_SIG_CLOUD_KEY = 'bib_reward_signatures_v1';
+
+interface RewardSignatureProof {
+  url: string;
+  webViewLink?: string;
+  receiverName?: string;
+  signedAt?: string;
+  storage: 'gdrive' | 'cloud_compact' | 'local';
+}
 
 interface AdminRewardCatalogPanelProps {
   rewardCatalog: RewardItem[];
@@ -73,11 +85,91 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
   const [fulfillingLog, setFulfillingLog] = useState<AdminRedemptionRecord | null>(null);
   const [receiverName, setReceiverName] = useState('');
   const [receiverNik, setReceiverNik] = useState('');
-  const [viewingSignatureUrl, setViewingSignatureUrl] = useState<string | null>(null);
+  const [viewingSignature, setViewingSignature] = useState<RewardSignatureProof | null>(null);
+  const [rewardSignatures, setRewardSignatures] = useState<Record<string, RewardSignatureProof>>({});
   const [showVoucherScanner, setShowVoucherScanner] = useState(false);
   const canvasRef = React.useRef<HTMLCanvasElement | null>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [hasDrawn, setHasDrawn] = useState(false);
+
+  const createCompactSignatureDataUrl = (sourceCanvas: HTMLCanvasElement): string => {
+    try {
+      const compact = document.createElement('canvas');
+      compact.width = 260;
+      compact.height = 85;
+      const ctx = compact.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(sourceCanvas, 0, 0, compact.width, compact.height);
+        return compact.toDataURL('image/png');
+      }
+    } catch {}
+    return sourceCanvas.toDataURL('image/png');
+  };
+
+  const loadRewardSignaturesFromCloud = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', REWARD_SIG_CLOUD_KEY)
+        .maybeSingle();
+
+      if (!error && data?.value) {
+        const parsed = JSON.parse(data.value);
+        if (parsed && typeof parsed === 'object') {
+          setRewardSignatures(parsed);
+        }
+      }
+    } catch (err) {
+      console.warn('[AdminRewardCatalogPanel] Gagal memuat indeks TTD cloud:', err);
+    }
+  };
+
+  const saveRewardSignatureToCloud = async (
+    redemptionId: string,
+    proof: RewardSignatureProof
+  ): Promise<boolean> => {
+    try {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', REWARD_SIG_CLOUD_KEY)
+        .maybeSingle();
+
+      let currentMap: Record<string, RewardSignatureProof> = {};
+      if (data?.value) {
+        try {
+          const parsed = JSON.parse(data.value);
+          if (parsed && typeof parsed === 'object') currentMap = parsed;
+        } catch {}
+      }
+
+      const nextMap: Record<string, RewardSignatureProof> = {
+        ...currentMap,
+        [redemptionId]: proof,
+      };
+
+      const { error } = await supabase.from('system_settings').upsert(
+        {
+          key: REWARD_SIG_CLOUD_KEY,
+          value: JSON.stringify(nextMap),
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'key' }
+      );
+
+      if (error) {
+        console.warn('[AdminRewardCatalogPanel] Gagal simpan TTD ke cloud:', error.message);
+        return false;
+      }
+
+      setRewardSignatures(nextMap);
+      return true;
+    } catch (err) {
+      console.warn('[AdminRewardCatalogPanel] Exception saveRewardSignatureToCloud:', err);
+      return false;
+    }
+  };
 
   const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
@@ -147,15 +239,76 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
       return;
     }
     const canvas = canvasRef.current;
-    const sigDataUrl = canvas ? canvas.toDataURL('image/png') : null;
 
     setFulfillingRewardId(fulfillingLog.id);
     try {
-      if (sigDataUrl) {
-        localStorage.setItem(`gappy_reward_sig_${fulfillingLog.id}`, sigDataUrl);
+      let cloudStored = false;
+      let proofStorageLabel = 'Cloud';
+
+      if (canvas) {
+        const signedAt = new Date().toISOString();
+        const safeReceiver = receiverName.trim() || fulfillingLog.workerName || 'Penerima';
+        let proof: RewardSignatureProof | null = null;
+
+        // 1. Coba unggah gambar PNG TTD ke Google Drive Gateway agar bebas beban database & permanen
+        try {
+          const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+          if (blob) {
+            const sigFile = new File([blob], `TTD_Reward_${fulfillingLog.redemptionCode}.png`, {
+              type: 'image/png',
+            });
+            const gdriveRes = await uploadFileToGoogleDrive(sigFile, {
+              workerId: fulfillingLog.workerId,
+              workerName: safeReceiver,
+              moduleCategory: 'Katalog_Reward',
+              customFilename: `TTD_Reward_${fulfillingLog.redemptionCode}_${Date.now()}.png`,
+              compressImage: false,
+            });
+            if (gdriveRes.success && (gdriveRes.directUrl || gdriveRes.webViewLink)) {
+              proof = {
+                url: gdriveRes.directUrl || gdriveRes.webViewLink!,
+                webViewLink: gdriveRes.webViewLink,
+                receiverName: safeReceiver,
+                signedAt,
+                storage: 'gdrive',
+              };
+              proofStorageLabel = 'Google Drive';
+            }
+          }
+        } catch (uploadErr) {
+          console.warn('[AdminRewardCatalogPanel] Upload TTD ke Google Drive dilewati, pakai fallback cloud:', uploadErr);
+        }
+
+        // 2. Fallback: kompres TTD menjadi PNG ringkas (~3-6KB) agar tetap tersinkronisasi lintas PC di Supabase
+        if (!proof) {
+          proof = {
+            url: createCompactSignatureDataUrl(canvas),
+            receiverName: safeReceiver,
+            signedAt,
+            storage: 'cloud_compact',
+          };
+          proofStorageLabel = 'Cloud Database';
+        }
+
+        cloudStored = await saveRewardSignatureToCloud(fulfillingLog.id, proof);
+
+        if (cloudStored) {
+          try {
+            localStorage.removeItem(`gappy_reward_sig_${fulfillingLog.id}`);
+          } catch {}
+        } else {
+          // Fallback terakhir jika jaringan offline saat simpan indeks TTD
+          try {
+            localStorage.setItem(`gappy_reward_sig_${fulfillingLog.id}`, proof.url);
+            proofStorageLabel = 'Cache Lokal';
+          } catch {}
+        }
       }
+
       await fulfillRedemption(fulfillingLog.id, currentAdminId || 'SYS-ADMIN');
-      showToast(`Voucher ${fulfillingLog.redemptionCode} diserahkan ke ${receiverName} (TTD Digital terverifikasi).`);
+      showToast(
+        `Voucher ${fulfillingLog.redemptionCode} diserahkan ke ${receiverName} (Bukti TTD tersimpan di ${proofStorageLabel}).`
+      );
       setFulfillingLog(null);
       loadAllRedemptions();
     } catch (err: any) {
@@ -215,12 +368,12 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
 
   useEffect(() => {
     const isAnyModalOpen =
-      showRewardModal || fulfillingLog !== null || viewingSignatureUrl !== null || showMonthlyResetModal;
+      showRewardModal || fulfillingLog !== null || viewingSignature !== null || showMonthlyResetModal;
     if (isAnyModalOpen) {
       document.body.style.overflow = 'hidden';
       const handleKeyDown = (e: KeyboardEvent) => {
         if (e.key === 'Escape') {
-          if (viewingSignatureUrl) setViewingSignatureUrl(null);
+          if (viewingSignature) setViewingSignature(null);
           else if (fulfillingLog) setFulfillingLog(null);
           else if (showMonthlyResetModal) setShowMonthlyResetModal(false);
           else if (showRewardModal) setShowRewardModal(false);
@@ -234,7 +387,7 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
     } else {
       document.body.style.overflow = 'unset';
     }
-  }, [showRewardModal, fulfillingLog, viewingSignatureUrl, showMonthlyResetModal]);
+  }, [showRewardModal, fulfillingLog, viewingSignature, showMonthlyResetModal]);
 
   useEffect(() => {
     const handleConfigUpdate = (e: any) => {
@@ -247,8 +400,8 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
 
   const loadAllRedemptions = () => {
     setLoadingRedemptions(true);
-    fetchAllRedemptionHistory()
-      .then(setAllRedemptions)
+    Promise.all([fetchAllRedemptionHistory(), loadRewardSignaturesFromCloud()])
+      .then(([history]) => setAllRedemptions(history))
       .catch(console.warn)
       .finally(() => setLoadingRedemptions(false));
   };
@@ -462,16 +615,33 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
         const isBusy = fulfillingRewardId === log.id || cancellingRewardId === log.id || updatingStatusId === log.id;
 
         if (isCompleted) {
-          const sig = localStorage.getItem(`gappy_reward_sig_${log.id}`);
+          const cloudProof = rewardSignatures[log.id];
+          const legacyLocalSig = !cloudProof ? localStorage.getItem(`gappy_reward_sig_${log.id}`) : null;
+          const resolvedProof: RewardSignatureProof | null =
+            cloudProof ||
+            (legacyLocalSig
+              ? {
+                  url: legacyLocalSig,
+                  receiverName: log.workerName,
+                  storage: 'local',
+                }
+              : null);
+
           return (
             <div className="flex items-center justify-center gap-1.5">
               <span className="text-[10px] text-zinc-500 font-bold">Selesai</span>
-              {sig && (
+              {resolvedProof && (
                 <button
                   type="button"
-                  onClick={() => setViewingSignatureUrl(sig)}
+                  onClick={() => setViewingSignature(resolvedProof)}
                   className="px-1.5 py-0.5 rounded bg-zinc-800 hover:bg-zinc-700 text-emerald-400 border border-emerald-500/30 text-[10px] font-bold transition flex items-center gap-1"
-                  title="Lihat Bukti Tanda Tangan Digital"
+                  title={
+                    resolvedProof.storage === 'gdrive'
+                      ? 'Lihat Bukti TTD Digital (Tersimpan di Google Drive)'
+                      : resolvedProof.storage === 'cloud_compact'
+                      ? 'Lihat Bukti TTD Digital (Tersinkron Cloud)'
+                      : 'Lihat Bukti TTD Digital (Cache Lokal)'
+                  }
                 >
                   <FileSignature className="w-3 h-3" />
                   <span>Bukti TTD</span>
@@ -547,7 +717,7 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
         );
       },
     },
-  ], [fulfillingRewardId, cancellingRewardId, updatingStatusId, workers]);
+  ], [fulfillingRewardId, cancellingRewardId, updatingStatusId, workers, rewardSignatures]);
 
   const handleOpenCreateRewardModal = () => {
     setEditingReward(null);
@@ -1378,28 +1548,69 @@ export const AdminRewardCatalogPanel: React.FC<AdminRewardCatalogPanelProps> = (
       )}
 
       {/* ─── MODAL: PREVIEW BUKTI TANDA TANGAN DIGITAL ─── */}
-      {viewingSignatureUrl && createPortal(
+      {viewingSignature && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl">
+          <div
+            className="bg-zinc-900 border border-zinc-800 rounded-2xl w-full max-w-sm overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="p-3.5 border-b border-zinc-800 flex items-center justify-between bg-zinc-950">
               <div className="flex items-center gap-2">
                 <FileSignature className="w-4 h-4 text-emerald-400" />
                 <h4 className="text-xs font-bold text-white">Bukti Tanda Tangan Penerima</h4>
               </div>
               <button
-                onClick={() => setViewingSignatureUrl(null)}
+                type="button"
+                onClick={() => setViewingSignature(null)}
                 className="p-1 rounded-lg text-zinc-400 hover:text-white"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
-            <div className="p-4 bg-zinc-950 flex flex-col items-center justify-center">
+            <div className="p-4 bg-zinc-950 flex flex-col items-center justify-center space-y-2.5">
               <img
-                src={viewingSignatureUrl}
+                src={formatGoogleDriveImageUrl(viewingSignature.url)}
                 alt="Bukti Tanda Tangan Digital"
                 className="max-h-36 object-contain border border-zinc-800 rounded-xl p-2 bg-zinc-900/60"
               />
-              <p className="text-[10px] text-zinc-500 mt-2">Terekam saat proses serah-terima fisik reward.</p>
+              <div className="text-center space-y-1">
+                {viewingSignature.receiverName && (
+                  <p className="text-xs font-bold text-zinc-200">Diterima oleh: {viewingSignature.receiverName}</p>
+                )}
+                {viewingSignature.signedAt && (
+                  <p className="text-[10px] text-zinc-400 font-mono">
+                    {formatIndonesianDateTime(viewingSignature.signedAt)}
+                  </p>
+                )}
+                <div className="flex items-center justify-center gap-2 pt-1">
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                      viewingSignature.storage === 'gdrive'
+                        ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                        : viewingSignature.storage === 'cloud_compact'
+                        ? 'bg-sky-500/10 text-sky-300 border-sky-500/30'
+                        : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                    }`}
+                  >
+                    {viewingSignature.storage === 'gdrive'
+                      ? 'Arsip Cloud Google Drive'
+                      : viewingSignature.storage === 'cloud_compact'
+                      ? 'Arsip Cloud Database'
+                      : 'Cache Lokal Browser'}
+                  </span>
+                  {viewingSignature.webViewLink && (
+                    <a
+                      href={viewingSignature.webViewLink}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 inline-flex items-center gap-1"
+                    >
+                      <span>Buka di Drive</span>
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>,

@@ -45,6 +45,8 @@ import {
 import { IdempotencyEngine } from '../domain/IdempotencyEngine';
 import { SystemConfigService } from '../domain/SystemConfigService';
 import { SwalService } from '../domain/SwalService';
+import { getTodayWibDateString } from '../lib/dateUtils';
+import { supabase } from '../lib/supabaseClient';
 
 interface Audit5sPanelProps {
   workers: WorkerProfile[];
@@ -70,7 +72,7 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
   // New Audit Form State
   const [selectedZoneId, setSelectedZoneId] = useState('');
   const [auditorName, setAuditorName] = useState(currentUserName);
-  const [auditDate, setAuditDate] = useState(new Date().toISOString().slice(0, 10));
+  const [auditDate, setAuditDate] = useState(getTodayWibDateString());
   const [scores, setScores] = useState<Audit5sPillars>({
     ringkas_seiri: 85,
     rapi_seiton: 85,
@@ -100,9 +102,28 @@ export const Audit5sPanel: React.FC<Audit5sPanelProps> = ({
 
   useEffect(() => {
     reloadData();
+    // Tarik data Zona & Riwayat Audit 5R terbaru dari Supabase agar sinkron lintas PC/tablet
+    Audit5sService.fetchFromSupabase()
+      .then(() => reloadData())
+      .catch(() => {});
+
     const handler = () => reloadData();
     window.addEventListener('gappy_5s_updated', handler);
-    return () => window.removeEventListener('gappy_5s_updated', handler);
+
+    const channel = supabase
+      .channel('realtime_audit_5s_sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'warehouse_zones_5s' }, () => {
+        Audit5sService.fetchFromSupabase().then(() => reloadData()).catch(() => {});
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'audit_5s_records' }, () => {
+        Audit5sService.fetchFromSupabase().then(() => reloadData()).catch(() => {});
+      })
+      .subscribe();
+
+    return () => {
+      window.removeEventListener('gappy_5s_updated', handler);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   // Stats KPI

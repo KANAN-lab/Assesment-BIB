@@ -14,6 +14,7 @@ import {
   TrainingAssignmentService,
   TrainingAssignmentRecord,
 } from '../domain/TrainingAssignmentService';
+import { supabase } from '../lib/supabaseClient';
 
 interface WorkerTrainingAssignmentCardProps {
   workerId: string;
@@ -34,6 +35,10 @@ export const WorkerTrainingAssignmentCard: React.FC<WorkerTrainingAssignmentCard
 
   useEffect(() => {
     loadAssignments();
+    // Tarik penugasan terbaru dari Supabase agar tugas dari PC Supervisor langsung tampil di HP Pekerja
+    TrainingAssignmentService.fetchFromSupabase()
+      .then(() => loadAssignments())
+      .catch(() => {});
 
     const handleUpdate = () => {
       loadAssignments();
@@ -42,11 +47,31 @@ export const WorkerTrainingAssignmentCard: React.FC<WorkerTrainingAssignmentCard
     window.addEventListener('bib_training_assignments_updated', handleUpdate);
     window.addEventListener('gappy_notification_updated', handleUpdate);
 
+    // Realtime subscription pada system_settings untuk update penugasan instan lintas perangkat
+    const channel = supabase
+      .channel(`realtime_training_worker_${workerId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'system_settings',
+          filter: `key=eq.${TrainingAssignmentService.CLOUD_SETTINGS_KEY}`,
+        },
+        () => {
+          TrainingAssignmentService.fetchFromSupabase()
+            .then(() => loadAssignments())
+            .catch(() => {});
+        }
+      )
+      .subscribe();
+
     return () => {
       window.removeEventListener('bib_training_assignments_updated', handleUpdate);
       window.removeEventListener('gappy_notification_updated', handleUpdate);
+      supabase.removeChannel(channel);
     };
-  }, [loadAssignments]);
+  }, [loadAssignments, workerId]);
 
   if (!assignments || assignments.length === 0) {
     return null;

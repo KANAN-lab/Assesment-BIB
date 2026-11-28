@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { getTodayWibDateString } from '../lib/dateUtils';
 import SearchableSelect, { SelectOption } from './ui/SearchableSelect';
 import { createPortal } from 'react-dom';
 import {
@@ -128,7 +129,7 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
   const [distPpeItemId, setDistPpeItemId] = useState('');
   const [distSize, setDistSize] = useState('');
   const [distQuantity, setDistQuantity] = useState(1);
-  const [distDate, setDistDate] = useState(new Date().toISOString().split('T')[0]);
+  const [distDate, setDistDate] = useState(getTodayWibDateString());
   const [distSerial, setDistSerial] = useState('');
   const [distNotes, setDistNotes] = useState('');
 
@@ -267,7 +268,7 @@ export const PpeManagementPanel: React.FC<PpeManagementPanelProps> = ({
     setDistPpeItemId('');
     setDistSize('');
     setDistQuantity(1);
-    setDistDate(new Date().toISOString().split('T')[0]);
+    setDistDate(getTodayWibDateString());
     setDistSerial('');
     setDistNotes('');
     setIsDistributeModalOpen(true);
